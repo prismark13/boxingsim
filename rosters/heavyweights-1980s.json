@@ -1,0 +1,86 @@
+[
+  {
+    "Name": "Larry Holmes", "Nickname": "The Easton Assassin",
+    "WeightClass": "Heavyweight", "Age": 32,
+    "Power": 84, "Chin": 86, "Speed": 82, "Defense": 88, "Stamina": 90,
+    "Accuracy": 93, "Conditioning": 88, "CutResistance": 80, "Aggression": 74, "Heart": 90,
+    "Wins": 69, "Losses": 6, "Draws": 0, "KnockoutWins": 44
+  },
+  {
+    "Name": "Michael Spinks", "Nickname": "Jinx",
+    "WeightClass": "Heavyweight", "Age": 31,
+    "Power": 81, "Chin": 78, "Speed": 86, "Defense": 88, "Stamina": 84,
+    "Accuracy": 86, "Conditioning": 86, "CutResistance": 80, "Aggression": 72, "Heart": 88,
+    "Wins": 31, "Losses": 1, "Draws": 0, "KnockoutWins": 21
+  },
+  {
+    "Name": "Gerry Cooney", "Nickname": "Gentleman",
+    "WeightClass": "Heavyweight", "Age": 25,
+    "Power": 95, "Chin": 72, "Speed": 72, "Defense": 67, "Stamina": 64,
+    "Accuracy": 78, "Conditioning": 64, "CutResistance": 72, "Aggression": 84, "Heart": 74,
+    "Wins": 28, "Losses": 3, "Draws": 0, "KnockoutWins": 24
+  },
+  {
+    "Name": "Tim Witherspoon", "Nickname": "Terrible Tim",
+    "WeightClass": "Heavyweight", "Age": 28,
+    "Power": 85, "Chin": 84, "Speed": 78, "Defense": 80, "Stamina": 74,
+    "Accuracy": 80, "Conditioning": 70, "CutResistance": 78, "Aggression": 80, "Heart": 82,
+    "Wins": 55, "Losses": 13, "Draws": 1, "KnockoutWins": 38
+  },
+  {
+    "Name": "Pinklon Thomas", "Nickname": "Pink",
+    "WeightClass": "Heavyweight", "Age": 27,
+    "Power": 82, "Chin": 82, "Speed": 78, "Defense": 83, "Stamina": 80,
+    "Accuracy": 87, "Conditioning": 78, "CutResistance": 78, "Aggression": 76, "Heart": 80,
+    "Wins": 43, "Losses": 7, "Draws": 1, "KnockoutWins": 34
+  },
+  {
+    "Name": "Greg Page", "Nickname": "The Flea",
+    "WeightClass": "Heavyweight", "Age": 26,
+    "Power": 85, "Chin": 80, "Speed": 83, "Defense": 80, "Stamina": 70,
+    "Accuracy": 83, "Conditioning": 66, "CutResistance": 78, "Aggression": 74, "Heart": 74,
+    "Wins": 58, "Losses": 17, "Draws": 1, "KnockoutWins": 48
+  },
+  {
+    "Name": "Michael Dokes", "Nickname": "Dynamite",
+    "WeightClass": "Heavyweight", "Age": 26,
+    "Power": 85, "Chin": 78, "Speed": 84, "Defense": 80, "Stamina": 72,
+    "Accuracy": 84, "Conditioning": 68, "CutResistance": 78, "Aggression": 82, "Heart": 78,
+    "Wins": 53, "Losses": 6, "Draws": 2, "KnockoutWins": 34
+  },
+  {
+    "Name": "Tony Tucker", "Nickname": "TNT",
+    "WeightClass": "Heavyweight", "Age": 28,
+    "Power": 85, "Chin": 82, "Speed": 78, "Defense": 82, "Stamina": 80,
+    "Accuracy": 82, "Conditioning": 78, "CutResistance": 74, "Aggression": 76, "Heart": 85,
+    "Wins": 57, "Losses": 7, "Draws": 0, "KnockoutWins": 47
+  },
+  {
+    "Name": "Trevor Berbick", "Nickname": "The Fighting Preacher",
+    "WeightClass": "Heavyweight", "Age": 29,
+    "Power": 80, "Chin": 85, "Speed": 72, "Defense": 76, "Stamina": 85,
+    "Accuracy": 76, "Conditioning": 82, "CutResistance": 80, "Aggression": 78, "Heart": 85,
+    "Wins": 49, "Losses": 11, "Draws": 1, "KnockoutWins": 33
+  },
+  {
+    "Name": "James Smith", "Nickname": "Bonecrusher",
+    "WeightClass": "Heavyweight", "Age": 30,
+    "Power": 89, "Chin": 80, "Speed": 68, "Defense": 66, "Stamina": 72,
+    "Accuracy": 72, "Conditioning": 74, "CutResistance": 78, "Aggression": 78, "Heart": 80,
+    "Wins": 44, "Losses": 17, "Draws": 1, "KnockoutWins": 32
+  },
+  {
+    "Name": "Frank Bruno", "Nickname": "The Body Snatcher",
+    "WeightClass": "Heavyweight", "Age": 26,
+    "Power": 91, "Chin": 71, "Speed": 74, "Defense": 70, "Stamina": 68,
+    "Accuracy": 80, "Conditioning": 72, "CutResistance": 74, "Aggression": 82, "Heart": 84,
+    "Wins": 40, "Losses": 5, "Draws": 0, "KnockoutWins": 38
+  },
+  {
+    "Name": "Tony Tubbs", "Nickname": "TNT",
+    "WeightClass": "Heavyweight", "Age": 27,
+    "Power": 77, "Chin": 80, "Speed": 83, "Defense": 85, "Stamina": 72,
+    "Accuracy": 85, "Conditioning": 66, "CutResistance": 78, "Aggression": 70, "Heart": 76,
+    "Wins": 47, "Losses": 10, "Draws": 0, "KnockoutWins": 25
+  }
+]

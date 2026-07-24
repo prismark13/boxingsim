@@ -1,0 +1,169 @@
+[
+  { "Name": "Larry Holmes", "Nickname": "The Easton Assassin", "WeightClass": "Heavyweight",
+    "Age": 32, "DateOfBirth": "1949-11-03",
+    "Power": 84, "Chin": 88, "Speed": 84, "Defense": 90, "Stamina": 90,
+    "Accuracy": 94, "Conditioning": 88, "CutResistance": 80, "Aggression": 76, "Heart": 92,
+    "Wins": 48, "Losses": 0, "Draws": 0, "KnockoutWins": 34 },
+
+  { "Name": "Ken Norton", "Nickname": "The Black Hercules", "WeightClass": "Heavyweight",
+    "Age": 33, "DateOfBirth": "1943-08-09",
+    "Power": 84, "Chin": 80, "Speed": 80, "Defense": 84, "Stamina": 86,
+    "Accuracy": 80, "Conditioning": 86, "CutResistance": 78, "Aggression": 80, "Heart": 86,
+    "Wins": 42, "Losses": 7, "Draws": 1, "KnockoutWins": 33 },
+
+  { "Name": "Mike Weaver", "Nickname": "Hercules", "WeightClass": "Heavyweight",
+    "Age": 27, "DateOfBirth": "1952-06-14",
+    "Power": 90, "Chin": 80, "Speed": 74, "Defense": 72, "Stamina": 82,
+    "Accuracy": 76, "Conditioning": 80, "CutResistance": 76, "Aggression": 82, "Heart": 86,
+    "Wins": 41, "Losses": 18, "Draws": 1, "KnockoutWins": 28 },
+
+  { "Name": "Earnie Shavers", "Nickname": "The Acorn", "WeightClass": "Heavyweight",
+    "Age": 34, "DateOfBirth": "1944-08-31",
+    "Power": 98, "Chin": 74, "Speed": 76, "Defense": 70, "Stamina": 68,
+    "Accuracy": 80, "Conditioning": 70, "CutResistance": 76, "Aggression": 90, "Heart": 80,
+    "Wins": 74, "Losses": 14, "Draws": 1, "KnockoutWins": 68 },
+
+  { "Name": "Muhammad Ali", "Nickname": "The Greatest", "WeightClass": "Heavyweight",
+    "Age": 28, "DateOfBirth": "1942-01-17",
+    "Power": 82, "Chin": 92, "Speed": 94, "Defense": 90, "Stamina": 90,
+    "Accuracy": 88, "Conditioning": 88, "CutResistance": 78, "Aggression": 72, "Heart": 96,
+    "Wins": 56, "Losses": 5, "Draws": 0, "KnockoutWins": 37 },
+
+  { "Name": "Trevor Berbick", "Nickname": "The Fighting Preacher", "WeightClass": "Heavyweight",
+    "Age": 27, "DateOfBirth": "1954-08-01",
+    "Power": 80, "Chin": 85, "Speed": 72, "Defense": 76, "Stamina": 85,
+    "Accuracy": 76, "Conditioning": 82, "CutResistance": 80, "Aggression": 78, "Heart": 85,
+    "Wins": 49, "Losses": 11, "Draws": 1, "KnockoutWins": 33 },
+
+  { "Name": "Leon Spinks", "Nickname": "Neon Leon", "WeightClass": "Heavyweight",
+    "Age": 28, "DateOfBirth": "1953-07-11",
+    "Power": 82, "Chin": 74, "Speed": 80, "Defense": 66, "Stamina": 72,
+    "Accuracy": 72, "Conditioning": 70, "CutResistance": 72, "Aggression": 90, "Heart": 86,
+    "Wins": 26, "Losses": 17, "Draws": 3, "KnockoutWins": 14 },
+
+  { "Name": "Gerry Cooney", "Nickname": "Gentleman", "WeightClass": "Heavyweight",
+    "Age": 25, "DateOfBirth": "1956-08-04",
+    "Power": 95, "Chin": 72, "Speed": 72, "Defense": 67, "Stamina": 64,
+    "Accuracy": 78, "Conditioning": 64, "CutResistance": 72, "Aggression": 84, "Heart": 74,
+    "Wins": 25, "Losses": 0, "Draws": 0, "KnockoutWins": 21 },
+
+  { "Name": "Tim Witherspoon", "Nickname": "Terrible Tim", "WeightClass": "Heavyweight",
+    "Age": 25, "DateOfBirth": "1957-12-27",
+    "Power": 85, "Chin": 84, "Speed": 78, "Defense": 80, "Stamina": 74,
+    "Accuracy": 80, "Conditioning": 70, "CutResistance": 78, "Aggression": 80, "Heart": 82,
+    "Wins": 15, "Losses": 0, "Draws": 0, "KnockoutWins": 11 },
+
+  { "Name": "Marvis Frazier", "WeightClass": "Heavyweight",
+    "Age": 23, "DateOfBirth": "1960-09-10",
+    "Power": 76, "Chin": 70, "Speed": 80, "Defense": 76, "Stamina": 80,
+    "Accuracy": 78, "Conditioning": 80, "CutResistance": 76, "Aggression": 78, "Heart": 82,
+    "Wins": 10, "Losses": 0, "Draws": 0, "KnockoutWins": 8 },
+
+  { "Name": "James Smith", "Nickname": "Bonecrusher", "WeightClass": "Heavyweight",
+    "Age": 31, "DateOfBirth": "1953-04-03",
+    "Power": 89, "Chin": 80, "Speed": 68, "Defense": 66, "Stamina": 72,
+    "Accuracy": 72, "Conditioning": 74, "CutResistance": 78, "Aggression": 78, "Heart": 80,
+    "Wins": 14, "Losses": 5, "Draws": 0, "KnockoutWins": 11 },
+
+  { "Name": "Alfredo Evangelista", "WeightClass": "Heavyweight", "Age": 24, "DateOfBirth": "1954-12-03",
+    "AutoRate": true, "Tier": "Gatekeeper",
+    "Wins": 62, "Losses": 13, "Draws": 4, "KnockoutWins": 43 },
+
+  { "Name": "Ossie Ocasio", "WeightClass": "Heavyweight", "Age": 23, "DateOfBirth": "1955-08-12",
+    "AutoRate": true, "Tier": "Gatekeeper",
+    "Wins": 23, "Losses": 13, "Draws": 1, "KnockoutWins": 12 },
+
+  { "Name": "Lorenzo Zanon", "WeightClass": "Heavyweight", "Age": 29,
+    "AutoRate": true, "Tier": "Gatekeeper",
+    "Wins": 27, "Losses": 6, "Draws": 3, "KnockoutWins": 9 },
+
+  { "Name": "Leroy Jones", "WeightClass": "Heavyweight", "Age": 30,
+    "AutoRate": true, "Tier": "TopContender",
+    "Wins": 25, "Losses": 1, "Draws": 1, "KnockoutWins": 13 },
+
+  { "Name": "Scott LeDoux", "Nickname": "The Fighting Frenchman", "WeightClass": "Heavyweight", "Age": 31,
+    "AutoRate": true, "Tier": "Gatekeeper",
+    "Wins": 33, "Losses": 13, "Draws": 4, "KnockoutWins": 22 },
+
+  { "Name": "Renaldo Snipes", "WeightClass": "Heavyweight", "Age": 25,
+    "AutoRate": true, "Tier": "TopContender",
+    "Wins": 39, "Losses": 8, "Draws": 1, "KnockoutWins": 22 },
+
+  { "Name": "Randall Cobb", "Nickname": "Tex", "WeightClass": "Heavyweight", "Age": 28, "DateOfBirth": "1950-05-07",
+    "AutoRate": true, "Tier": "Gatekeeper",
+    "Wins": 43, "Losses": 7, "Draws": 1, "KnockoutWins": 36 },
+
+  { "Name": "Lucien Rodriguez", "WeightClass": "Heavyweight", "Age": 25,
+    "AutoRate": true, "Tier": "Gatekeeper",
+    "Wins": 39, "Losses": 12, "Draws": 1, "KnockoutWins": 20 },
+
+  { "Name": "Scott Frank", "WeightClass": "Heavyweight", "Age": 28,
+    "AutoRate": true, "Tier": "Journeyman",
+    "Wins": 22, "Losses": 1, "Draws": 1, "KnockoutWins": 17 },
+
+  { "Name": "David Bey", "WeightClass": "Heavyweight", "Age": 28,
+    "AutoRate": true, "Tier": "Gatekeeper",
+    "Wins": 18, "Losses": 11, "Draws": 1, "KnockoutWins": 14 },
+
+  { "Name": "Carl Williams", "Nickname": "The Truth", "WeightClass": "Heavyweight", "Age": 25, "DateOfBirth": "1959-11-03",
+    "AutoRate": true, "Tier": "TopContender",
+    "Wins": 30, "Losses": 10, "Draws": 0, "KnockoutWins": 21 },
+
+  { "Name": "Mike Tyson", "Nickname": "Iron", "WeightClass": "Heavyweight",
+    "Age": 22, "DateOfBirth": "1966-06-30",
+    "Power": 97, "Chin": 84, "Speed": 90, "Defense": 82, "Stamina": 80,
+    "Accuracy": 86, "Conditioning": 82, "CutResistance": 75, "Aggression": 96, "Heart": 80,
+    "Wins": 37, "Losses": 0, "Draws": 0, "KnockoutWins": 33 },
+
+  { "Name": "Michael Spinks", "Nickname": "Jinx", "WeightClass": "Heavyweight",
+    "Age": 31, "DateOfBirth": "1956-07-13",
+    "Power": 81, "Chin": 78, "Speed": 86, "Defense": 88, "Stamina": 84,
+    "Accuracy": 86, "Conditioning": 86, "CutResistance": 80, "Aggression": 72, "Heart": 88,
+    "Wins": 31, "Losses": 0, "Draws": 0, "KnockoutWins": 21 },
+
+  { "Name": "George Foreman", "Nickname": "Big George", "WeightClass": "Heavyweight",
+    "Age": 25, "DateOfBirth": "1949-01-10",
+    "Power": 99, "Chin": 86, "Speed": 70, "Defense": 72, "Stamina": 66,
+    "Accuracy": 80, "Conditioning": 66, "CutResistance": 82, "Aggression": 92, "Heart": 84,
+    "Wins": 40, "Losses": 0, "Draws": 0, "KnockoutWins": 37 },
+
+  { "Name": "Frank Bruno", "Nickname": "The Body Snatcher", "WeightClass": "Heavyweight",
+    "Age": 22, "DateOfBirth": "1961-11-16",
+    "Power": 91, "Chin": 71, "Speed": 74, "Defense": 70, "Stamina": 68,
+    "Accuracy": 80, "Conditioning": 72, "CutResistance": 74, "Aggression": 82, "Heart": 84,
+    "Wins": 21, "Losses": 0, "Draws": 0, "KnockoutWins": 21 },
+
+  { "Name": "Pinklon Thomas", "Nickname": "Pink", "WeightClass": "Heavyweight",
+    "Age": 26, "DateOfBirth": "1958-02-10",
+    "Power": 82, "Chin": 82, "Speed": 78, "Defense": 83, "Stamina": 80,
+    "Accuracy": 87, "Conditioning": 78, "CutResistance": 78, "Aggression": 76, "Heart": 80,
+    "Wins": 26, "Losses": 0, "Draws": 1, "KnockoutWins": 22 },
+
+  { "Name": "Greg Page", "Nickname": "The Flea", "WeightClass": "Heavyweight",
+    "Age": 23, "DateOfBirth": "1958-10-25",
+    "Power": 85, "Chin": 80, "Speed": 83, "Defense": 80, "Stamina": 70,
+    "Accuracy": 83, "Conditioning": 66, "CutResistance": 78, "Aggression": 74, "Heart": 74,
+    "Wins": 19, "Losses": 0, "Draws": 0, "KnockoutWins": 16 },
+
+  { "Name": "Michael Dokes", "Nickname": "Dynamite", "WeightClass": "Heavyweight",
+    "Age": 24, "DateOfBirth": "1958-08-10",
+    "Power": 85, "Chin": 78, "Speed": 84, "Defense": 80, "Stamina": 72,
+    "Accuracy": 84, "Conditioning": 68, "CutResistance": 78, "Aggression": 82, "Heart": 78,
+    "Wins": 26, "Losses": 0, "Draws": 2, "KnockoutWins": 15 },
+
+  { "Name": "Tony Tucker", "Nickname": "TNT", "WeightClass": "Heavyweight",
+    "Age": 28, "DateOfBirth": "1958-12-27",
+    "Power": 85, "Chin": 82, "Speed": 78, "Defense": 82, "Stamina": 80,
+    "Accuracy": 82, "Conditioning": 78, "CutResistance": 74, "Aggression": 76, "Heart": 85,
+    "Wins": 34, "Losses": 0, "Draws": 1, "KnockoutWins": 29 },
+
+  { "Name": "Tony Tubbs", "WeightClass": "Heavyweight",
+    "Age": 26, "DateOfBirth": "1958-02-15",
+    "Power": 77, "Chin": 80, "Speed": 83, "Defense": 85, "Stamina": 72,
+    "Accuracy": 85, "Conditioning": 66, "CutResistance": 78, "Aggression": 70, "Heart": 76,
+    "Wins": 21, "Losses": 0, "Draws": 0, "KnockoutWins": 14 },
+
+  { "Name": "James Tillis", "Nickname": "Quick", "WeightClass": "Heavyweight", "Age": 24, "DateOfBirth": "1957-07-05",
+    "AutoRate": true, "Tier": "TopContender",
+    "Wins": 20, "Losses": 0, "Draws": 0, "KnockoutWins": 16 }
+]

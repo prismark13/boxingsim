@@ -1,0 +1,218 @@
+@page "/cards"
+@inject FightersService Fighters
+
+<PageTitle>Fighter Cards</PageTitle>
+
+<div class="toolbar">
+    <input placeholder="Search fighters…" @bind="_q" @bind:event="oninput" />
+    <select @bind="_division">
+        <option value="">All weights</option>
+        @foreach (var wc in _divisions) { <option value="@wc">@wc.DisplayName() · @WeightText(wc)</option> }
+    </select>
+    <select @bind="_style">
+        <option value="">All styles</option>
+        @foreach (var s in _styles) { <option value="@s">@s</option> }
+    </select>
+    <select @bind="_sort">
+        <option value="ovr">Sort: Overall</option>
+        <option value="name">Sort: Name</option>
+    </select>
+    <div class="segmented">
+        <button class="@(_view == "grid" ? "on" : "")" @onclick='() => _view = "grid"'>Grid</button>
+        <button class="@(_view == "full" ? "on" : "")" @onclick='() => _view = "full"'>Detailed</button>
+    </div>
+    @if (_all is not null) { <span class="count">@Filtered().Count() of @_all.Count fighters</span> }
+</div>
+
+@if (_all is null)
+{
+    <p class="muted">Loading roster…</p>
+}
+else
+{
+    @if (_view == "grid")
+    {
+        <div class="cardgrid">
+            @foreach (var f in Filtered())
+            {
+                <div class="fcard" @onclick="() => _selected = f">
+                    <div class="fhead">
+                        <div class="fovr" style="color:@Ui.Ovr(f.Class)">@f.Class</div>
+                        <div>
+                            <div class="fname">@f.Name</div>
+                            @if (f.Nickname is not null) { <div class="fnick">“@f.Nickname”</div> }
+                            <div class="fsub"><span class="cc">@Ui.Code(f.Country)</span>@StyleClassifier.Of(f).DisplayName() · @f.Record</div>
+                            <div class="fsub"><span class="wtag">@f.WeightClass.DisplayName() · @WeightText(f.WeightClass)</span></div>
+                        </div>
+                    </div>
+                    <div class="tiles2">
+                        @foreach (var (k, v) in Stats(f))
+                        {
+                            <div class="stat"><span class="k">@k</span><span class="v" style="color:@Ui.Ovr(v)">@v</span></div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="fulllist">
+            @foreach (var f in Filtered())
+            {
+                <div class="fullcard" @onclick="() => _selected = f">
+                    <div class="fc-head">
+                        <div class="fovr" style="color:@Ui.Ovr(f.Class)">@f.Class</div>
+                        <div class="fc-id">
+                            <div class="fname">@f.Name @if (f.Nickname is not null) { <span class="fnick">“@f.Nickname”</span> }</div>
+                            <div class="fsub">
+                                <span class="cc">@Ui.Code(f.Country)</span><span class="wtag">@f.WeightClass.DisplayName() · @WeightText(f.WeightClass)</span> · @StyleClassifier.Of(f).DisplayName()@if (f.DebutYear is int dy) { <text> · debut @dy</text> }@if (!string.IsNullOrEmpty(f.PrimeYears)) { <text> · prime @f.PrimeYears</text> }
+                            </div>
+                            @if (f.Titles is { Count: > 0 }) { <div class="fc-titles">@string.Join(" · ", f.Titles)</div> }
+                        </div>
+                        <div class="fc-rec">
+                            <div class="fc-recbig">@f.Record.Wins-@f.Record.Losses-@f.Record.Draws</div>
+                            <div class="fc-recsub">@f.Record.KnockoutWins KO · @(f.Record.Wins > 0 ? 100 * f.Record.KnockoutWins / f.Record.Wins : 0)% KO rate@(f.Record.KnockoutLosses > 0 ? $" · {f.Record.KnockoutLosses} KO'd" : "")</div>
+                        </div>
+                    </div>
+                    <div class="fc-stats">
+                        @foreach (var (k, v) in Stats(f))
+                        {
+                            <div class="stat"><span class="k">@k</span><span class="v" style="color:@Ui.Ovr(v)">@v</span></div>
+                        }
+                        @foreach (var (k, v) in Secondary(f))
+                        {
+                            <div class="stat sec"><span class="k">@k</span><span class="v" style="color:@Ui.Ovr(v)">@v</span></div>
+                        }
+                    </div>
+                    <div class="fc-arsenal">
+                        <div class="mixbar">
+                            @foreach (var (name, pct) in Arsenal(f)) { <span class="mixseg" style="width:@pct%;background:@ArsenalColor(name)" title="@name @pct%"></span> }
+                        </div>
+                        <div class="mixlegend">
+                            @foreach (var (name, pct) in Arsenal(f)) { <span class="mixk"><i style="background:@ArsenalColor(name)"></i>@name @pct%</span> }
+                            <span class="mixk"><i style="background:var(--accent)"></i>Counter @SecondaryStats.Counter(f)</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (_selected is Boxer sel)
+    {
+        <div class="modal-bg" @onclick="() => _selected = null">
+            <div class="modal" @onclick:stopPropagation="true">
+                <div class="modal-head">
+                    <div class="fovr" style="color:@Ui.Ovr(sel.Class)">@sel.Class</div>
+                    <div>
+                        <div class="pname">@sel.Name</div>
+                        <div class="pmeta">
+                            @if (sel.Nickname is not null) { <span>“@sel.Nickname”</span> }
+                            <span class="cc">@Ui.Code(sel.Country)</span> · @StyleClassifier.Of(sel).DisplayName() · @sel.Record
+                        </div>
+                    </div>
+                    <button class="ghost icon-btn" @onclick="() => _selected = null"><Icon Name="close" Size="16" /></button>
+                </div>
+                <div class="bio">
+                    <div><span class="label">Weight</span> @sel.WeightClass.DisplayName() · @WeightText(sel.WeightClass)</div>
+                    @if (!string.IsNullOrEmpty(sel.Country)) { <div><span class="label">Country</span> @sel.Country</div> }
+                    @if (sel.DebutYear is int dy) { <div><span class="label">Debut</span> @dy</div> }
+                    @if (!string.IsNullOrEmpty(sel.PrimeYears)) { <div><span class="label">Prime</span> @sel.PrimeYears</div> }
+                    @if (sel.Titles is { Count: > 0 }) { <div><span class="label">Titles</span> @string.Join(", ", sel.Titles)</div> }
+                </div>
+                <div class="arsenal">
+                    <div class="label">Punch arsenal</div>
+                    @foreach (var (name, pct) in Arsenal(sel))
+                    {
+                        <div class="pbar"><span class="pbk">@name</span><span class="pbtrack"><span class="pbfill" style="width:@pct%"></span></span><span class="pbv">@pct%</span></div>
+                    }
+                </div>
+                <div class="label" style="margin-bottom:9px;">Secondary ratings</div>
+                <div class="tiles2">
+                    @foreach (var (k, v) in Secondary(sel))
+                    {
+                        <div class="stat"><span class="k">@k</span><span class="v" style="color:@Ui.Ovr(v)">@v</span></div>
+                    }
+                </div>
+                <div class="label" style="margin:13px 0 9px;">Attributes</div>
+                <div class="tiles2">
+                    @foreach (var (k, v) in Stats(sel))
+                    {
+                        <div class="stat"><span class="k">@k</span><span class="v" style="color:@Ui.Ovr(v)">@v</span></div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter, SupplyParameterFromQuery] public string? Q { get; set; }
+
+    private Boxer? _selected;
+    private IReadOnlyList<Boxer>? _all;
+    private string _q = "", _style = "", _sort = "ovr", _view = "grid", _division = "";
+    private readonly string[] _styles = { "Out-Boxer", "Boxer-Puncher", "Slugger", "Swarmer", "Counter-Puncher" };
+    // Heaviest first, and only divisions that actually have fighters loaded.
+    private IReadOnlyList<WeightClass> _divisions = Array.Empty<WeightClass>();
+
+    // A card's weight-class label: the class limit in pounds (heavyweight has no upper limit).
+    private static string WeightText(WeightClass wc) => wc == WeightClass.Heavyweight ? "200+ lb" : $"{wc.WeightLimitLbs()} lb";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _all = await Fighters.GetAsync();
+        _divisions = _all.GroupBy(f => f.WeightClass).Where(g => g.Any())
+                         .Select(g => g.Key).OrderByDescending(wc => (int)wc).ToList();
+        if (!string.IsNullOrEmpty(Q)) _q = Q;
+    }
+
+    private IEnumerable<Boxer> Filtered()
+    {
+        if (_all is null) return Enumerable.Empty<Boxer>();
+        var q = _q.Trim().ToLowerInvariant();
+        var list = _all.Where(f =>
+            (q == "" || f.Name.ToLowerInvariant().Contains(q) || (f.Nickname?.ToLowerInvariant().Contains(q) ?? false))
+            && (_style == "" || StyleClassifier.Of(f).DisplayName() == _style)
+            && (_division == "" || f.WeightClass.ToString() == _division));
+        // A handful of greats campaigned across several weights and so appear in each division's roster.
+        // When browsing all weights, collapse them to a single card (their highest-rated one).
+        if (_division == "")
+            list = list.GroupBy(f => f.Name).Select(g => g.OrderByDescending(x => x.Overall).First());
+        return _sort == "name" ? list.OrderBy(f => f.Name) : list.OrderByDescending(f => f.Overall);
+    }
+
+    private static IEnumerable<(string, int)> Stats(Boxer b)
+    {
+        var r = b.Ratings;
+        int S(int a) => Ratings.Scale15(a);
+        return new[] { ("PWR", S(r.Power)), ("CHN", S(r.Chin)), ("SPD", S(r.Speed)), ("DEF", S(r.Defense)), ("STA", S(r.Stamina)),
+                       ("ACC", S(r.Accuracy)), ("CON", S(r.Conditioning)), ("CUT", S(r.CutResistance)), ("AGG", S(r.Aggression)), ("HRT", S(r.Heart)) };
+    }
+
+    private static IEnumerable<(string, int)> Arsenal(Boxer b)
+    {
+        var d = PunchProfile.Distribution(b);
+        return new[] { ("Jab", d.Jab), ("Cross", d.Cross), ("Hook", d.Hook), ("Uppercut", d.Uppercut), ("Body", d.Body) };
+    }
+
+    private static IEnumerable<(string, int)> Secondary(Boxer b)
+    {
+        var r = b.Ratings;
+        int S(int a) => Ratings.Scale15(a);
+        return new[] { ("KILL", S(SecondaryStats.KillerInstinct(r))), ("DURA", S(SecondaryStats.Durability(r))),
+                       ("RECOV", S(SecondaryStats.Recovery(r))), ("PRESS", S(SecondaryStats.Pressure(r))), ("CNTR", S(SecondaryStats.Counter(b))) };
+    }
+
+    private static string ArsenalColor(string name) => name switch
+    {
+        "Jab" => "var(--faint)",
+        "Cross" => "var(--accent)",
+        "Hook" => "var(--gold)",
+        "Uppercut" => "var(--win)",
+        "Body" => "var(--violet)",
+        _ => "var(--muted)"
+    };
+
+}

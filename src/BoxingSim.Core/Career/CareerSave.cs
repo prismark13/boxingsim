@@ -1,0 +1,187 @@
+using BoxingSim.Core.Model;
+
+namespace BoxingSim.Core.Career;
+
+/// <summary>Flat, serializable snapshot of a career. Fighters are stored once and referenced by Id
+/// so the shared graph (player / champion / offer all point at the same fighter) round-trips cleanly.</summary>
+public sealed class CareerSave
+{
+    public WeightClass Division { get; set; }      // the player's current division
+    public string Date { get; set; } = "";         // yyyy-MM-dd
+    public string OfferDate { get; set; } = "";    // yyyy-MM-dd, when the current offer is booked for
+    public int PlayerId { get; set; }
+    public Dictionary<string, int> Champions { get; set; } = new();      // division name → WBA/World holder Id
+    public Dictionary<string, int> WbcChampions { get; set; } = new();   // division name → WBC holder Id
+    public Dictionary<string, int> IbfChampions { get; set; } = new();   // division name → IBF holder Id
+    public int LastTitleShot { get; set; } = -100;
+    public List<BoxerSave> Roster { get; set; } = new();
+    public List<HistoricalSave> Historical { get; set; } = new();
+    public List<FutureSave> Future { get; set; } = new();
+    public List<CareerEventSave> Log { get; set; } = new();
+    public List<TitleReignSave> Reigns { get; set; } = new();
+    public Dictionary<string, int> Regional { get; set; } = new();   // "Division|Region" → holder Id
+    public OfferSave? Offer { get; set; }
+}
+
+public sealed class TitleReignSave
+{
+    public string Belt { get; set; } = "";
+    public string Won { get; set; } = "";
+    public string? Lost { get; set; }
+    public int Defenses { get; set; }
+}
+
+public sealed class RatingsSave
+{
+    public int Power, Chin, Speed, Defense, Stamina, Accuracy, Conditioning, CutResistance, Aggression, Heart;
+
+    public static RatingsSave From(Ratings r) => new()
+    {
+        Power = r.Power, Chin = r.Chin, Speed = r.Speed, Defense = r.Defense, Stamina = r.Stamina,
+        Accuracy = r.Accuracy, Conditioning = r.Conditioning, CutResistance = r.CutResistance,
+        Aggression = r.Aggression, Heart = r.Heart
+    };
+
+    public Ratings ToRatings() => new()
+    {
+        Power = Power, Chin = Chin, Speed = Speed, Defense = Defense, Stamina = Stamina,
+        Accuracy = Accuracy, Conditioning = Conditioning, CutResistance = CutResistance,
+        Aggression = Aggression, Heart = Heart
+    };
+}
+
+public sealed class BoxerSave
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public string? Nickname { get; set; }
+    public string? Country { get; set; }
+    public string? DateOfBirth { get; set; }
+    public int? DebutYear { get; set; }
+    public string? PrimeYears { get; set; }
+    public WeightClass WeightClass { get; set; }
+    public string? TopWeight { get; set; }
+    public int Age { get; set; }
+    public int PeakAge { get; set; }
+    public int Potential { get; set; }
+    public bool Retired { get; set; }
+    public bool IsChampion { get; set; }
+    public double RankPoints { get; set; }
+    public int Wins, Losses, Draws, KoWins, KoLosses;
+    public RatingsSave Ratings { get; set; } = new();
+    public List<BoutLineSave> History { get; set; } = new();
+
+    public static BoxerSave From(Boxer b)
+    {
+        var s = new BoxerSave
+        {
+            Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, DateOfBirth = b.DateOfBirth,
+            DebutYear = b.DebutYear, PrimeYears = b.PrimeYears, WeightClass = b.WeightClass, TopWeight = b.TopWeight?.ToString(), Age = b.Age,
+            PeakAge = b.PeakAge, Potential = b.Potential, Retired = b.Retired, IsChampion = b.IsChampion,
+            RankPoints = b.RankPoints, Wins = b.Record.Wins, Losses = b.Record.Losses, Draws = b.Record.Draws,
+            KoWins = b.Record.KnockoutWins, KoLosses = b.Record.KnockoutLosses, Ratings = RatingsSave.From(b.Ratings)
+        };
+        foreach (var h in b.History)
+            s.History.Add(new BoutLineSave
+            {
+                Date = h.Date.ToString("yyyy-MM-dd"), Opponent = h.Opponent, Result = h.Result.ToString(),
+                Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst,
+                Note = h.Note, Cards = h.Cards,
+                Rounds = h.Rounds?.Select(r => new BoutRoundSave
+                {
+                    Round = r.Round, LandedFor = r.LandedFor, LandedAgainst = r.LandedAgainst,
+                    KdFor = r.KdFor, KdAgainst = r.KdAgainst, ScoreFor = r.ScoreFor, ScoreAgainst = r.ScoreAgainst
+                }).ToList(),
+                Commentary = h.Commentary?.ToList()
+            });
+        return s;
+    }
+
+    public Boxer ToBoxer()
+    {
+        var b = new Boxer
+        {
+            Id = Id, Name = Name, Nickname = Nickname, Country = Country, DateOfBirth = DateOfBirth,
+            DebutYear = DebutYear, PrimeYears = PrimeYears, WeightClass = WeightClass,
+            TopWeight = Enum.TryParse<WeightClass>(TopWeight, out var tw) ? tw : null, Age = Age,
+            PeakAge = PeakAge, Potential = Potential, Retired = Retired, IsChampion = IsChampion,
+            RankPoints = RankPoints, Ratings = Ratings.ToRatings()
+        };
+        b.Record.Wins = Wins; b.Record.Losses = Losses; b.Record.Draws = Draws;
+        b.Record.KnockoutWins = KoWins; b.Record.KnockoutLosses = KoLosses;
+        foreach (var h in History)
+            b.History.Add(new BoutLine
+            {
+                Date = DateOnly.TryParse(h.Date, out var d) ? d : default, Opponent = h.Opponent,
+                Result = string.IsNullOrEmpty(h.Result) ? 'D' : h.Result[0], Method = h.Method,
+                Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst,
+                Note = h.Note, Cards = h.Cards,
+                Rounds = h.Rounds?.Select(r => new BoutRound
+                {
+                    Round = r.Round, LandedFor = r.LandedFor, LandedAgainst = r.LandedAgainst,
+                    KdFor = r.KdFor, KdAgainst = r.KdAgainst, ScoreFor = r.ScoreFor, ScoreAgainst = r.ScoreAgainst
+                }).ToList(),
+                Commentary = h.Commentary?.ToList()
+            });
+        return b;
+    }
+}
+
+public sealed class BoutLineSave
+{
+    public string Date { get; set; } = "";
+    public string Opponent { get; set; } = "";
+    public string Result { get; set; } = "D";
+    public string Method { get; set; } = "";
+    public int Round { get; set; }
+    public int KdFor { get; set; }
+    public int KdAgainst { get; set; }
+    public string? Note { get; set; }
+    public string? Cards { get; set; }
+    public List<BoutRoundSave>? Rounds { get; set; }
+    public List<string>? Commentary { get; set; }
+}
+
+public sealed class BoutRoundSave
+{
+    public int Round { get; set; }
+    public int LandedFor { get; set; }
+    public int LandedAgainst { get; set; }
+    public int KdFor { get; set; }
+    public int KdAgainst { get; set; }
+    public int ScoreFor { get; set; }
+    public int ScoreAgainst { get; set; }
+}
+
+public sealed class HistoricalSave
+{
+    public int Id { get; set; }
+    public int Peak { get; set; }
+    public RatingsSave Prime { get; set; } = new();
+}
+
+public sealed class FutureSave
+{
+    public int DebutYear { get; set; }
+    public int DebutAge { get; set; }
+    public int Peak { get; set; }
+    public BoxerSave Proto { get; set; } = new();
+}
+
+public sealed class OfferSave
+{
+    public int OpponentId { get; set; }
+    public int Rounds { get; set; }
+    public bool TitleFight { get; set; }
+    public string? Belt { get; set; }
+    public string Context { get; set; } = "";
+}
+
+public sealed class CareerEventSave
+{
+    public string On { get; set; } = "";   // yyyy-MM-dd
+    public string Text { get; set; } = "";
+    public bool PlayerBout { get; set; }
+    public string? Kind { get; set; }
+    public string? Div { get; set; }
+}

@@ -1,0 +1,141 @@
+namespace BoxingSim.Core.Model;
+
+/// <summary>
+/// A pragmatic, Title-Bout-inspired rating set. Every attribute is on a 1..100 scale
+/// where higher is always better for the fighter who owns it.
+/// </summary>
+public sealed class Ratings
+{
+    /// <summary>How much damage punches do; drives knockdowns and KOs.</summary>
+    public int Power { get; set; }
+
+    /// <summary>Resistance to being hurt and knocked down. The classic "chin".</summary>
+    public int Chin { get; set; }
+
+    /// <summary>Hand and foot speed; helps land first and avoid being hit.</summary>
+    public int Speed { get; set; }
+
+    /// <summary>Slipping, blocking and ring craft; reduces opponent connect rate.</summary>
+    public int Defense { get; set; }
+
+    /// <summary>Endurance. High stamina fighters keep output up in the late rounds.</summary>
+    public int Stamina { get; set; }
+
+    /// <summary>Connect rate and clean punching.</summary>
+    public int Accuracy { get; set; }
+
+    /// <summary>Recovery between rounds and getting up from knockdowns.</summary>
+    public int Conditioning { get; set; }
+
+    /// <summary>Resistance to cuts and swelling (higher = cuts less easily).</summary>
+    public int CutResistance { get; set; }
+
+    /// <summary>Punch volume / willingness to engage.</summary>
+    public int Aggression { get; set; }
+
+    /// <summary>Performance when hurt or behind. Champions dig deep.</summary>
+    public int Heart { get; set; }
+
+    /// <summary>A single headline number, weighted toward what wins fights.</summary>
+    public int Overall
+    {
+        get
+        {
+            // Weighted toward what defines heavyweight greatness: dominance (power) and boxing
+            // skill (accuracy, defense, speed). Durability (chin/stamina/conditioning) and heart
+            // matter but are deliberately light so a tough gatekeeper's iron chin can't carry him
+            // into the all-time elite.
+            double raw =
+                Power * 0.21 +
+                Accuracy * 0.15 +
+                Defense * 0.14 +
+                Speed * 0.12 +
+                Chin * 0.09 +
+                Stamina * 0.07 +
+                Aggression * 0.06 +
+                Heart * 0.06 +
+                Conditioning * 0.06 +
+                CutResistance * 0.04;
+
+            // Map the raw score onto career-achievement tiers via piecewise-linear anchors:
+            //   90-99 all-time great · 80-89 world champion · 70-79 contender · 60-69 national · 50-59 journeyman.
+            return Math.Clamp((int)Math.Round(TierCurve(raw)), 1, 99);
+        }
+    }
+
+    /// <summary>
+    /// (raw, OVR) anchor points defining the rating tiers. OVR interpolates linearly between
+    /// anchors, so each raw band lands in the intended career tier. Tuned to the heavyweight roster.
+    /// </summary>
+    private static readonly (double Raw, double Ovr)[] TierAnchors =
+    {
+        (60, 50),   // journeyman floor
+        (66, 60),   // national/regional belt class
+        (72, 70),   // world-title contender
+        (78, 80),   // world champion level
+        (83, 90),   // all-time great
+        (87.4, 99), // greatest ever
+    };
+
+    private static double TierCurve(double raw)
+    {
+        var a = TierAnchors;
+        if (raw <= a[0].Raw) return a[0].Ovr + (raw - a[0].Raw) * 1.667; // below the journeyman floor
+        for (int i = 1; i < a.Length; i++)
+            if (raw <= a[i].Raw)
+            {
+                var (r0, o0) = a[i - 1];
+                var (r1, o1) = a[i];
+                return o0 + (raw - r0) * (o1 - o0) / (r1 - r0);
+            }
+        var top = a[^1];
+        return top.Ovr + (raw - top.Raw) * 2.0; // above the top anchor (clamps at 99)
+    }
+
+    /// <summary>The weighted raw score (uncompressed) that <see cref="Overall"/> is derived from.
+    /// Unlike Overall it does not saturate, so it still separates the all-time greats from each other.</summary>
+    public double RawScore =>
+        Power * 0.21 + Accuracy * 0.15 + Defense * 0.14 + Speed * 0.12 + Chin * 0.09 +
+        Stamina * 0.07 + Aggression * 0.06 + Heart * 0.06 + Conditioning * 0.06 + CutResistance * 0.04;
+
+    /// <summary>The headline "class" on a 1–15 scale. Deliberately rare at the top: 15 is reserved for the
+    /// one or two greatest fighters who ever lived, 14 for a handful of all-time greats, tapering to a broad
+    /// journeyman base around 5–7. Calibrated against the full cross-era roster's <see cref="RawScore"/>.</summary>
+    public int Class => ClassFromRaw(RawScore);
+
+    // Absolute raw-score thresholds (min raw for each class). Fixed, not percentile, so "15" means the same
+    // thing — an all-time-great ceiling — no matter how many divisions or fighters are added later.
+    private static readonly double[] ClassFloors =
+    {   // index 0 => class 1 ... index 14 => class 15
+        0.0, 53.0, 58.0, 62.0, 65.5, 68.5, 71.0, 73.5, 76.0, 78.5, 81.0, 83.5, 85.5, 87.5, 89.5
+    };
+
+    public static int ClassFromRaw(double raw)
+    {
+        for (int c = ClassFloors.Length - 1; c >= 0; c--)
+            if (raw >= ClassFloors[c]) return c + 1;
+        return 1;
+    }
+
+    // Attribute display floors (min 1–99 value for each 1–15 level). Real fighters' attributes cluster in
+    // the 55–90 band, so a naive linear 1–99→1–15 map wastes the bottom third and bunches everyone at 11–12.
+    // These floors are calibrated to the actual roster: a typical pro attribute (~72) shows ~7–8, weak
+    // attributes drop to 2–4, and only the all-time extremes (Foreman/Hearns power, etc.) reach 14–15.
+    private static readonly int[] AttrFloors =
+    {   // index 0 => 1 ... index 14 => 15
+        0, 48, 54, 59, 63, 67, 70, 73, 76, 79, 82, 85, 88, 92, 96
+    };
+
+    /// <summary>Map a single 1–99 attribute onto the 1–15 display scale, calibrated to the real spread
+    /// so most fighters sit mid-scale and the top end stays rare.</summary>
+    public static int Scale15(int attr)
+    {
+        for (int c = AttrFloors.Length - 1; c >= 0; c--)
+            if (attr >= AttrFloors[c]) return c + 1;
+        return 1;
+    }
+
+    public Ratings Clone() => (Ratings)MemberwiseClone();
+
+    public static int Clamp(int v) => Math.Clamp(v, 1, 100);
+}

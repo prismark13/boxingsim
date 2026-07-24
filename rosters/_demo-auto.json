@@ -1,0 +1,11 @@
+[
+  { "Name": "Larry Holmes", "WeightClass": "Heavyweight", "Age": 32,
+    "AutoRate": true, "Tier": "Champion", "Notable": true,
+    "Wins": 48, "Losses": 0, "Draws": 0, "KnockoutWins": 34 },
+  { "Name": "Carl Williams", "WeightClass": "Heavyweight", "Age": 25,
+    "AutoRate": true, "Tier": "TopContender", "Notable": false,
+    "Wins": 30, "Losses": 10, "Draws": 0, "KnockoutWins": 21 },
+  { "Name": "Scott Frank", "WeightClass": "Heavyweight", "Age": 28,
+    "AutoRate": true, "Tier": "Journeyman", "Notable": false,
+    "Wins": 22, "Losses": 1, "Draws": 1, "KnockoutWins": 17 }
+]

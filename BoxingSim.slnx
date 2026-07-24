@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BoxingSim.App/BoxingSim.App.csproj" />
+    <Project Path="src/BoxingSim.Cli/BoxingSim.Cli.csproj" />
+    <Project Path="src/BoxingSim.Core/BoxingSim.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BoxingSim.Tests/BoxingSim.Tests.csproj" />
+  </Folder>
+</Solution>

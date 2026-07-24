@@ -1,0 +1,81 @@
+@page "/"
+@inject FightersService Fighters
+
+<PageTitle>Boxing Sim</PageTitle>
+
+<div class="overline">
+    <span class="label">Boxing Simulator</span>
+    @if (_all is not null)
+    {
+        <span class="label dim">@_all.Count fighters · @_era · @_countries nations</span>
+    }
+</div>
+
+<div class="tiles">
+    <a class="tile" href="cards">
+        <div class="tic"><Icon Name="grid" Size="20" /></div>
+        <div class="h">Fighter Cards</div>
+        <div class="d">Browse, search and rank every fighter by era, country and style.</div>
+        <span class="go">Open <Icon Name="arrow" Size="15" /></span>
+    </a>
+    <a class="tile" href="fight">
+        <div class="tic"><Icon Name="bolt" Size="20" /></div>
+        <div class="h">Fight Night</div>
+        <div class="d">Match any two and run the bout on the real engine — judges and all.</div>
+        <span class="go">Open <Icon Name="arrow" Size="15" /></span>
+    </a>
+    <a class="tile" href="career">
+        <div class="tic"><Icon Name="user" Size="20" /></div>
+        <div class="h">Career</div>
+        <div class="d">Create a fighter and climb from club shows to the world title.</div>
+        <span class="go">Open <Icon Name="arrow" Size="15" /></span>
+    </a>
+</div>
+
+@if (_all is not null)
+{
+    <div class="section-head">
+        <h2>Pound-for-pound</h2>
+        <span class="label">Top 12</span>
+    </div>
+    <div class="p4p">
+        @{ int rank = 1; }
+        @foreach (var f in _all.Take(12))
+        {
+            <div class="p4row">
+                <div class="rk">@rank</div>
+                <div class="ovrpill" style="color:@Ui.Ovr(f.Class)">@f.Class</div>
+                <div class="who">
+                    <a href="cards?q=@Uri.EscapeDataString(f.Name)">@f.Name</a>
+                    <div class="s"><span class="cc">@Ui.Code(f.Country)</span>@StyleClassifier.Of(f).DisplayName() · @f.Record</div>
+                </div>
+                <a class="minibtn" href="fight?a=@Uri.EscapeDataString(f.Name)"><Icon Name="bolt" Size="14" /> Fight</a>
+            </div>
+            rank++;
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<Boxer>? _all;
+    private string _era = "", _countries = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _all = await Fighters.GetAsync();
+        _countries = _all.Where(b => !string.IsNullOrEmpty(b.Country)).Select(b => b.Country!).Distinct().Count().ToString();
+        var years = _all.Select(DebutYear).Where(y => y.HasValue).Select(y => y!.Value).ToList();
+        if (years.Count > 0) _era = $"{years.Min() / 10 * 10}s–{years.Max() / 10 * 10}s";
+    }
+
+    private static int? DebutYear(Boxer b)
+    {
+        if (b.DebutYear is int d) return d;
+        var s = b.DateOfBirth;
+        if (!string.IsNullOrEmpty(s))
+            for (int i = 0; i + 4 <= s.Length; i++)
+                if (char.IsDigit(s[i]) && char.IsDigit(s[i+1]) && char.IsDigit(s[i+2]) && char.IsDigit(s[i+3]))
+                    return int.Parse(s.Substring(i, 4)) + 19;
+        return null;
+    }
+}

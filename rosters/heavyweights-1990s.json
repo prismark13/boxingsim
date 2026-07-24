@@ -1,0 +1,52 @@
+[
+  { "Name": "Evander Holyfield", "Nickname": "The Real Deal", "WeightClass": "Heavyweight", "Age": 28, "DateOfBirth": "1962-10-19",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 25, "Losses": 0, "Draws": 0, "KnockoutWins": 21 },
+
+  { "Name": "Lennox Lewis", "Nickname": "The Lion", "WeightClass": "Heavyweight", "Age": 31, "DateOfBirth": "1965-09-02",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 30, "Losses": 1, "Draws": 0, "KnockoutWins": 25 },
+
+  { "Name": "Riddick Bowe", "Nickname": "Big Daddy", "WeightClass": "Heavyweight", "Age": 25, "DateOfBirth": "1967-08-10",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 31, "Losses": 0, "Draws": 0, "KnockoutWins": 27 },
+
+  { "Name": "Michael Moorer", "Nickname": "Double M", "WeightClass": "Heavyweight", "Age": 26, "DateOfBirth": "1967-11-12",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 35, "Losses": 0, "Draws": 0, "KnockoutWins": 30 },
+
+  { "Name": "George Foreman", "Nickname": "Big George", "WeightClass": "Heavyweight", "Age": 45, "DateOfBirth": "1949-01-10",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 73, "Losses": 4, "Draws": 0, "KnockoutWins": 67 },
+
+  { "Name": "James Douglas", "Nickname": "Buster", "WeightClass": "Heavyweight", "Age": 29, "DateOfBirth": "1960-04-07",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 29, "Losses": 4, "Draws": 1, "KnockoutWins": 19 },
+
+  { "Name": "Oliver McCall", "Nickname": "The Atomic Bull", "WeightClass": "Heavyweight", "Age": 29, "DateOfBirth": "1965-04-21",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 24, "Losses": 5, "Draws": 0, "KnockoutWins": 17 },
+
+  { "Name": "Bruce Seldon", "Nickname": "The Atlantic City Express", "WeightClass": "Heavyweight", "Age": 28, "DateOfBirth": "1967-01-30",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 33, "Losses": 3, "Draws": 0, "KnockoutWins": 29 },
+
+  { "Name": "Herbie Hide", "Nickname": "The Dancing Destroyer", "WeightClass": "Heavyweight", "Age": 22, "DateOfBirth": "1971-08-27",
+    "AutoRate": true, "Tier": "Champion", "Notable": true, "Wins": 26, "Losses": 0, "Draws": 0, "KnockoutWins": 25 },
+
+  { "Name": "Ray Mercer", "Nickname": "Merciless", "WeightClass": "Heavyweight", "Age": 30, "DateOfBirth": "1961-04-04",
+    "AutoRate": true, "Tier": "TopContender", "Notable": true, "Wins": 18, "Losses": 0, "Draws": 0, "KnockoutWins": 13 },
+
+  { "Name": "Tommy Morrison", "Nickname": "The Duke", "WeightClass": "Heavyweight", "Age": 24, "DateOfBirth": "1969-01-02",
+    "AutoRate": true, "Tier": "TopContender", "Notable": true, "Wins": 38, "Losses": 2, "Draws": 0, "KnockoutWins": 33 },
+
+  { "Name": "Donovan Ruddock", "Nickname": "Razor", "WeightClass": "Heavyweight", "Age": 27, "DateOfBirth": "1963-12-21",
+    "AutoRate": true, "Tier": "TopContender", "Notable": true, "Wins": 26, "Losses": 2, "Draws": 1, "KnockoutWins": 18 },
+
+  { "Name": "Andrew Golota", "Nickname": "The Foul Pole", "WeightClass": "Heavyweight", "Age": 28, "DateOfBirth": "1968-01-05",
+    "AutoRate": true, "Tier": "TopContender", "Notable": true, "Wins": 28, "Losses": 0, "Draws": 0, "KnockoutWins": 24 },
+
+  { "Name": "Michael Bentt", "WeightClass": "Heavyweight", "Age": 28, "DateOfBirth": "1965-09-04",
+    "AutoRate": true, "Tier": "Gatekeeper", "Notable": false, "Wins": 11, "Losses": 1, "Draws": 0, "KnockoutWins": 10 },
+
+  { "Name": "Henry Akinwande", "WeightClass": "Heavyweight", "Age": 31, "DateOfBirth": "1965-10-12",
+    "AutoRate": true, "Tier": "TopContender", "Notable": false, "Wins": 32, "Losses": 0, "Draws": 1, "KnockoutWins": 21 },
+
+  { "Name": "Francois Botha", "Nickname": "The White Buffalo", "WeightClass": "Heavyweight", "Age": 27, "DateOfBirth": "1968-09-28",
+    "AutoRate": true, "Tier": "TopContender", "Notable": false, "Wins": 35, "Losses": 0, "Draws": 0, "KnockoutWins": 21 },
+
+  { "Name": "Axel Schulz", "WeightClass": "Heavyweight", "Age": 26, "DateOfBirth": "1968-11-09",
+    "AutoRate": true, "Tier": "TopContender", "Notable": false, "Wins": 21, "Losses": 2, "Draws": 1, "KnockoutWins": 11 }
+]

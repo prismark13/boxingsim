@@ -1,0 +1,81 @@
+using BoxingSim.Core.Model;
+
+namespace BoxingSim.Core.Career;
+
+/// <summary>The five stages of a fighter's career arc (then retirement).</summary>
+public enum CareerStage { Starter, PrePrime, Prime, PostPrime, End }
+
+public static class CareerStages
+{
+    /// <summary>Where a fighter sits on the career arc, from age relative to their peak (and pro experience).</summary>
+    public static CareerStage Of(Boxer b)
+    {
+        int fights = b.Record.Wins + b.Record.Losses + b.Record.Draws;
+        int d = b.Age - b.PeakAge;
+
+        // An aging fighter is winding down no matter how many bouts he's had.
+        if (d >= 7) return CareerStage.End;
+
+        var byFights =
+            fights <= 6 ? CareerStage.Starter :
+            fights <= 25 ? CareerStage.PrePrime :
+            fights <= 60 ? CareerStage.Prime :
+            fights <= 80 ? CareerStage.PostPrime : CareerStage.End;
+
+        // Past his physical peak he can't still be "prime" on paper.
+        if (d >= 3 && byFights < CareerStage.PostPrime) return CareerStage.PostPrime;
+        return byFights;
+    }
+
+    /// <summary>Roughly how many bouts a fighter takes in a year — busy early, picky in the prime, sparse at the end.</summary>
+    public static int FightsPerYear(CareerStage s) => s switch
+    {
+        CareerStage.Starter => 9,     // club-show grind — a fight every few weeks
+        CareerStage.PrePrime => 5,
+        CareerStage.Prime => 3,       // fewer, bigger nights
+        CareerStage.PostPrime => 3,
+        CareerStage.End => 2,
+        _ => 2
+    };
+
+    public static string Label(CareerStage s) => s switch
+    {
+        CareerStage.Starter => "Starter",
+        CareerStage.PrePrime => "Pre-prime",
+        CareerStage.Prime => "Prime",
+        CareerStage.PostPrime => "Post-prime",
+        CareerStage.End => "End of career",
+        _ => ""
+    };
+}
+
+/// <summary>A bout offered to the player fighter — opponent, length and what's at stake.</summary>
+public sealed class FightOffer
+{
+    public required Boxer Opponent { get; init; }
+    public int Rounds { get; init; }
+    public bool TitleFight { get; init; }
+    public string? Belt { get; init; }            // the sanctioning body at stake (e.g. "WBA"), null for a non-title bout
+    public string Context { get; init; } = "";   // "stay-busy", "step-up", "eliminator", "WORLD TITLE"
+}
+
+/// <summary>A spell as world champion: when it was won, when it was lost (null = still holds it), and defences.</summary>
+public sealed class TitleReign
+{
+    public string Belt { get; set; } = "";
+    public DateOnly Won { get; set; }
+    public DateOnly? Lost { get; set; }
+    public int Defenses { get; set; }
+}
+
+/// <summary>One line in the career timeline (debuts, title changes, retirements, the player's own bouts).</summary>
+public sealed class CareerEvent
+{
+    public DateOnly On { get; init; }
+    public required string Text { get; init; }
+    public bool PlayerBout { get; init; }
+    public string? Kind { get; init; }   // "title", "upset", "ko", "debut", "retire", "streak" — for the news feed
+    public WeightClass? Div { get; init; }   // which division this event belongs to (for the news filter)
+    public int Year => On.Year;
+    public string DateLabel => On.ToString("d MMM yyyy");
+}
