@@ -117,8 +117,19 @@ public sealed class CareerGame
     /// <summary>Pound-for-pound: the best fighters across every division, ranked by ability tempered by record.</summary>
     public IReadOnlyList<Boxer> PoundForPound(int take = 15) =>
         _roster.Where(b => !b.Retired && (WorldRanked(b) || b.IsChampion))
-               .OrderByDescending(b => b.Overall + (b.Record.Wins - b.Record.Losses) * 0.25)
+               .OrderByDescending(P4PScore)
                .Take(take).ToList();
+
+    /// <summary>P4P standing: ability is the base, tempered by how much he's actually winning — losses bite and
+    /// holding a world belt lifts him, so a filler with a losing record can't crowd out a dominant champion.</summary>
+    private static double P4PScore(Boxer b)
+    {
+        int fights = b.Record.Wins + b.Record.Losses + b.Record.Draws;
+        double winRate = fights > 0 ? (b.Record.Wins + 0.5 * b.Record.Draws) / fights : 0;
+        double score = b.Overall * (0.6 + 0.5 * winRate) - b.Record.Losses * 1.5;
+        if (b.IsChampion) score += 6;
+        return score;
+    }
 
     /// <summary>The brightest prospects in a division — promising young fighters not yet world-ranked.</summary>
     public IReadOnlyList<Boxer> ProspectsOf(WeightClass wc, int take = 12) =>

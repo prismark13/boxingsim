@@ -281,15 +281,13 @@ else
                     <div><div class="pname">@vd.DisplayName()</div><div class="pmeta">World ranking · @g.ActiveCountOf(vd) active</div></div>
                     <button class="ghost icon-btn" @onclick="() => _viewDiv = null"><Icon Name="close" Size="16" /></button>
                 </div>
-                @{ var beltHolders = new (string Belt, Boxer? B)[] { (g.PrimaryBelt, g.WorldChampionOf(vd)), ("WBC", g.WbcChampionOf(vd)), ("IBF", g.IbfChampionOf(vd)) }; }
-                @foreach (var (belt, vc) in beltHolders)
+                @{ var beltHolders = new (string Belt, Boxer? B)[] { (g.PrimaryBelt, g.WorldChampionOf(vd)), ("WBC", g.WbcChampionOf(vd)), ("IBF", g.IbfChampionOf(vd)) };
+                   var champRows = beltHolders.Where(x => x.B is not null).Select(x => x.B!).DistinctBy(b => b.Id).ToList(); }
+                @foreach (var vc in champRows)
                 {
-                    @if (vc is not null)
-                    {
-                        <div class="rkrow champ-row" @onclick="() => _selected = vc"><span class="rkn"><Icon Name="trophy" Size="13" /></span><span class="ovrpill" style="color:@Ui.Ovr(vc.Class)">@vc.Class</span><span class="rkname">@vc.Name <span class="champ-tag">@BeltLabel((belt, g.DefensesOf(vd, belt, vc.Id)))</span></span><span class="rkrec">@vc.Record</span></div>
-                    }
+                    <div class="rkrow champ-row" @onclick="() => _selected = vc"><span class="rkn"><Icon Name="trophy" Size="13" /></span><span class="ovrpill" style="color:@Ui.Ovr(vc.Class)">@vc.Class</span><span class="rkname">@vc.Name @foreach (var bt in g.BeltsHeld(vc)) { <span class="champ-tag">@BeltLabel(bt)</span> }</span><span class="rkrec">@vc.Record</span></div>
                 }
-                @{ int vr = 1; var champIds = beltHolders.Where(x => x.B is not null).Select(x => x.B!.Id).ToHashSet(); }
+                @{ int vr = 1; var champIds = champRows.Select(b => b.Id).ToHashSet(); }
                 @foreach (var b in g.RankingOf(vd).Where(b => !champIds.Contains(b.Id)))
                 {
                     <div class="rkrow"><span class="rkn">@vr</span><span class="ovrpill" style="color:@Ui.Ovr(b.Class)">@b.Class</span><span class="rkname">@b.Name</span><span class="rkrec">@b.Record</span></div>
