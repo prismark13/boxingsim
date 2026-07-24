@@ -439,7 +439,7 @@ public sealed class CareerGame
         foreach (var b in _roster.Where(x => !x.Retired).ToList())
         {
             if (b.Id == Player.Id) { _careers.AdvanceOneYear(b); }
-            else if (_historical.TryGetValue(b.Id, out var h)) AgeHistorical(b, h.Prime, h.Peak);
+            else if (_historical.TryGetValue(b.Id, out var h)) { b.Age++; AgeHistorical(b, h.Prime, h.Peak); }  // advance a year, THEN re-point ratings on their arc (AgeHistorical only sets ratings, never the age)
             else _careers.AdvanceOneYear(b);
             CapStarter(b);
 

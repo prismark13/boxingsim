@@ -363,7 +363,7 @@ else
                 {
                     <div class="label" style="margin:14px 0 8px;">Fight history (@sel.History.Count)</div>
                     <div class="history">
-                        @foreach (var bt in Enumerable.Reverse(sel.History)) { @boutRow(bt) }
+                        @foreach (var bt in sel.History.OrderByDescending(h => h.Date)) { @boutRow(bt) }
                     </div>
                 }
             </div>
@@ -523,7 +523,7 @@ else
                 <div class="label" style="margin:15px 0 8px;">Fight history (@p.History.Count) <span class="muted">· tap a bout for the card</span></div>
                 <div class="history">
                     @if (p.History.Count == 0) { <div class="muted">No fights yet.</div> }
-                    @foreach (var bt in Enumerable.Reverse(p.History)) { @boutRow(bt) }
+                    @foreach (var bt in p.History.OrderByDescending(h => h.Date)) { @boutRow(bt) }
                 </div>
             </div>
         </div>
