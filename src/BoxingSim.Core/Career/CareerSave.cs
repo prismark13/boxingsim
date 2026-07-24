@@ -23,6 +23,8 @@ public sealed class CareerSave
     public List<HallOfFamerSave> HallOfFame { get; set; } = new();
     public List<int> EverChampion { get; set; } = new();             // ids that ever held a world belt
     public Dictionary<string, int> PeakOverall { get; set; } = new();// "id" → best overall reached
+    public Dictionary<string, int> PeakClass { get; set; } = new();  // "id" → best class reached
+    public Dictionary<string, string> TitleDivisions { get; set; } = new();// "id" → "Div1|Div2" world-belt divisions
     public Dictionary<string, int> BeltDefenses { get; set; } = new();// "Division|Belt|HolderId" → defence count
     public OfferSave? Offer { get; set; }
 }
@@ -36,8 +38,10 @@ public sealed class HallOfFamerSave
     public string Division { get; set; } = "";
     public string Record { get; set; } = "";
     public int PeakOverall { get; set; }
+    public int PeakClass { get; set; }
     public int Defenses { get; set; }
     public bool WasChampion { get; set; }
+    public int WeightTitles { get; set; }
     public int Age { get; set; }
     public int Year { get; set; }
 }

@@ -91,11 +91,14 @@ public sealed class HallOfFamer
     public WeightClass Division { get; init; }
     public string Record { get; init; } = "";
     public int PeakOverall { get; init; }
+    public int PeakClass { get; init; }    // best class (1–15 scale) reached — matches the ranking pills
     public int Defenses { get; init; }     // total world-title defences across every belt and division
     public bool WasChampion { get; init; }
+    public int WeightTitles { get; init; } // number of distinct weight classes he won a world belt in
     public int Age { get; init; }          // age at retirement
     public int Year { get; init; }         // year inducted (= year retired)
 
-    /// <summary>Ranking weight for the Hall: a world belt is the entry ticket, then defences and pure ability.</summary>
-    public int Prestige => (WasChampion ? 1000 : 0) + Defenses * 8 + PeakOverall;
+    /// <summary>Ranking weight for the Hall: a world belt is the entry ticket, then multi-division reigns,
+    /// defences and pure ability — a two- or three-weight champion outranks a one-belt titlist.</summary>
+    public int Prestige => (WasChampion ? 1000 : 0) + Math.Max(0, WeightTitles - 1) * 60 + Defenses * 8 + PeakOverall;
 }

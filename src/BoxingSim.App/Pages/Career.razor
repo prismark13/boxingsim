@@ -269,8 +269,8 @@ else
                     {
                         <div class="rkrow">
                             <span class="rkn"><Icon Name="trophy" Size="12" /></span>
-                            <span class="ovrpill">@m.PeakOverall</span>
-                            <span class="rkname">@m.Name @if (m.WasChampion) { <span class="champ-tag">World champ</span> } <span class="champ-tag torank">@m.Division.DisplayName()@(m.Defenses > 0 ? $" · {m.Defenses} def" : "")</span></span>
+                            <span class="ovrpill" style="color:@Ui.Ovr(m.PeakClass)">@m.PeakClass</span>
+                            <span class="rkname">@m.Name @if (m.WeightTitles >= 2) { <span class="champ-tag">@(m.WeightTitles)-weight champ</span> } else if (m.WasChampion) { <span class="champ-tag">World champ</span> } <span class="champ-tag torank">@m.Division.DisplayName()@(m.Defenses > 0 ? $" · {m.Defenses} def" : "")</span></span>
                             <span class="rkrec">@m.Record</span>
                         </div>
                         hf++;

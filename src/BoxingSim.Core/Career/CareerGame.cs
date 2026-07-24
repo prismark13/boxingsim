@@ -33,6 +33,8 @@ public sealed class CareerGame
     private readonly List<HallOfFamer> _hof = new();
     private readonly HashSet<int> _everChampion = new();
     private readonly Dictionary<int, int> _peakOverall = new();
+    private readonly Dictionary<int, int> _peakClass = new();
+    private readonly Dictionary<int, HashSet<WeightClass>> _titleDivisions = new();   // id → every division he held a world belt in
     public IReadOnlyList<HallOfFamer> HallOfFame => _hof.OrderByDescending(m => m.Prestige).ToList();
     private const string UndisputedBelt = "Undisputed";
     private const int MaxFightsPerYear = 8;   // nobody boxes more than 8 times in a calendar year
@@ -276,10 +278,16 @@ public sealed class CareerGame
             {
                 Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country,
                 Division = Enum.TryParse<WeightClass>(m.Division, out var md) ? md : WeightClass.Heavyweight,
-                Record = m.Record, PeakOverall = m.PeakOverall, Defenses = m.Defenses, WasChampion = m.WasChampion, Age = m.Age, Year = m.Year
+                Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, WeightTitles = m.WeightTitles, Age = m.Age, Year = m.Year
             });
         foreach (var id in s.EverChampion) _everChampion.Add(id);
         foreach (var kv in s.PeakOverall) if (int.TryParse(kv.Key, out var id)) _peakOverall[id] = kv.Value;
+        foreach (var kv in s.PeakClass) if (int.TryParse(kv.Key, out var id)) _peakClass[id] = kv.Value;
+        foreach (var kv in s.TitleDivisions)
+            if (int.TryParse(kv.Key, out var id))
+                _titleDivisions[id] = kv.Value.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => Enum.TryParse<WeightClass>(x, out var w) ? (WeightClass?)w : null)
+                    .Where(w => w is not null).Select(w => w!.Value).ToHashSet();
         foreach (var kv in s.BeltDefenses)
         {
             var parts = kv.Key.Split('|');
@@ -332,10 +340,12 @@ public sealed class CareerGame
         foreach (var m in _hof) s.HallOfFame.Add(new HallOfFamerSave
         {
             Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country, Division = m.Division.ToString(),
-            Record = m.Record, PeakOverall = m.PeakOverall, Defenses = m.Defenses, WasChampion = m.WasChampion, Age = m.Age, Year = m.Year
+            Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, Age = m.Age, Year = m.Year
         });
         s.EverChampion.AddRange(_everChampion);
         foreach (var kv in _peakOverall) s.PeakOverall[kv.Key.ToString()] = kv.Value;
+        foreach (var kv in _peakClass) s.PeakClass[kv.Key.ToString()] = kv.Value;
+        foreach (var kv in _titleDivisions) s.TitleDivisions[kv.Key.ToString()] = string.Join("|", kv.Value);
         foreach (var kv in _beltDefenses) s.BeltDefenses[$"{kv.Key.Div}|{kv.Key.Belt}|{kv.Key.Holder}"] = kv.Value;
         if (Offer is not null) s.Offer = new OfferSave { OpponentId = Offer.Opponent.Id, Rounds = Offer.Rounds, TitleFight = Offer.TitleFight, Belt = Offer.Belt, Context = Offer.Context };
         return s;
@@ -501,8 +511,13 @@ public sealed class CareerGame
 
             // Track Hall-of-Fame credentials: best rating ever reached, and whether he ever held a world belt.
             _peakOverall[b.Id] = Math.Max(_peakOverall.GetValueOrDefault(b.Id), b.Overall);
+            _peakClass[b.Id] = Math.Max(_peakClass.GetValueOrDefault(b.Id), b.Class);
             if (ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id)
+            {
                 _everChampion.Add(b.Id);
+                if (!_titleDivisions.TryGetValue(b.Id, out var divs)) _titleDivisions[b.Id] = divs = new();
+                divs.Add(b.WeightClass);   // he campaigned up and won here too → a multi-weight champion
+            }
 
             // Fight regularly or hang them up: a generated fighter who's been idle for ~2 years drifts out
             // of the sport, so the rankings stay full of active men rather than ghosts.
@@ -572,19 +587,21 @@ public sealed class CareerGame
     {
         if (_hof.Any(x => x.Id == b.Id)) return false;
         int peak = _peakOverall.GetValueOrDefault(b.Id, b.Overall);
-        if (_historical.TryGetValue(b.Id, out var h)) peak = Math.Max(peak, h.Prime.Overall);
+        int peakClass = Math.Max(_peakClass.GetValueOrDefault(b.Id), b.Class);
+        if (_historical.TryGetValue(b.Id, out var h)) { peak = Math.Max(peak, h.Prime.Overall); peakClass = Math.Max(peakClass, h.Prime.Class); }
         bool wasChamp = _everChampion.Contains(b.Id)
                         || ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
         int defenses = _beltDefenses.Where(kv => kv.Key.Holder == b.Id).Sum(kv => kv.Value);
-        // A world champion with a genuine reign (3+ defences), or a genuinely elite talent regardless of belts.
-        bool worthy = (wasChamp && defenses >= 3) || peak >= 88;
+        int weightTitles = _titleDivisions.TryGetValue(b.Id, out var tds) ? tds.Count : (wasChamp ? 1 : 0);
+        // A world champion with a genuine reign (3+ defences), a multi-weight champion, or an elite talent.
+        bool worthy = (wasChamp && defenses >= 3) || weightTitles >= 2 || peak >= 88;
         if (!worthy) return false;
 
         _hof.Add(new HallOfFamer
         {
             Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, Division = b.WeightClass,
-            Record = b.Record.ToString(), PeakOverall = peak, Defenses = defenses, WasChampion = wasChamp,
-            Age = b.Age, Year = Date.Year
+            Record = b.Record.ToString(), PeakOverall = peak, PeakClass = peakClass, Defenses = defenses, WasChampion = wasChamp,
+            WeightTitles = weightTitles, Age = b.Age, Year = Date.Year
         });
         LogEvent($"{b.Name} ({b.Record}) retires and enters the Hall of Fame.", b.Id == Player.Id, kind: "hof", div: b.WeightClass);
         return true;
