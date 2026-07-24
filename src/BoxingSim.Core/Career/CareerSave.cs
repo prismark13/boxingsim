@@ -20,7 +20,26 @@ public sealed class CareerSave
     public List<CareerEventSave> Log { get; set; } = new();
     public List<TitleReignSave> Reigns { get; set; } = new();
     public Dictionary<string, int> Regional { get; set; } = new();   // "Division|Region" → holder Id
+    public List<HallOfFamerSave> HallOfFame { get; set; } = new();
+    public List<int> EverChampion { get; set; } = new();             // ids that ever held a world belt
+    public Dictionary<string, int> PeakOverall { get; set; } = new();// "id" → best overall reached
+    public Dictionary<string, int> BeltDefenses { get; set; } = new();// "Division|Belt|HolderId" → defence count
     public OfferSave? Offer { get; set; }
+}
+
+public sealed class HallOfFamerSave
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public string? Nickname { get; set; }
+    public string? Country { get; set; }
+    public string Division { get; set; } = "";
+    public string Record { get; set; } = "";
+    public int PeakOverall { get; set; }
+    public int Defenses { get; set; }
+    public bool WasChampion { get; set; }
+    public int Age { get; set; }
+    public int Year { get; set; }
 }
 
 public sealed class TitleReignSave

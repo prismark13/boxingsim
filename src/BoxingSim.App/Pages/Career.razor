@@ -188,6 +188,7 @@ else
                     <button class="@(_rankTab == "world" ? "on" : "")" @onclick='() => _rankTab = "world"'>Rankings</button>
                     <button class="@(_rankTab == "p4p" ? "on" : "")" @onclick='() => _rankTab = "p4p"'>Pound-for-pound</button>
                     <button class="@(_rankTab == "sport" ? "on" : "")" @onclick='() => _rankTab = "sport"'>Divisions</button>
+                    <button class="@(_rankTab == "hof" ? "on" : "")" @onclick='() => _rankTab = "hof"'>Hall of Fame</button>
                 </div>
 
                 @if (_rankTab == "world")
@@ -254,6 +255,25 @@ else
                             <span class="rkrec">@b.Record</span>
                         </div>
                         pp++;
+                    }
+                }
+                else if (_rankTab == "hof")
+                {
+                    <div class="panel-sub">Hall of Fame · @g.HallOfFame.Count inducted</div>
+                    @if (g.HallOfFame.Count == 0)
+                    {
+                        <div class="muted" style="padding:12px 4px;">No inductees yet — the greats are still active. Champions enter the Hall when they retire.</div>
+                    }
+                    int hf = 1;
+                    @foreach (var m in g.HallOfFame)
+                    {
+                        <div class="rkrow">
+                            <span class="rkn"><Icon Name="trophy" Size="12" /></span>
+                            <span class="ovrpill">@m.PeakOverall</span>
+                            <span class="rkname">@m.Name @if (m.WasChampion) { <span class="champ-tag">World champ</span> } <span class="champ-tag torank">@m.Division.DisplayName()@(m.Defenses > 0 ? $" · {m.Defenses} def" : "")</span></span>
+                            <span class="rkrec">@m.Record</span>
+                        </div>
+                        hf++;
                     }
                 }
                 else
@@ -619,7 +639,7 @@ else
     private static string NewsTag(CareerEvent e) => e.PlayerBout ? "YOU" : e.Kind switch
     {
         "title" => "TITLE", "upset" => "UPSET", "ko" => "KO", "streak" => "STREAK",
-        "debut" => "DEBUT", "retire" => "RETIRED", _ => "NEWS"
+        "debut" => "DEBUT", "retire" => "RETIRED", "hof" => "HALL OF FAME", _ => "NEWS"
     };
 
     private static string Surname(string name)

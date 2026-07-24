@@ -28,6 +28,12 @@ public sealed class CareerGame
     // Successful defences of each belt, keyed by (division, belt slot, current holder) — so a new champion
     // automatically starts at zero. Belt slots are "WBA" (the primary/World belt), "WBC", "IBF".
     private readonly Dictionary<(WeightClass Div, string Belt, int Holder), int> _beltDefenses = new();
+    // Hall of Fame + the trackers that decide induction. _everChampion / _peakOverall persist across saves so a
+    // fighter who held a belt (or peaked as an elite) in an earlier session still qualifies when he finally retires.
+    private readonly List<HallOfFamer> _hof = new();
+    private readonly HashSet<int> _everChampion = new();
+    private readonly Dictionary<int, int> _peakOverall = new();
+    public IReadOnlyList<HallOfFamer> HallOfFame => _hof.OrderByDescending(m => m.Prestige).ToList();
     private const string UndisputedBelt = "Undisputed";
     private const int MaxFightsPerYear = 8;   // nobody boxes more than 8 times in a calendar year
 
@@ -260,6 +266,21 @@ public sealed class CareerGame
             if (parts.Length == 2 && Enum.TryParse<WeightClass>(parts[0], out var wc) && byId.TryGetValue(kv.Value, out var rb))
                 _regional[(wc, parts[1])] = rb;
         }
+        foreach (var m in s.HallOfFame)
+            _hof.Add(new HallOfFamer
+            {
+                Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country,
+                Division = Enum.TryParse<WeightClass>(m.Division, out var md) ? md : WeightClass.Heavyweight,
+                Record = m.Record, PeakOverall = m.PeakOverall, Defenses = m.Defenses, WasChampion = m.WasChampion, Age = m.Age, Year = m.Year
+            });
+        foreach (var id in s.EverChampion) _everChampion.Add(id);
+        foreach (var kv in s.PeakOverall) if (int.TryParse(kv.Key, out var id)) _peakOverall[id] = kv.Value;
+        foreach (var kv in s.BeltDefenses)
+        {
+            var parts = kv.Key.Split('|');
+            if (parts.Length == 3 && Enum.TryParse<WeightClass>(parts[0], out var wc) && int.TryParse(parts[2], out var hid))
+                _beltDefenses[(wc, parts[1], hid)] = kv.Value;
+        }
 
         OfferDate = ParseDate(s.OfferDate, Date.AddDays(42));
         if (s.Offer is OfferSave o && byId.TryGetValue(o.OpponentId, out var opp))
@@ -303,6 +324,14 @@ public sealed class CareerGame
         foreach (var e in _log) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString() });
         foreach (var r in _reigns) s.Reigns.Add(new TitleReignSave { Belt = r.Belt, Won = r.Won.ToString("yyyy-MM-dd"), Lost = r.Lost?.ToString("yyyy-MM-dd"), Defenses = r.Defenses });
         foreach (var kv in _regional) s.Regional[$"{kv.Key.Div}|{kv.Key.Region}"] = kv.Value.Id;
+        foreach (var m in _hof) s.HallOfFame.Add(new HallOfFamerSave
+        {
+            Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country, Division = m.Division.ToString(),
+            Record = m.Record, PeakOverall = m.PeakOverall, Defenses = m.Defenses, WasChampion = m.WasChampion, Age = m.Age, Year = m.Year
+        });
+        s.EverChampion.AddRange(_everChampion);
+        foreach (var kv in _peakOverall) s.PeakOverall[kv.Key.ToString()] = kv.Value;
+        foreach (var kv in _beltDefenses) s.BeltDefenses[$"{kv.Key.Div}|{kv.Key.Belt}|{kv.Key.Holder}"] = kv.Value;
         if (Offer is not null) s.Offer = new OfferSave { OpponentId = Offer.Opponent.Id, Rounds = Offer.Rounds, TitleFight = Offer.TitleFight, Belt = Offer.Belt, Context = Offer.Context };
         return s;
     }
@@ -465,6 +494,11 @@ public sealed class CareerGame
             else _careers.AdvanceOneYear(b);
             CapStarter(b);
 
+            // Track Hall-of-Fame credentials: best rating ever reached, and whether he ever held a world belt.
+            _peakOverall[b.Id] = Math.Max(_peakOverall.GetValueOrDefault(b.Id), b.Overall);
+            if (ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id)
+                _everChampion.Add(b.Id);
+
             // Fight regularly or hang them up: a generated fighter who's been idle for ~2 years drifts out
             // of the sport, so the rankings stay full of active men rather than ghosts.
             bool inactive = b.Id != Player.Id && !_historical.ContainsKey(b.Id)
@@ -476,8 +510,9 @@ public sealed class CareerGame
                 if (ChampOf(b.WeightClass)?.Id == b.Id) _champions[b.WeightClass] = null;
                 if (WbcOf(b.WeightClass)?.Id == b.Id) _wbc[b.WeightClass] = null;
                 if (IbfOf(b.WeightClass)?.Id == b.Id) _ibf[b.WeightClass] = null;
-                if (b.Id == Player.Id) LogEvent($"{Player.Name} retires from boxing.", true, kind: "retire");
-                else if (b.Overall >= 80) LogEvent($"{b.Name} ({b.Record}) hangs them up after a fine career.", kind: "retire", div: b.WeightClass);
+                bool inducted = MaybeInductHoF(b);
+                if (b.Id == Player.Id) { if (!inducted) LogEvent($"{Player.Name} retires from boxing.", true, kind: "retire"); }
+                else if (!inducted && b.Overall >= 80) LogEvent($"{b.Name} ({b.Record}) hangs them up after a fine career.", kind: "retire", div: b.WeightClass);
             }
         }
 
@@ -490,17 +525,64 @@ public sealed class CareerGame
             var champ = ChampOf(wc);
             if (champ is null || champ.Retired)
             {
-                var next = ActiveIn(wc).Where(b => (b.Id != Player.Id || Player.IsChampion) && !RecentlyMovedUp(b)).OrderByDescending(RankScore).FirstOrDefault();
-                if (next is not null)
+                _champions[wc] = null;
+                var winner = ContestVacantTitle(wc, PrimaryBelt, WbcOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
+                if (winner is not null)
                 {
-                    _champions[wc] = next; next.IsChampion = true;
-                    LogEvent($"{next.Name} is crowned the new {PrimaryBelt} champion.", kind: "title", div: wc);
+                    _champions[wc] = winner; winner.IsChampion = true; _everChampion.Add(winner.Id);
+                    LogEvent($"{winner.Name} wins the vacant {PrimaryBelt} title.", winner.Id == Player.Id, kind: "title", div: wc);
                 }
             }
         }
 
         foreach (var wc in AllDivisions) UpdateBeltsFor(wc);
         // Divisions aren't capped — their sizes settle naturally as fighters age, retire and move up.
+    }
+
+    /// <summary>Fill a vacant belt by matching the two leading eligible contenders in a real title bout, so the new
+    /// champion actually WON it (the fight lands in his ledger) instead of being handed the strap. Returns the new
+    /// champion — the lone credible contender unopposed if there's only one — or null if the division is bare.</summary>
+    private Boxer? ContestVacantTitle(WeightClass wc, string belt, params int[] excludeIds)
+    {
+        var exclude = excludeIds.Where(id => id != 0).ToHashSet();
+        var field = ActiveIn(wc)
+            .Where(b => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id) && WorldRanked(b) && !RecentlyMovedUp(b))
+            .OrderByDescending(RankScore).Take(2).ToList();
+        if (field.Count == 0) return null;
+        if (field.Count == 1) return field[0];   // only one credible contender — the strap is his unopposed
+
+        var (savedDate, savedCursor) = (Date, _cursor);
+        _cursor = wc;
+        Date = SpreadDate(Date.Year);
+        var res = FastBout(field[0], field[1], 12);
+        ApplyOutcome(res, field[0], field[1], $"{belt} title");
+        var winner = res.IsDraw ? field[0] : res.Winner!;   // a draw leaves the belt with the higher-ranked man
+        (Date, _cursor) = (savedDate, savedCursor);          // don't disturb the caller's clock/cursor
+        return winner;
+    }
+
+    /// <summary>Enshrine a retiring great: a world champion with a real body of work, or a genuinely elite talent.
+    /// The snapshot is self-contained so it survives the roster being pruned on save. Returns true if inducted.</summary>
+    private bool MaybeInductHoF(Boxer b)
+    {
+        if (_hof.Any(x => x.Id == b.Id)) return false;
+        int peak = _peakOverall.GetValueOrDefault(b.Id, b.Overall);
+        if (_historical.TryGetValue(b.Id, out var h)) peak = Math.Max(peak, h.Prime.Overall);
+        bool wasChamp = _everChampion.Contains(b.Id)
+                        || ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
+        int defenses = _beltDefenses.Where(kv => kv.Key.Holder == b.Id).Sum(kv => kv.Value);
+        // A world champion with a genuine reign (3+ defences), or a genuinely elite talent regardless of belts.
+        bool worthy = (wasChamp && defenses >= 3) || peak >= 88;
+        if (!worthy) return false;
+
+        _hof.Add(new HallOfFamer
+        {
+            Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, Division = b.WeightClass,
+            Record = b.Record.ToString(), PeakOverall = peak, Defenses = defenses, WasChampion = wasChamp,
+            Age = b.Age, Year = Date.Year
+        });
+        LogEvent($"{b.Name} ({b.Record}) retires and enters the Hall of Fame.", b.Id == Player.Id, kind: "hof", div: b.WeightClass);
+        return true;
     }
 
     /// <summary>Log a title event, tagged with the division being simulated so the news feed can filter it.</summary>
@@ -1233,19 +1315,15 @@ public sealed class CareerGame
         if (WbcOf(wc) is Boxer w && w.Retired) _wbc[wc] = null;
         if (WbcActive && WbcOf(wc) is null)
         {
-            var champ = ChampOf(wc);
-            var pick = ActiveIn(wc).Where(b => b.Id != Player.Id && (champ is null || b.Id != champ.Id) && WorldRanked(b) && !RecentlyMovedUp(b))
-                             .OrderByDescending(b => RankScore(b)).FirstOrDefault();
-            if (pick is not null) { _wbc[wc] = pick; LogEvent($"{pick.Name} is crowned WBC champion.", kind: "title", div: wc); }
+            var winner = ContestVacantTitle(wc, "WBC", ChampOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
+            if (winner is not null) { _wbc[wc] = winner; _everChampion.Add(winner.Id); LogEvent($"{winner.Name} wins the vacant WBC title.", winner.Id == Player.Id, kind: "title", div: wc); }
         }
         // The IBF is established in 1983; fill it from the leading contender who isn't already a world champ.
         if (IbfOf(wc) is Boxer iw && iw.Retired) _ibf[wc] = null;
         if (IbfActive && IbfOf(wc) is null)
         {
-            var held = new[] { ChampOf(wc)?.Id, WbcOf(wc)?.Id };
-            var pick = ActiveIn(wc).Where(b => b.Id != Player.Id && !held.Contains(b.Id) && WorldRanked(b) && !RecentlyMovedUp(b))
-                             .OrderByDescending(b => RankScore(b)).FirstOrDefault();
-            if (pick is not null) { _ibf[wc] = pick; LogEvent($"{pick.Name} is crowned IBF champion.", kind: "title", div: wc); }
+            var winner = ContestVacantTitle(wc, "IBF", ChampOf(wc)?.Id ?? 0, WbcOf(wc)?.Id ?? 0);
+            if (winner is not null) { _ibf[wc] = winner; _everChampion.Add(winner.Id); LogEvent($"{winner.Name} wins the vacant IBF title.", winner.Id == Player.Id, kind: "title", div: wc); }
         }
 
         // Regional belts: each region's title goes to its best fighter in this division who isn't a world champion.

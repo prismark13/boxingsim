@@ -74,8 +74,28 @@ public sealed class CareerEvent
     public DateOnly On { get; init; }
     public required string Text { get; init; }
     public bool PlayerBout { get; init; }
-    public string? Kind { get; init; }   // "title", "upset", "ko", "debut", "retire", "streak" — for the news feed
+    public string? Kind { get; init; }   // "title", "upset", "ko", "debut", "retire", "streak", "hof" — for the news feed
     public WeightClass? Div { get; init; }   // which division this event belongs to (for the news filter)
     public int Year => On.Year;
     public string DateLabel => On.ToString("d MMM yyyy");
+}
+
+/// <summary>A retired great enshrined in the Hall of Fame — a self-contained snapshot taken at induction so
+/// it survives even after the fighter is pruned from the active roster on save.</summary>
+public sealed class HallOfFamer
+{
+    public int Id { get; init; }
+    public required string Name { get; init; }
+    public string? Nickname { get; init; }
+    public string? Country { get; init; }
+    public WeightClass Division { get; init; }
+    public string Record { get; init; } = "";
+    public int PeakOverall { get; init; }
+    public int Defenses { get; init; }     // total world-title defences across every belt and division
+    public bool WasChampion { get; init; }
+    public int Age { get; init; }          // age at retirement
+    public int Year { get; init; }         // year inducted (= year retired)
+
+    /// <summary>Ranking weight for the Hall: a world belt is the entry ticket, then defences and pure ability.</summary>
+    public int Prestige => (WasChampion ? 1000 : 0) + Defenses * 8 + PeakOverall;
 }
