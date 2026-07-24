@@ -318,6 +318,31 @@ button.ghost.sm{padding:5px 11px;font-size:11.5px;}
 .fs-cardwrap .label{margin-bottom:8px;}
 .fs-cardwrap .rtr.rth{background:var(--panel);}
 
+/* phone layout — keep the header on one row, trim padding, grow tap targets, kill sideways scroll */
+@media(max-width:560px){
+  html,body{overflow-x:hidden;}
+  .appbar{gap:12px;padding:0 14px;}
+  .brand{font-size:0;gap:0;}                 /* hide the wordmark, keep the ring mark as a home button */
+  .appbar nav{gap:2px;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .appbar nav a{padding:8px 11px;white-space:nowrap;}
+  .appmain{padding:22px 14px 60px;}
+  .overline{margin-bottom:18px;}
+  .section-head h2{font-size:21px;}
+  .setup h1{font-size:28px;}
+  .pname{font-size:20px;}
+  .career-top{padding:14px 15px;gap:14px;}
+  .toolbar input{min-width:0;flex:1;}
+  .modal-bg{padding:12px;}
+  .modal{padding:16px;}
+  /* touch targets */
+  .rank-tabs button{padding:9px 8px;}
+  .divrow{padding:11px 6px;}
+  .newsfilter{padding:6px 8px;font-size:12px;}
+  .segmented button{padding:11px 14px;}
+  .minibtn{padding:9px 13px;}
+  .fs-controls .ghost{padding:9px 13px;}
+}
+
 /* blazor defaults */
 #blazor-error-ui{background:#12161d;color:#fff;bottom:0;display:none;left:0;padding:.8rem 1.2rem;position:fixed;width:100%;z-index:1000;border-top:1px solid var(--accent-line);}
 #blazor-error-ui .dismiss{cursor:pointer;position:absolute;right:.75rem;top:.5rem;}
