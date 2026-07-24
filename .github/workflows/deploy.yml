@@ -27,11 +27,14 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Rewrite base href for project page (/boxingsim/) BEFORE build
+        # Must run before publish so the service-worker integrity manifest is
+        # computed against the rewritten index.html (otherwise the SW fails to
+        # validate the app and the game won't boot).
+        run: sed -i 's|<base href="/" />|<base href="/boxingsim/" />|g' src/BoxingSim.App/wwwroot/index.html
+
       - name: Publish
         run: dotnet publish src/BoxingSim.App/BoxingSim.App.csproj -c Release -o release
-
-      - name: Rewrite base href for project page (/boxingsim/)
-        run: sed -i 's|<base href="/" />|<base href="/boxingsim/" />|g' release/wwwroot/index.html
 
       - name: SPA fallback (client-side routing)
         run: cp release/wwwroot/index.html release/wwwroot/404.html
