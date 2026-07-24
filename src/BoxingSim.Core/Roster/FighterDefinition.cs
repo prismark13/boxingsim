@@ -24,6 +24,9 @@ public sealed class FighterDefinition
     /// <summary>Optional authored style. If omitted, style is inferred from ratings + record.</summary>
     public FightingStyle? Style { get; set; }
 
+    /// <summary>Optional measured reach in inches. If omitted, a believable one is synthesised from frame.</summary>
+    public int? Reach { get; set; }
+
     /// <summary>When true, ratings are derived from the record + <see cref="Tier"/> instead of the fields below.</summary>
     public bool AutoRate { get; set; }
 
@@ -87,6 +90,7 @@ public sealed class FighterDefinition
             Potential = 0,
             Ratings = ratings
         };
+        b.Reach = Reach is int r && r > 0 ? r : Physique.ReachInchesFor(TopWeight ?? WeightClass, Name);
         b.Potential = b.Overall;
         b.Record.Wins = Wins;
         b.Record.Losses = Losses;
@@ -107,6 +111,7 @@ public sealed class FighterDefinition
         PrimeYears = b.PrimeYears,
         Country = b.Country,
         Titles = b.Titles,
+        Reach = b.Reach > 0 ? b.Reach : null,
         Power = b.Ratings.Power,
         Chin = b.Ratings.Chin,
         Speed = b.Ratings.Speed,

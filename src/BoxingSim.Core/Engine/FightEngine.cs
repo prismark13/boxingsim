@@ -4,7 +4,7 @@ using BoxingSim.Core.Model;
 namespace BoxingSim.Core.Engine;
 
 /// <summary>
-/// Round-by-round bout resolution at 15-second granularity. Punches are jabs or power shots,
+/// Round-by-round bout resolution at 10-second granularity. Punches are jabs or power shots,
 /// to the head or the body, accumulating separate damage pools that drive knockdowns, cuts,
 /// swelling, hand injuries and stoppages. Each completed round is scored by three judges.
 /// Bouts that go the distance are decided on the cards; afterwards, acute injuries and (rarely)
@@ -12,7 +12,7 @@ namespace BoxingSim.Core.Engine;
 /// </summary>
 public sealed class FightEngine
 {
-    private const int TicksPerRound = 12;   // 12 × 15s = 3:00
+    private const int TicksPerRound = 18;   // 18 × 10s = 3:00
     private readonly Random _rng;
 
     public FightEngine(Random rng) => _rng = rng;
@@ -69,6 +69,23 @@ public sealed class FightEngine
         return Punch.Cross;
     }
 
+    /// <summary>Chance a landed power shot is strung into a combination. Fast, busy fighters throw more of
+    /// them; swarmers and boxer-punchers live on combinations, sluggers head-hunt with single big shots.</summary>
+    private double ComboChance(State s)
+    {
+        double basis = 0.08 + s.Eff(s.R.Speed) / 500.0 + Math.Max(0, s.R.Aggression - 55) / 400.0;
+        double styleAdj = s.Style switch
+        {
+            FightingStyle.Swarmer => 0.10,
+            FightingStyle.BoxerPuncher => 0.06,
+            FightingStyle.OutBoxer => 0.02,
+            FightingStyle.CounterPuncher => 0.00,
+            FightingStyle.Slugger => -0.04,
+            _ => 0.0
+        };
+        return Math.Clamp(basis + styleAdj, 0.04, 0.42);
+    }
+
     private string PunchName(Punch p) => p switch
     {
         Punch.Cross => Pick(Crosses),
@@ -79,13 +96,13 @@ public sealed class FightEngine
     };
 
     /// <summary>Land a power punch (or a counter) and apply its damage, cuts and knockdown chance.</summary>
-    private Blow ApplyPower(State puncher, State target, Punch punch, double wcKo, bool isCounter)
+    private Blow ApplyPower(State puncher, State target, Punch punch, double wcKo, bool isCounter, double forceScale = 1.0)
     {
         var pd = PunchTable[(int)punch];
         double powerEff = puncher.Eff(puncher.R.Power) * (1 - puncher.HandPen);
         double chin = target.EffChin();   // a chin already worn by knockdowns offers less protection
         double clean = (isCounter ? 0.72 : 0.6) + _rng.NextDouble() * 0.7;   // counters land a touch cleaner
-        double force = powerEff / Math.Max(20.0, chin) * wcKo * clean * pd.Force;
+        double force = powerEff / Math.Max(20.0, chin) * wcKo * clean * pd.Force * forceScale;
         if (isCounter) force *= 0.45;   // a quick counter scores and stings, but isn't a loaded haymaker
         puncher.RoundWeighted += 1.6 * (0.5 + powerEff / 200.0) * pd.Score;
 
@@ -111,6 +128,17 @@ public sealed class FightEngine
         }
         bool staggered = !pd.Body && !countedOut && force >= 1.6 && _rng.NextDouble() < Math.Clamp((force - 1.5) * 0.17, 0, 0.24);
         return new Blow(true, pd.Body, handHurt, countedOut, toBodyKd, staggered, PunchName(punch));
+    }
+
+    /// <summary>The ring effect of a reach differential (in inches). The longer man controls distance and
+    /// lands the jab more freely — but an aggressive pressure fighter or slugger who gets inside erases much
+    /// of that edge. Expressed on the same ~[-0.7, 0.7] scale as the style edge, so both fold into landProb.</summary>
+    private static double ReachEdge(int myReach, int oppReach, FightingStyle oppStyle)
+    {
+        if (myReach <= 0 || oppReach <= 0) return 0;   // unknown reach → no effect
+        double e = (myReach - oppReach) * 0.05;        // ~6" edge ≈ 0.30
+        if (e > 0 && (oppStyle == FightingStyle.Swarmer || oppStyle == FightingStyle.Slugger)) e *= 0.55; // he closes the gap
+        return Math.Clamp(e, -0.7, 0.7);
     }
 
     /// <summary>How readily a fighter catches a missing opponent with a counter.</summary>
@@ -158,6 +186,8 @@ public sealed class FightEngine
     {
         public bool Landed, Big, Body, HandHurt, CountedOut, ToBodyKd, Staggered;
         public string? Type;
+        public int ComboLen;      // >1 when the landing power shot was strung into a combination
+        public bool ComboBody;    // the combination went to the body as well as the head
         // The defender's counter, fired when the attacker misses.
         public bool CounterLanded, CounterBig, CounterBody, CounterCountedOut, CounterToBodyKd;
         public string? CounterType;
@@ -175,8 +205,9 @@ public sealed class FightEngine
         var styleA = StyleClassifier.Of(a);
         var styleB = StyleClassifier.Of(b);
         sa.Style = styleA; sb.Style = styleB;
-        double edgeA = FightingStyles.Advantage(styleA, styleB);
-        double edgeB = -edgeA;
+        // The total edge each man carries into every exchange = the style rock-paper-scissors plus his reach.
+        double edgeA = FightingStyles.Advantage(styleA, styleB) + ReachEdge(a.Reach, b.Reach, styleB);
+        double edgeB = FightingStyles.Advantage(styleB, styleA) + ReachEdge(b.Reach, a.Reach, styleA);
 
         // Running judge totals (three judges), accumulated as each round is scored.
         var jtA = new int[3];
@@ -413,6 +444,26 @@ public sealed class FightEngine
         hit.Big = blow.Big; hit.Body = blow.Body; hit.Type = blow.Type;
         hit.HandHurt = blow.HandHurt; hit.CountedOut = blow.CountedOut; hit.ToBodyKd = blow.ToBodyKd;
 
+        // In rhythm and in range — a fast, busy fighter strings the shot into a short combination.
+        // Follow-up punches land cleaner (he's set) but carry less than a loaded single shot.
+        if (!hit.CountedOut && !blow.Staggered)
+        {
+            int shots = 1;
+            bool comboBody = blow.Body;
+            double cc = ComboChance(att);
+            while (shots < 3 && _rng.NextDouble() < cc)
+            {
+                var extra = ApplyPower(att, def, PickPowerPunch(att), wcKo, isCounter: false, forceScale: 0.7);
+                shots++; att.RoundLanded++;
+                if (extra.Body) comboBody = true;
+                if (extra.HandHurt) hit.HandHurt = true;
+                if (extra.CountedOut) { hit.CountedOut = true; break; }
+                if (extra.Staggered) { blow = extra; break; }
+                cc *= 0.5;   // each additional punch is less likely than the last
+            }
+            if (shots > 1) { hit.ComboLen = shots; hit.ComboBody = comboBody; }
+        }
+
         // Wobbled him — a finisher jumps on a hurt man and tries to take him out right now.
         if (!hit.CountedOut && blow.Staggered)
         {
@@ -625,7 +676,7 @@ public sealed class FightEngine
 
     private static string ClockLabel(int tickIndex)
     {
-        int remaining = 165 - tickIndex * 15; // 2:45 down to 0:00
+        int remaining = 170 - tickIndex * 10; // 2:50 down to 0:00
         if (remaining < 0) remaining = 0;
         return $"{remaining / 60}:{remaining % 60:00}";
     }
@@ -637,6 +688,7 @@ public sealed class FightEngine
             if (attacker)
             {
                 if (hit.Big) { t.BigA = true; t.PunchA = hit.Type; t.BodyShotA = hit.Body; }
+                if (hit.ComboLen > 1) { t.ComboA = hit.ComboLen; t.ComboBodyA = hit.ComboBody; }
                 if (hit.HandHurt) t.HandA = true;
                 if (hit.ToBodyKd) t.DownBodyB = true;
                 if (hit.Staggered) t.StaggerB = true;       // A wobbled B and teed off
@@ -645,6 +697,7 @@ public sealed class FightEngine
             else
             {
                 if (hit.Big) { t.BigB = true; t.PunchB = hit.Type; t.BodyShotB = hit.Body; }
+                if (hit.ComboLen > 1) { t.ComboB = hit.ComboLen; t.ComboBodyB = hit.ComboBody; }
                 if (hit.HandHurt) t.HandB = true;
                 if (hit.ToBodyKd) t.DownBodyA = true;
                 if (hit.Staggered) t.StaggerA = true;

@@ -61,6 +61,7 @@ public sealed class BoxerSave
     public string? PrimeYears { get; set; }
     public WeightClass WeightClass { get; set; }
     public string? TopWeight { get; set; }
+    public int Reach { get; set; }
     public int Age { get; set; }
     public int PeakAge { get; set; }
     public int Potential { get; set; }
@@ -76,7 +77,7 @@ public sealed class BoxerSave
         var s = new BoxerSave
         {
             Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, DateOfBirth = b.DateOfBirth,
-            DebutYear = b.DebutYear, PrimeYears = b.PrimeYears, WeightClass = b.WeightClass, TopWeight = b.TopWeight?.ToString(), Age = b.Age,
+            DebutYear = b.DebutYear, PrimeYears = b.PrimeYears, WeightClass = b.WeightClass, TopWeight = b.TopWeight?.ToString(), Reach = b.Reach, Age = b.Age,
             PeakAge = b.PeakAge, Potential = b.Potential, Retired = b.Retired, IsChampion = b.IsChampion,
             RankPoints = b.RankPoints, Wins = b.Record.Wins, Losses = b.Record.Losses, Draws = b.Record.Draws,
             KoWins = b.Record.KnockoutWins, KoLosses = b.Record.KnockoutLosses, Ratings = RatingsSave.From(b.Ratings)
@@ -107,6 +108,7 @@ public sealed class BoxerSave
             PeakAge = PeakAge, Potential = Potential, Retired = Retired, IsChampion = IsChampion,
             RankPoints = RankPoints, Ratings = Ratings.ToRatings()
         };
+        b.Reach = Reach > 0 ? Reach : Physique.ReachInchesFor(b.TopWeight ?? WeightClass, Name);
         b.Record.Wins = Wins; b.Record.Losses = Losses; b.Record.Draws = Draws;
         b.Record.KnockoutWins = KoWins; b.Record.KnockoutLosses = KoLosses;
         foreach (var h in History)

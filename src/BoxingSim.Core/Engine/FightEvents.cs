@@ -15,6 +15,8 @@ public sealed class FightTick
     public int RockA, RockB;                  // 0 = fine, 1 = hurt, 2 = badly wobbled
     public string? PunchA, PunchB;            // last power-shot type landed this segment
     public bool BodyShotA, BodyShotB;         // last power shot was to the body
+    public int ComboA, ComboB;                // >1 when that power shot was part of a combination
+    public bool ComboBodyA, ComboBodyB;       // the combination worked head and body
     public bool DownBodyA, DownBodyB;         // a knockdown this segment was to the body
     public bool HandA, HandB;                 // a fighter hurt his hand this segment
     public bool StaggerA, StaggerB;           // a fighter was wobbled and got jumped on

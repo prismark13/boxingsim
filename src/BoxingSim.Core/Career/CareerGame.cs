@@ -25,6 +25,9 @@ public sealed class CareerGame
     private readonly List<(int DebutYear, Boxer Proto, int DebutAge, int Peak)> _future = new();
     private readonly List<CareerEvent> _log = new();
     private readonly List<TitleReign> _reigns = new();
+    // Successful defences of each belt, keyed by (division, belt slot, current holder) — so a new champion
+    // automatically starts at zero. Belt slots are "WBA" (the primary/World belt), "WBC", "IBF".
+    private readonly Dictionary<(WeightClass Div, string Belt, int Holder), int> _beltDefenses = new();
     private const string UndisputedBelt = "Undisputed";
     private const int MaxFightsPerYear = 8;   // nobody boxes more than 8 times in a calendar year
 
@@ -89,6 +92,23 @@ public sealed class CareerGame
     public Boxer? WorldChampionOf(WeightClass wc) => ChampOf(wc);
     public Boxer? WbcChampionOf(WeightClass wc) => WbcOf(wc);
     public Boxer? IbfChampionOf(WeightClass wc) => IbfOf(wc);
+
+    private static string BeltSlot(string belt) => belt == "WBC" ? "WBC" : belt == "IBF" ? "IBF" : "WBA";
+    private void Defended(WeightClass wc, string slot, int holder) =>
+        _beltDefenses[(wc, slot, holder)] = _beltDefenses.GetValueOrDefault((wc, slot, holder)) + 1;
+    public int DefensesOf(WeightClass wc, string belt, int holderId) => _beltDefenses.GetValueOrDefault((wc, BeltSlot(belt), holderId));
+
+    /// <summary>The world belts a fighter currently holds in his division, with the defence count of each —
+    /// for the card's championship line and to show all straps on a unified champion.</summary>
+    public IEnumerable<(string Belt, int Defenses)> BeltsHeld(Boxer b)
+    {
+        var wc = b.WeightClass;
+        if (ChampOf(wc)?.Id == b.Id) yield return (PrimaryBelt, DefensesOf(wc, "WBA", b.Id));
+        if (WbcOf(wc)?.Id == b.Id) yield return ("WBC", DefensesOf(wc, "WBC", b.Id));
+        if (IbfOf(wc)?.Id == b.Id) yield return ("IBF", DefensesOf(wc, "IBF", b.Id));
+        foreach (var kv in _regional.Where(kv => kv.Key.Div == wc && kv.Value.Id == b.Id))
+            yield return (kv.Key.Region, 0);
+    }
     public int ActiveCountOf(WeightClass wc) => _roster.Count(b => !b.Retired && b.WeightClass == wc);
     /// <summary>The top world-ranked fighters in a division (for a rankings view).</summary>
     public IReadOnlyList<Boxer> RankingOf(WeightClass wc, int take = 15) =>
@@ -165,6 +185,19 @@ public sealed class CareerGame
         }
         Date = new DateOnly(startYear, 1, 1);
         InjectDebuts();
+        // A division founded exactly in the start year is seeded and crowned now (the yearly loop stopped at
+        // startYear-1), so it opens with a real champion rather than sitting vacant on day one.
+        SeedNewlyFoundedDivisions();
+        foreach (var wc in AllDivisions)
+        {
+            if (!DivisionActive(wc)) continue;
+            if (ChampOf(wc) is null || ChampOf(wc)!.Retired)
+            {
+                var champ = ActiveIn(wc).Where(b => b.Id != Player.Id && !RecentlyMovedUp(b)).OrderByDescending(RankScore).FirstOrDefault();
+                if (champ is not null) { _champions[wc] = champ; champ.IsChampion = true; }
+            }
+            UpdateBeltsFor(wc);
+        }
 
         // The decade of build-up isn't the player's story — start his timeline clean.
         _log.Clear();
@@ -278,6 +311,7 @@ public sealed class CareerGame
             bool playerWon = res.Winner!.Id == Player.Id;
             if (playerWon)
             {
+                Defended(Player.WeightClass, "WBA", Player.Id); Defended(Player.WeightClass, "WBC", Player.Id);
                 foreach (var bl in new[] { PrimaryBelt, "WBC" }) { var r = OpenReign(bl); if (r is not null) r.Defenses++; }
             }
             else
@@ -299,6 +333,7 @@ public sealed class CareerGame
             }
             else if (playerWon && held)
             {
+                Defended(Player.WeightClass, BeltSlot(belt), Player.Id);
                 var r = OpenReign(belt); if (r is not null) r.Defenses++;   // successful defence
             }
             else if (!playerWon && held)
@@ -400,6 +435,7 @@ public sealed class CareerGame
     /// <summary>Yearly aging and retirements across every division; weight-moves; re-crown vacant belts.</summary>
     private void AgeRetireCrown()
     {
+        SeedNewlyFoundedDivisions();   // a division founded this year opens with contenders moving up into it
         foreach (var b in _roster.Where(x => !x.Retired).ToList())
         {
             if (b.Id == Player.Id) { _careers.AdvanceOneYear(b); }
@@ -423,7 +459,7 @@ public sealed class CareerGame
             }
         }
 
-        MoveNpcsUp();   // fighters campaign up in weight as their careers progress
+        FlushStepUps();   // fighters queued over the year now campaign up in weight
 
         // Re-crown any vacant primary belt in every division that exists.
         foreach (var wc in AllDivisions)
@@ -432,7 +468,7 @@ public sealed class CareerGame
             var champ = ChampOf(wc);
             if (champ is null || champ.Retired)
             {
-                var next = ActiveIn(wc).Where(b => b.Id != Player.Id || Player.IsChampion).OrderByDescending(RankScore).FirstOrDefault();
+                var next = ActiveIn(wc).Where(b => (b.Id != Player.Id || Player.IsChampion) && !RecentlyMovedUp(b)).OrderByDescending(RankScore).FirstOrDefault();
                 if (next is not null)
                 {
                     _champions[wc] = next; next.IsChampion = true;
@@ -470,45 +506,120 @@ public sealed class CareerGame
         r.Speed = Ratings.Clamp(r.Speed - _rng.Next(3));
     }
 
-    /// <summary>Send a fighter up to the next division: vacate any belts he held, rebalance, keep his record.
-    /// For a real fighter, his stored prime is rebalanced too so the aging curve doesn't undo the move.</summary>
-    private void MoveUpTo(Boxer b, WeightClass to)
+    private readonly Dictionary<int, int> _warmupUntil = new();   // fighter id → pro-fight count he must reach before a title shot in the new class
+    /// <summary>A fighter who just moved up needs a few tune-ups before he can contest a title in the new class.</summary>
+    private bool RecentlyMovedUp(Boxer b) => _warmupUntil.TryGetValue(b.Id, out var t) && ProFights(b) < t;
+
+    /// <summary>Send a fighter up to the next division: he relinquishes any belts he held, is rebalanced, keeps
+    /// his record, and (unless he's seeding a brand-new division) needs 1–4 warm-up fights before a title shot.</summary>
+    private void MoveUpTo(Boxer b, WeightClass to, bool warmup = true)
     {
         var from = b.WeightClass;
+        var vacated = BeltsHeld(b).Select(x => x.Belt).ToList();
         if (b.IsChampion) b.IsChampion = false;
         if (ChampOf(from)?.Id == b.Id) _champions[from] = null;
         if (WbcOf(from)?.Id == b.Id) _wbc[from] = null;
         if (IbfOf(from)?.Id == b.Id) _ibf[from] = null;
         foreach (var region in RegionalBelts) if (_regional.GetValueOrDefault((from, region))?.Id == b.Id) _regional.Remove((from, region));
+        if (vacated.Count > 0 && (b.Id == Player.Id || from == Division))
+            LogEvent($"{b.Name} relinquishes the {string.Join(", ", vacated)} title{(vacated.Count > 1 ? "s" : "")} to move up to {to.DisplayName()}.", b.Id == Player.Id, kind: "title", div: from);
         b.WeightClass = to;
         RebalanceRatings(b.Ratings);
         b.Potential = b.Overall;
         if (_historical.TryGetValue(b.Id, out var h)) { var prime = h.Prime.Clone(); RebalanceRatings(prime); _historical[b.Id] = (prime, h.Peak); }
+        if (warmup) { _warmupUntil[b.Id] = ProFights(b) + 1 + _rng.Next(4); StepUpsPerformed++; }
     }
 
-    /// <summary>Each year a slice of established fighters move up a weight. Real fighters only climb toward the
-    /// top division they actually campaigned in (their TopWeight); generated fighters may drift up generally.</summary>
-    private void MoveNpcsUp()
+    /// <summary>Count of organic career move-ups performed (excludes new-division seeding). Diagnostics/tests.</summary>
+    public int StepUpsPerformed { get; private set; }
+
+    /// <summary>The escalating champion step-up hazard, exposed for verification/tuning.</summary>
+    public static double DefenceStepUpHazardAt(int defenceNumber) => DefenceStepUpHazard(defenceNumber);
+
+    /// <summary>The year a division is founded, seed it by moving a tier of established contenders up from the
+    /// division just below — so it opens with ranked fighters and crowns a champion straight away, rather than
+    /// sitting empty while debutants slowly mature.</summary>
+    private void SeedNewlyFoundedDivisions()
     {
-        foreach (var b in _roster.Where(x => !x.Retired && x.Id != Player.Id && x.WeightClass != WeightClass.Heavyweight).ToList())
+        foreach (var wc in AllDivisions)
         {
-            if (NextActiveUp(b.WeightClass) is not WeightClass to) continue;
-            bool historical = _historical.ContainsKey(b.Id);
-            if (historical)
-            {
-                // A single-weight great stays put; a multi-weight great climbs no higher than his real ceiling.
-                if (b.TopWeight is not WeightClass top || (int)to > (int)top) continue;
-            }
-            var stage = CareerStages.Of(b);
-            double p = stage switch
-            {
-                CareerStage.PrePrime => historical ? 0.22 : 0.04,   // real movers climb fairly promptly toward their real weight
-                CareerStage.Prime => historical ? 0.28 : 0.06,
-                CareerStage.PostPrime => historical ? 0.20 : 0.05,
-                _ => 0.01
-            };
-            if (_rng.NextDouble() < p) MoveUpTo(b, to);
+            if (wc.FoundedYear() != Year || (int)wc == 0) continue;
+            var below = (WeightClass)((int)wc - 1);
+            // The next tier of established contenders below (not the very top two, who stay) move up to the new class.
+            var movers = ActiveIn(below)
+                .Where(b => b.Id != Player.Id && !_historical.ContainsKey(b.Id) && WorldRanked(b))
+                .OrderByDescending(RankScore).Skip(2).Take(16).ToList();
+            foreach (var b in movers) MoveUpTo(b, wc, warmup: false);   // founding contenders are eligible at once
         }
+    }
+
+    // Fighters queued to campaign up a division; applied together at year's end so no one changes weight
+    // mid-card. Populated per-bout (see ConsiderStepUp) rather than by a single yearly roll.
+    private readonly HashSet<int> _stepUpQueued = new();
+
+    /// <summary>Can this fighter move up to <paramref name="to"/>? Real fighters never climb past the top weight
+    /// they actually campaigned at; generated fighters (and multi-weight greats below their ceiling) can.</summary>
+    private bool StepUpAllowed(Boxer b, WeightClass to)
+    {
+        if (!_historical.ContainsKey(b.Id)) return true;
+        return b.TopWeight is WeightClass top && (int)to <= (int)top;
+    }
+
+    /// <summary>The flat per-fight chance any fighter drifts up a weight, from his prime onward (bodies fill out).
+    /// Zero before the prime — a kid isn't outgrowing his division yet.</summary>
+    private static double PerFightStepUpBase(CareerStage stage) => stage switch
+    {
+        CareerStage.Prime => 0.008,       // ~0.8%/fight
+        CareerStage.PostPrime => 0.015,   // ~1.5%/fight — most likely to outgrow the weight late
+        CareerStage.End => 0.010,
+        _ => 0.0                          // Starter / PrePrime: too early
+    };
+
+    /// <summary>The extra, escalating chance a champion vacates to move up on the back of a title defence.
+    /// The hazard grows with the number of defences so a long reign almost forces a step up — calibrated so
+    /// the cumulative chance of having moved by the 10th defence is ~65%.</summary>
+    private static double DefenceStepUpHazard(int defenceNumber)
+    {
+        if (defenceNumber < 1) return 0;
+        // Survival S(n) = exp(-k·n²) with k≈0.0105 gives S(10)≈0.35 (→65% moved). Conditional per-defence
+        // hazard = 1 − S(n)/S(n−1) = 1 − exp(−k·(2n−1)) — ~1% at the first defence rising to ~18% by the tenth.
+        const double k = 0.0105;
+        return 1.0 - Math.Exp(-k * (2 * defenceNumber - 1));
+    }
+
+    /// <summary>Roll a fighter's flat per-fight chance to campaign up a weight — called for both fighters after
+    /// every NPC bout, so from his prime on any fighter may gradually outgrow his division.</summary>
+    private void ConsiderStepUp(Boxer? b) => TryQueueStepUp(b, PerFightStepUpBase(CareerStages.Of(b!)));
+
+    /// <summary>Roll the escalating champion-only hazard after a successful title defence (on top of the flat
+    /// per-fight chance already rolled in <see cref="ApplyOutcome"/>) — a long reign almost forces a move.</summary>
+    private void ConsiderTitleStepUp(Boxer? champ)
+    {
+        if (champ is null) return;
+        int defs = BeltsHeld(champ).Select(x => x.Defenses).DefaultIfEmpty(0).Max();
+        TryQueueStepUp(champ, DefenceStepUpHazard(defs));
+    }
+
+    private void TryQueueStepUp(Boxer? b, double p)
+    {
+        if (b is null || b.Id == Player.Id || b.Retired || p <= 0) return;
+        if (_stepUpQueued.Contains(b.Id)) return;
+        if (NextActiveUp(b.WeightClass) is not WeightClass to || !StepUpAllowed(b, to)) return;
+        if (_rng.NextDouble() < p) _stepUpQueued.Add(b.Id);
+    }
+
+    /// <summary>Apply every queued move-up. Run once a year (from AgeRetireCrown) so weight changes land between
+    /// campaigns, never in the middle of a card.</summary>
+    private void FlushStepUps()
+    {
+        if (_stepUpQueued.Count == 0) return;
+        foreach (var id in _stepUpQueued.ToList())
+        {
+            var b = _roster.FirstOrDefault(x => x.Id == id && !x.Retired);
+            if (b is not null && NextActiveUp(b.WeightClass) is WeightClass to && StepUpAllowed(b, to))
+                MoveUpTo(b, to);
+        }
+        _stepUpQueued.Clear();
     }
 
     /// <summary>A fortnight's fight cards across every division.</summary>
@@ -547,7 +658,7 @@ public sealed class CareerGame
                     var res = FastBout(Champ, ch, 12);
                     ApplyOutcome(res, Champ, ch, $"{PrimaryBelt} title");
                     if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {Champ.Name} for the {PrimaryBelt} title!"); CrownChampion(ch); }
-                    else LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}.");
+                    else { Defended(_cursor, "WBA", Champ.Id); LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}."); ConsiderTitleStepUp(Champ); }
                 }
             }
             if (Wbc is not null && Wbc.Id != Player.Id && DaysSinceLastBout(Wbc) >= 70 && _rng.NextDouble() < 0.12)   // ~2–3 defences a year, min ~10 weeks apart
@@ -558,7 +669,7 @@ public sealed class CareerGame
                     var res = FastBout(Wbc, ch, 12);
                     ApplyOutcome(res, Wbc, ch, "WBC title");
                     if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {Wbc.Name}!"); CrownWbc(ch); }
-                    else LogTitle($"{Wbc.Name} retains the WBC title against {ch.Name}.");
+                    else { Defended(_cursor, "WBC", Wbc.Id); LogTitle($"{Wbc.Name} retains the WBC title against {ch.Name}."); ConsiderTitleStepUp(Wbc); }
                 }
             }
         }
@@ -572,7 +683,7 @@ public sealed class CareerGame
                 var res = FastBout(Ibf, ch, 12);
                 ApplyOutcome(res, Ibf, ch, "IBF title");
                 if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {Ibf.Name}!"); CrownIbf(ch); }
-                else LogTitle($"{Ibf.Name} retains the IBF title against {ch.Name}.");
+                else { Defended(_cursor, "IBF", Ibf.Id); LogTitle($"{Ibf.Name} retains the IBF title against {ch.Name}."); ConsiderTitleStepUp(Ibf); }
             }
         }
 
@@ -700,7 +811,7 @@ public sealed class CareerGame
             LogTitle($"{ch.Name} DETHRONES {champ.Name} to take the unified {PrimaryBelt} and WBC titles!");
             CrownChampion(ch); CrownWbc(ch);
         }
-        else LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}.");
+        else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}."); ConsiderTitleStepUp(champ); }
     }
 
     /// <summary>Warmup: a unified champion runs a season of 2–3 combined defences, and may vacate a belt.</summary>
@@ -754,6 +865,7 @@ public sealed class CareerGame
                                   : $"{challenger.Name} takes the {belt} title from {c.Name}.");
                 crown(challenger);
             }
+            else { Defended(c.WeightClass, BeltSlot(belt), c.Id); ConsiderTitleStepUp(c); }
         }
     }
 
@@ -807,7 +919,7 @@ public sealed class CareerGame
         var recent = RecentFoes(champ, 4);
         var here = ActiveIn(champ.WeightClass);   // challengers come from the champion's own division
         bool Ok(Boxer b) => b.Id != Player.Id && b.Id != champ.Id
-                         && (otherChamp is null || b.Id != otherChamp.Id) && WorldRanked(b);
+                         && (otherChamp is null || b.Id != otherChamp.Id) && WorldRanked(b) && !RecentlyMovedUp(b);
         // Prefer a contender he hasn't just fought and hasn't already met several times.
         var ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name) && champ.History.Count(h => h.Opponent == b.Name) < 3).ToList();
         if (ranked.Count == 0) ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name)).ToList();
@@ -866,7 +978,7 @@ public sealed class CareerGame
         int fightsToRank = Player.Potential >= 85 ? 20 : 24;
         // After a title bout, rebuild with a few wins before the next shot — no back-to-back challenges.
         bool titleCooldownOk = proFights - _lastTitleShot >= 3;
-        if (idx >= 0 && idx <= 4 && proFights >= fightsToRank && titleCooldownOk)
+        if (idx >= 0 && idx <= 4 && proFights >= fightsToRank && titleCooldownOk && !RecentlyMovedUp(Player))
         {
             if (!holdsWba && Champion is not null && Champion.Id != Player.Id)
                 return new FightOffer { Opponent = Champion, Rounds = 12, TitleFight = true, Belt = PrimaryBelt, Context = $"{PrimaryBelt} title shot" };
@@ -1012,6 +1124,10 @@ public sealed class CareerGame
             if (_historical.ContainsKey(f.Id)) continue;
             ApplyLasting(f.Ratings, le);
         }
+
+        // Every bout is a chance for either man, from his prime on, to decide he's outgrowing the weight.
+        ConsiderStepUp(a);
+        ConsiderStepUp(b);
     }
 
     private static void ApplyLasting(Ratings r, LastingEffect le)
@@ -1096,7 +1212,7 @@ public sealed class CareerGame
         if (WbcActive && WbcOf(wc) is null)
         {
             var champ = ChampOf(wc);
-            var pick = ActiveIn(wc).Where(b => b.Id != Player.Id && (champ is null || b.Id != champ.Id) && WorldRanked(b))
+            var pick = ActiveIn(wc).Where(b => b.Id != Player.Id && (champ is null || b.Id != champ.Id) && WorldRanked(b) && !RecentlyMovedUp(b))
                              .OrderByDescending(b => RankScore(b)).FirstOrDefault();
             if (pick is not null) { _wbc[wc] = pick; LogEvent($"{pick.Name} is crowned WBC champion.", kind: "title", div: wc); }
         }
@@ -1105,7 +1221,7 @@ public sealed class CareerGame
         if (IbfActive && IbfOf(wc) is null)
         {
             var held = new[] { ChampOf(wc)?.Id, WbcOf(wc)?.Id };
-            var pick = ActiveIn(wc).Where(b => b.Id != Player.Id && !held.Contains(b.Id) && WorldRanked(b))
+            var pick = ActiveIn(wc).Where(b => b.Id != Player.Id && !held.Contains(b.Id) && WorldRanked(b) && !RecentlyMovedUp(b))
                              .OrderByDescending(b => RankScore(b)).FirstOrDefault();
             if (pick is not null) { _ibf[wc] = pick; LogEvent($"{pick.Name} is crowned IBF champion.", kind: "title", div: wc); }
         }

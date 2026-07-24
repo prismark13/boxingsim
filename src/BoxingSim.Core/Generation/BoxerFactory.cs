@@ -84,13 +84,15 @@ public sealed class BoxerFactory
             Heart = Ceiling(18)                                 // innate, age-independent
         };
 
+        string name = _names.Next();
         return new Boxer
         {
             Id = _nextId++,
-            Name = _names.Next(),
+            Name = name,
             Country = Countries[_rng.Next(Countries.Length)],
             WeightClass = wc,
             Ratings = r,
+            Reach = Physique.ReachInchesFor(wc, name),
             Age = age,
             PeakAge = peakAge,
             Potential = potential

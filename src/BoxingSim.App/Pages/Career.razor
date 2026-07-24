@@ -198,7 +198,7 @@ else
                         <div class="rkrow champ-row @(champ.Id == p.Id ? "me" : "")" @onclick="() => _selected = champ">
                             <span class="rkn"><Icon Name="trophy" Size="13" /></span>
                             <span class="ovrpill" style="color:@Ui.Ovr(champ.Class)">@champ.Class</span>
-                            <span class="rkname">@champ.Name <span class="champ-tag">@g.PrimaryBelt</span></span>
+                            <span class="rkname">@champ.Name @foreach (var bt in g.BeltsHeld(champ)) { <span class="champ-tag">@BeltLabel(bt)</span> }</span>
                             <span class="rkrec">@champ.Record</span>
                         </div>
                     }
@@ -207,7 +207,7 @@ else
                         <div class="rkrow champ-row @(wbc.Id == p.Id ? "me" : "")" @onclick="() => _selected = wbc">
                             <span class="rkn"><Icon Name="trophy" Size="13" /></span>
                             <span class="ovrpill" style="color:@Ui.Ovr(wbc.Class)">@wbc.Class</span>
-                            <span class="rkname">@wbc.Name <span class="champ-tag">WBC</span></span>
+                            <span class="rkname">@wbc.Name @foreach (var bt in g.BeltsHeld(wbc)) { <span class="champ-tag">@BeltLabel(bt)</span> }</span>
                             <span class="rkrec">@wbc.Record</span>
                         </div>
                     }
@@ -216,7 +216,7 @@ else
                         <div class="rkrow champ-row @(ibf.Id == p.Id ? "me" : "")" @onclick="() => _selected = ibf">
                             <span class="rkn"><Icon Name="trophy" Size="13" /></span>
                             <span class="ovrpill" style="color:@Ui.Ovr(ibf.Class)">@ibf.Class</span>
-                            <span class="rkname">@ibf.Name <span class="champ-tag">IBF</span></span>
+                            <span class="rkname">@ibf.Name @foreach (var bt in g.BeltsHeld(ibf)) { <span class="champ-tag">@BeltLabel(bt)</span> }</span>
                             <span class="rkrec">@ibf.Record</span>
                         </div>
                     }
@@ -286,7 +286,7 @@ else
                 {
                     @if (vc is not null)
                     {
-                        <div class="rkrow champ-row" @onclick="() => _selected = vc"><span class="rkn"><Icon Name="trophy" Size="13" /></span><span class="ovrpill" style="color:@Ui.Ovr(vc.Class)">@vc.Class</span><span class="rkname">@vc.Name <span class="champ-tag">@belt</span></span><span class="rkrec">@vc.Record</span></div>
+                        <div class="rkrow champ-row" @onclick="() => _selected = vc"><span class="rkn"><Icon Name="trophy" Size="13" /></span><span class="ovrpill" style="color:@Ui.Ovr(vc.Class)">@vc.Class</span><span class="rkname">@vc.Name <span class="champ-tag">@BeltLabel((belt, g.DefensesOf(vd, belt, vc.Id)))</span></span><span class="rkrec">@vc.Record</span></div>
                     }
                 }
                 @{ int vr = 1; var champIds = beltHolders.Where(x => x.B is not null).Select(x => x.B!.Id).ToHashSet(); }
@@ -325,6 +325,19 @@ else
                     <span class="stage-pill">@CareerStages.Label(CareerStages.Of(sel))</span>
                     <span class="muted">· age @sel.Age</span>
                 </div>
+                <div class="stage-row">
+                    <span class="label">Division</span>
+                    <span class="stage-pill">@sel.WeightClass.DisplayName()</span>
+                    <span class="muted">· @(sel.WeightClass.WeightLimitLbs() >= 999 ? "unlimited" : sel.WeightClass.WeightLimitLbs() + " lb")@(sel.Reach > 0 ? $" · {sel.Reach}\" reach" : "")@(sel.TopWeight is WeightClass tw && tw != sel.WeightClass ? $" · rises to {tw.DisplayName()}" : "")</span>
+                </div>
+                @{ var selBelts = g.BeltsHeld(sel).ToList(); }
+                @if (selBelts.Count > 0)
+                {
+                    <div class="stage-row">
+                        <span class="label">Titles</span>
+                        @foreach (var bt in selBelts) { <span class="champ-tag">@BeltLabel(bt)</span> }
+                    </div>
+                }
                 <div class="label" style="margin-bottom:8px;">Attributes</div>
                 <div class="tiles2">
                     @foreach (var (k, v) in Stats(sel))
@@ -469,6 +482,8 @@ else
                     <div class="stat"><span class="k">KO %</span><span class="v">@(p.Record.Wins > 0 ? 100 * p.Record.KnockoutWins / p.Record.Wins : 0)</span></div>
                     <div class="stat"><span class="k">RANK</span><span class="v">#@(rank > 0 ? rank.ToString() : "–")</span></div>
                     <div class="stat"><span class="k">BOUTS</span><span class="v">@(p.Record.Wins + p.Record.Losses + p.Record.Draws)</span></div>
+                    <div class="stat"><span class="k">DIVISION</span><span class="v">@p.WeightClass.DisplayName()</span></div>
+                    @if (p.Reach > 0) { <div class="stat"><span class="k">REACH</span><span class="v">@p.Reach"</span></div> }
                 </div>
                 <div class="label" style="margin:15px 0 8px;">Attributes</div>
                 <div class="tiles2">
@@ -594,13 +609,12 @@ else
     private static string WeightText(WeightClass wc) => wc == WeightClass.Heavyweight ? "200+ lb" : $"{wc.WeightLimitLbs()} lb";
     private async Task NewCareer() { await Svc.AbandonAsync(); _hasSave = false; }
 
-    private static IEnumerable<string> PlayerBelts(CareerGame g)
-    {
-        if (g.Player.IsChampion) yield return g.PrimaryBelt;
-        if (g.WbcChampion?.Id == g.Player.Id) yield return "WBC";
-        if (g.IbfChampion?.Id == g.Player.Id) yield return "IBF";
-        foreach (var rb in g.PlayerRegionalBelts) yield return rb;
-    }
+    private static IEnumerable<string> PlayerBelts(CareerGame g) =>
+        g.BeltsHeld(g.Player).Select(BeltLabel);
+
+    /// <summary>Belt tag text — the belt name, plus its defence count when it's been defended at least once.</summary>
+    private static string BeltLabel((string Belt, int Defenses) bt) =>
+        bt.Defenses > 0 ? $"{bt.Belt} ·{bt.Defenses}" : bt.Belt;
 
     private static string ResultLong(BoutLine bt) => bt.Result switch { 'W' => "Win", 'L' => "Loss", _ => "Draw" };
 

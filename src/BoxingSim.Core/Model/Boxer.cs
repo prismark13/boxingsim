@@ -20,6 +20,10 @@ public sealed class Boxer
 
     public required Ratings Ratings { get; set; }
 
+    /// <summary>Arm reach in inches — a physical frame trait, not a skill. It never feeds Overall/Class;
+    /// it only shapes the range battle in the ring (see the fight engine). Synthesised from frame when unknown.</summary>
+    public int Reach { get; set; }
+
     public int Age { get; set; }
 
     /// <summary>Optional date of birth (free text, e.g. "1949-11-03"). Shown on cards.</summary>

@@ -83,6 +83,7 @@
 
     private Boxer A => Result.A;
     private Boxer B => Result.B;
+    private FightingStyle _styleA, _styleB;
 
     private int _round;
     private string _clock = "3:00";
@@ -109,6 +110,14 @@
 
     private async Task Play()
     {
+        _styleA = StyleClassifier.Of(A);
+        _styleB = StyleClassifier.Of(B);
+        Push($"Styles make fights — {A.Name} the {_styleA.DisplayName().ToLowerInvariant()} against {B.Name} the {_styleB.DisplayName().ToLowerInvariant()}.", "quiet");
+        if (A.Reach > 0 && B.Reach > 0 && Math.Abs(A.Reach - B.Reach) >= 3)
+        {
+            var (longer, shorter) = A.Reach > B.Reach ? (A, B) : (B, A);
+            Push($"{longer.Name} owns a {longer.Reach - shorter.Reach}\" reach advantage — {longer.Reach}\" to {shorter.Reach}\". Can {shorter.Name} get inside it?", "quiet");
+        }
         Push("The fighters meet in the center — here we go.", "quiet");
         await Tick();
 
@@ -184,8 +193,8 @@
         if (dSwellB >= 0.13 && _swellLocB is not null) { Push(_swellEyeB && t.SwellB >= 0.5 ? $"{B.Name}'s eye is closing fast — he's fighting half-blind now." : $"Swelling coming up on {B.Name} — {_swellLocB}.", "foul"); return; }
         if (dSwellA >= 0.13 && _swellLocA is not null) { Push(_swellEyeA && t.SwellA >= 0.5 ? $"{A.Name}'s eye is closing fast — he's fighting half-blind now." : $"Swelling coming up on {A.Name} — {_swellLocA}.", "foul"); return; }
 
-        if (t.BigA && t.PunchA is not null) { Push(BigLine(A.Name, B.Name, t.PunchA, t.BodyShotA, t.RockB), t.RockB >= 2 ? "hurt" : "land"); return; }
-        if (t.BigB && t.PunchB is not null) { Push(BigLine(B.Name, A.Name, t.PunchB, t.BodyShotB, t.RockA), t.RockA >= 2 ? "hurt" : "land"); return; }
+        if (t.BigA && t.PunchA is not null) { Push(BigLine(A.Name, B.Name, t.PunchA, t.BodyShotA, t.RockB, t.ComboA, t.ComboBodyA), t.RockB >= 2 ? "hurt" : "land"); return; }
+        if (t.BigB && t.PunchB is not null) { Push(BigLine(B.Name, A.Name, t.PunchB, t.BodyShotB, t.RockA, t.ComboB, t.ComboBodyB), t.RockA >= 2 ? "hurt" : "land"); return; }
 
         if (t.HandA) { Push($"{A.Name} shakes his hand — he may have damaged it on that shot.", "quiet"); return; }
         if (t.HandB) { Push($"{B.Name} shakes his hand — he may have damaged it on that shot.", "quiet"); return; }
@@ -222,12 +231,20 @@
              $"{def} is on rubber legs and {att} is teeing off!",
              $"{att} smells blood — unloading on a hurt man!");
 
-    private string BigLine(string att, string def, string punch, bool body, int rock)
+    private string BigLine(string att, string def, string punch, bool body, int rock, int combo, bool comboBody)
     {
-        string shot = body ? Pick($"rips {punch}", $"digs in {punch}", $"buries {punch}")
-                           : Pick($"lands {punch}", $"connects with {punch}", $"snaps off {punch}");
         string tail = rock >= 2 ? Pick($" — {def} is hurt!", $" — {def} is in real trouble!")
                     : rock >= 1 ? Pick($" — {def} felt that.", $" — that got his respect.") : "";
+        if (combo >= 2)
+        {
+            string n = combo >= 3 ? "a three-punch combination" : "a sharp two-punch combination";
+            string target = comboBody ? "head and body" : "upstairs";
+            return Pick($"{att} rattles off {n} {target}{(tail.Length > 0 ? tail : "!")}",
+                        $"{att} lets his hands go — {n} {target}{(tail.Length > 0 ? tail : "!")}",
+                        $"{att} strings together {n} {target}{(tail.Length > 0 ? tail : "!")}");
+        }
+        string shot = body ? Pick($"rips {punch}", $"digs in {punch}", $"buries {punch}")
+                           : Pick($"lands {punch}", $"connects with {punch}", $"snaps off {punch}");
         return $"{att} {shot}{tail}";
     }
 
@@ -235,9 +252,25 @@
     {
         bool late = Result.ScheduledRounds >= 8 && _round >= Result.ScheduledRounds - 2;
         if (dA + dB == 0) return Pick("A tense, tactical spell.", "They feel each other out.", "Both reset, hunting the opening.");
-        if (dA > dB + 1) return Pick($"{A.Name} controls the range behind the jab.", $"{A.Name} is busier, dictating the pace.", late ? $"{A.Name} digs deep down the stretch." : $"{A.Name} backs him up with sharp work.");
-        if (dB > dA + 1) return Pick($"{B.Name} walks him down, landing the cleaner shots.", $"{B.Name} steps it up to the body.", late ? $"{B.Name} finds another gear late." : $"{B.Name} presses forward behind the jab.");
+        if (dA > dB + 1) return Dominating(A.Name, _styleA, late);
+        if (dB > dA + 1) return Dominating(B.Name, _styleB, late);
         return Pick("They trade in the pocket — toe to toe!", "A fierce exchange up close!", "Both men let their hands go!");
+    }
+
+    /// <summary>Describe the man in control the way his style would actually operate — so a swarmer smothers,
+    /// an out-boxer sticks and moves, a slugger loads up, a counter-puncher picks his man off.</summary>
+    private string Dominating(string name, FightingStyle style, bool late)
+    {
+        string tail = late ? " — and he's still fresh down the stretch." : "";
+        return style switch
+        {
+            FightingStyle.OutBoxer => Pick($"{name} sticks and moves, controlling the range behind the jab.", $"{name} boxes beautifully at distance, in and out.", $"{name} keeps him at the end of the jab, giving no target.") + tail,
+            FightingStyle.Swarmer => Pick($"{name} swarms him against the ropes, working the body.", $"{name} smothers him with relentless volume on the inside.", $"{name} never lets him breathe — pressure and combinations.") + tail,
+            FightingStyle.Slugger => Pick($"{name} is loading up, looking to take his head off.", $"{name} backs him up, hunting the one big shot.", $"{name} winging heavy leather — every punch thrown with bad intentions.") + tail,
+            FightingStyle.CounterPuncher => Pick($"{name} picks him off on the counter, making him pay for every lead.", $"{name} lets him lead and answers clean — patient and sharp.", $"{name} times him beautifully, countering at every turn.") + tail,
+            FightingStyle.BoxerPuncher => Pick($"{name} is dictating the pace, mixing the boxing with real pop.", $"{name} controls it behind the jab and steps in with the power.", $"{name} banging the cleaner, harder shots and setting the tempo.") + tail,
+            _ => Pick($"{name} is busier, dictating the pace.", $"{name} backs him up with sharp work.") + tail
+        };
     }
 
     private string Pick(params string[] o) => o[_r.Next(o.Length)];

@@ -116,6 +116,7 @@ else
                 </div>
                 <div class="bio">
                     <div><span class="label">Weight</span> @sel.WeightClass.DisplayName() · @WeightText(sel.WeightClass)</div>
+                    @if (sel.Reach > 0) { <div><span class="label">Reach</span> @sel.Reach"</div> }
                     @if (!string.IsNullOrEmpty(sel.Country)) { <div><span class="label">Country</span> @sel.Country</div> }
                     @if (sel.DebutYear is int dy) { <div><span class="label">Debut</span> @dy</div> }
                     @if (!string.IsNullOrEmpty(sel.PrimeYears)) { <div><span class="label">Prime</span> @sel.PrimeYears</div> }
