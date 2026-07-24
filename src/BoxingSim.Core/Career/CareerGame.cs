@@ -137,6 +137,13 @@ public sealed class CareerGame
         _oppNames = new NameGenerator(rng);
         Player = player;
 
+        // Reserve every real fighter's name (and the player's) so generated filler can never be born as a
+        // second "Carlos Ortiz". Materialise the protos once since we enumerate them again when seeding.
+        var protos = historicalProtos as IReadOnlyList<Boxer> ?? historicalProtos.ToList();
+        var reserved = protos.Select(p => p.Name).Append(player.Name).ToList();
+        _factory.Reserve(reserved);
+        _oppNames.Reserve(reserved);
+
         // Stand the whole sport up a decade earlier and let all eight divisions run, so that by the
         // player's debut year everyone has a real record, the rankings have settled and there are
         // established champions in every weight class.
@@ -149,7 +156,7 @@ public sealed class CareerGame
             if (DivisionActive(wc))
                 for (int i = 0; i < 24; i++) AddActive(_factory.CreateExisting(wc, GeneratedCap));
 
-        foreach (var proto in historicalProtos)
+        foreach (var proto in protos)
         {
             if (proto.DebutYear is not int debutYear) continue;
             int birth = FirstYear(proto.DateOfBirth);
@@ -223,6 +230,10 @@ public sealed class CareerGame
         var byId = new Dictionary<int, Boxer>();
         foreach (var bs in s.Roster) { var b = bs.ToBoxer(); _roster.Add(b); byId[b.Id] = b; }
         Player = byId[s.PlayerId];
+        // Don't let fighters generated during continued play collide with anyone already on the roster.
+        var reserved = _roster.Select(b => b.Name).ToList();
+        _factory.Reserve(reserved);
+        _oppNames.Reserve(reserved);
         _cursor = Player.WeightClass;
         foreach (var kv in s.Champions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _champions[wc] = c;
         foreach (var kv in s.WbcChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _wbc[wc] = c;

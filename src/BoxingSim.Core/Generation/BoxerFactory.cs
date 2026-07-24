@@ -15,6 +15,9 @@ public sealed class BoxerFactory
         _names = new NameGenerator(rng);
     }
 
+    /// <summary>Reserve names the generator must never produce (e.g. the real historical roster).</summary>
+    public void Reserve(IEnumerable<string> names) => _names.Reserve(names);
+
     // A spread of boxing nations across the three regional-belt territories (USA weighted heavily,
     // as in the real heavyweight scene) so the NABF / Commonwealth / European titles are all contested.
     private static readonly string[] Countries =
