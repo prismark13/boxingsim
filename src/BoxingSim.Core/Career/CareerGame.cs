@@ -160,6 +160,10 @@ public sealed class CareerGame
         var reserved = protos.Select(p => p.Name).Append(player.Name).ToList();
         _factory.Reserve(reserved);
         _oppNames.Reserve(reserved);
+        // Generated fighters must get ids above every historical fighter (and the player) — both id spaces
+        // otherwise start at 1, and a collision makes the engine treat filler as a historical great (and mixes
+        // every id-keyed map: _historical, _peakOverall, belts, ...).
+        _factory.StartIdsAt(protos.Select(p => p.Id).Append(player.Id).DefaultIfEmpty(0).Max() + 1);
 
         // Stand the whole sport up a decade earlier and let all eight divisions run, so that by the
         // player's debut year everyone has a real record, the rankings have settled and there are
@@ -251,6 +255,7 @@ public sealed class CareerGame
         var reserved = _roster.Select(b => b.Name).ToList();
         _factory.Reserve(reserved);
         _oppNames.Reserve(reserved);
+        _factory.StartIdsAt(_roster.Select(b => b.Id).Append(Player.Id).DefaultIfEmpty(0).Max() + 1);
         _cursor = Player.WeightClass;
         foreach (var kv in s.Champions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _champions[wc] = c;
         foreach (var kv in s.WbcChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _wbc[wc] = c;

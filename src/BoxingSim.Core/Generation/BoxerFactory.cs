@@ -18,6 +18,10 @@ public sealed class BoxerFactory
     /// <summary>Reserve names the generator must never produce (e.g. the real historical roster).</summary>
     public void Reserve(IEnumerable<string> names) => _names.Reserve(names);
 
+    /// <summary>Start id assignment at <paramref name="firstId"/> so generated fighters never collide with the
+    /// historical roster's ids (both would otherwise start at 1 — a collision corrupts every id-keyed map).</summary>
+    public void StartIdsAt(int firstId) { if (firstId > _nextId) _nextId = firstId; }
+
     // A spread of boxing nations across the three regional-belt territories (USA weighted heavily,
     // as in the real heavyweight scene) so the NABF / Commonwealth / European titles are all contested.
     private static readonly string[] Countries =
