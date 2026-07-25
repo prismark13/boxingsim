@@ -50,6 +50,11 @@
             <option value="random915">Pot luck · random class 9–15</option>
         </select>
 
+        <label class="checkrow" style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:0.9em;">
+            <input type="checkbox" @bind="_fullHistory" />
+            <span>Simulate the full history &amp; seed the Hall of Fame with the past greats <span class="muted">(a longer one-time setup while ~50 years are simulated)</span></span>
+        </label>
+
         <button class="primary" @onclick="StartAsync" disabled="@_busy">
             @if (_busy) { <text>Setting up…</text> } else { <text>Turn pro</text><Icon Name="arrow" Size="15" /> }
         </button>
@@ -644,6 +649,7 @@ else
     private string _name = NameGen.Generate("USA", Random.Shared);
     private int _year = 1965;
     private string _talent = "contender";
+    private bool _fullHistory;
     private WeightClass _division = WeightClass.Heavyweight;
     private IReadOnlyList<WeightClass> _divisions = new[] { WeightClass.Heavyweight };
     private bool _busy;
@@ -687,7 +693,7 @@ else
         // Don't start in a division that didn't exist yet.
         var div = _division.FoundedYear() <= _year ? _division
                 : _divisions.Where(d => d.FoundedYear() <= _year).OrderByDescending(d => (int)d).DefaultIfEmpty(WeightClass.Heavyweight).First();
-        await Svc.StartAsync(name, _country, _year, potential, div);
+        await Svc.StartAsync(name, _country, _year, potential, div, _fullHistory);
         _busy = false;
     }
 

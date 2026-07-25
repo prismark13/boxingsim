@@ -30,12 +30,12 @@ public sealed class CareerService
     public FightResult? LastResult { get; private set; }
     public bool HasCareer => Game is not null;
 
-    public async Task StartAsync(string name, string country, int startYear, int potential, WeightClass division)
+    public async Task StartAsync(string name, string country, int startYear, int potential, WeightClass division, bool fullHistory = false)
     {
         var roster = await _fighters.GetAsync();
         var rng = new Random();
         var player = CareerGame.CreatePlayer(rng, name, country, division, potential);
-        Game = new CareerGame(startYear, player, roster, rng, division);
+        Game = new CareerGame(startYear, player, roster, rng, division, seedHistory: fullHistory);
         LastResult = null;
         await SaveAsync();
     }

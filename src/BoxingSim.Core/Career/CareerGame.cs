@@ -165,7 +165,7 @@ public sealed class CareerGame
     public IReadOnlyList<CareerEvent> RecentLog(int n) => _log.Skip(Math.Max(0, _log.Count - n)).ToList();
 
     public CareerGame(int startYear, Boxer player, IEnumerable<Boxer> historicalProtos, Random rng,
-                      WeightClass division = WeightClass.Heavyweight, int warmupYears = 10)
+                      WeightClass division = WeightClass.Heavyweight, int warmupYears = 10, bool seedHistory = false)
     {
         _rng = rng;
         _factory = new BoxerFactory(rng);
@@ -189,6 +189,7 @@ public sealed class CareerGame
         // player's debut year everyone has a real record, the rankings have settled and there are
         // established champions in every weight class.
         warmupYears = Math.Max(0, warmupYears);
+        if (seedHistory) warmupYears = Math.Clamp(startYear - 1905, 30, 50);   // run ~two generations of history so the Hall fills with the past greats (bounded so career start stays tolerable)
         int seedYear = startYear - warmupYears;
         Date = new DateOnly(seedYear, 1, 1);
 
@@ -251,9 +252,8 @@ public sealed class CareerGame
         // The decade of build-up isn't the player's story — start his timeline (and the Hall of Fame) clean, so
         // the Hall fills with fighters who retire during his career rather than a generation he never saw.
         _log.Clear();
-        _hof.Clear();
-        _awards.Clear();
         _yearBouts.Clear();
+        if (!seedHistory) { _hof.Clear(); _awards.Clear(); }   // when seeding history, keep the past greats + their era's awards
         Date = new DateOnly(startYear, 3, 1);
         if (Champion is not null) LogEvent($"{Champion.Name} reigns as {PrimaryBelt} champion as {player.Name} turns pro.", kind: "title");
 
