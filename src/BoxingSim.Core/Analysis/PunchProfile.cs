@@ -6,20 +6,41 @@ namespace BoxingSim.Core.Analysis;
 /// This is the single source of truth shared by the fight engine and the UI.</summary>
 public static class PunchProfile
 {
+    /// <summary>What fraction of a fighter's punches are power shots rather than jabs — driven mainly by his
+    /// STYLE, then pulled further off the jab by punching power and aggression, and back toward it by a sharp jab
+    /// (accuracy). A jabbing out-boxer sits near 18–22% power; a swarming pressure fighter pushes past 50%.</summary>
+    public static double PowerFraction(FightingStyle style, Ratings r)
+    {
+        double jabBase = style switch
+        {
+            FightingStyle.OutBoxer       => 0.79,
+            FightingStyle.CounterPuncher => 0.73,
+            FightingStyle.BoxerPuncher   => 0.65,
+            FightingStyle.Slugger        => 0.60,
+            FightingStyle.Swarmer        => 0.55,
+            _                            => 0.66,
+        };
+        double jab = jabBase
+                   - Math.Max(0, r.Power - 68) * 0.0025
+                   - Math.Max(0, r.Aggression - 68) * 0.0018
+                   + (r.Accuracy - 75) * 0.0012;
+        return 1 - Math.Clamp(jab, 0.45, 0.85);
+    }
+
     /// <summary>Raw relative weights for the four power punches: cross, hook, uppercut, body.</summary>
     public static double[] PowerWeights(FightingStyle style, Ratings r)
     {
-        double cross = 30 + r.Accuracy * 0.10;
-        double hook = 22 + Math.Max(0, r.Power - 55) * 0.40;
-        double upper = 10 + Math.Max(0, r.Power - 60) * 0.20;
-        double body = 20;
+        double cross = 26 + r.Accuracy * 0.12;
+        double hook = 20 + Math.Max(0, r.Power - 55) * 0.35;
+        double upper = 8 + Math.Max(0, r.Power - 60) * 0.18;
+        double body = 14;
         switch (style)
         {
-            case FightingStyle.OutBoxer: cross += 8; break;
-            case FightingStyle.BoxerPuncher: cross += 4; hook += 3; break;
-            case FightingStyle.Slugger: hook += 12; upper += 6; break;
-            case FightingStyle.Swarmer: body += 14; hook += 6; upper += 4; break;
-            case FightingStyle.CounterPuncher: cross += 8; break;
+            case FightingStyle.OutBoxer: cross += 12; break;
+            case FightingStyle.CounterPuncher: cross += 10; break;
+            case FightingStyle.BoxerPuncher: cross += 4; hook += 4; body += 6; break;
+            case FightingStyle.Slugger: hook += 16; upper += 9; break;
+            case FightingStyle.Swarmer: body += 46; hook += 8; upper += 5; break;   // relentless body attack
         }
         return new[] { Math.Max(2, cross), Math.Max(2, hook), Math.Max(2, upper), Math.Max(2, body) };
     }
@@ -28,14 +49,14 @@ public static class PunchProfile
     public static (int Jab, int Cross, int Hook, int Uppercut, int Body) Distribution(Boxer b)
     {
         var style = StyleClassifier.Of(b);
-        double powerFrac = Math.Clamp(0.20 + b.Ratings.Power / 500.0, 0.0, 0.6);
+        double powerFrac = PowerFraction(style, b.Ratings);
         var w = PowerWeights(style, b.Ratings);
         double tot = w[0] + w[1] + w[2] + w[3];
-        int jab = (int)Math.Round((1 - powerFrac) * 100);
         int cross = (int)Math.Round(powerFrac * w[0] / tot * 100);
         int hook = (int)Math.Round(powerFrac * w[1] / tot * 100);
         int upper = (int)Math.Round(powerFrac * w[2] / tot * 100);
         int body = (int)Math.Round(powerFrac * w[3] / tot * 100);
+        int jab = Math.Max(0, 100 - cross - hook - upper - body);   // jab absorbs the rounding so it always sums to 100
         return (jab, cross, hook, upper, body);
     }
 

@@ -415,7 +415,7 @@ public sealed class FightEngine
         double landProb = 0.55 / (1.0 + Math.Exp(-(offense - defense) / 14.0));
         landProb = Math.Clamp(landProb * (1.0 + 0.10 * styleEdge), 0.03, 0.95);
 
-        bool power = _rng.NextDouble() < 0.20 + att.R.Power / 500.0;  // is he loading up?
+        bool power = _rng.NextDouble() < PunchProfile.PowerFraction(att.Style, att.R);  // jab or load up? (style-driven)
 
         if (_rng.NextDouble() >= landProb)
         {
