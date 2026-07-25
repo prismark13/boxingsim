@@ -75,13 +75,34 @@ public static class RosterIo
                             .First())
               .ToList();
 
-    /// <summary>Match key from a name's first + last word, ignoring quotes/punctuation/middle nicknames.</summary>
+    /// <summary>Match key from a name's first + last word, ignoring quotes/punctuation/middle nicknames AND
+    /// folding accents so "José Nápoles" and "Jose Napoles" key the same.</summary>
     public static string NameKey(string name)
     {
-        var words = new string(name.Select(c => char.IsLetterOrDigit(c) || c == ' ' ? c : ' ').ToArray())
+        var folded = new string(name.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray());
+        var words = new string(folded.Select(c => char.IsLetterOrDigit(c) || c == ' ' ? c : ' ').ToArray())
             .Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0) return "";
         if (words.Length == 1) return words[0].ToLowerInvariant();
         return (words[0] + words[^1]).ToLowerInvariant();
+    }
+
+    /// <summary>Merge genuine duplicate entries of the SAME real fighter — same name (accents/middle names folded
+    /// to a first+last key) AND the same date of birth — keeping his lower (primary) division. The DOB match is
+    /// what makes it safe: it never merges two different men who merely share a first and last name (John David
+    /// Jackson vs John Jackson), and entries without a DOB are left untouched.</summary>
+    public static List<Boxer> DedupePeople(IEnumerable<Boxer> boxers)
+    {
+        var result = new List<Boxer>();
+        foreach (var g in boxers.GroupBy(b => (NameKey(b.Name), b.DateOfBirth ?? "")))
+        {
+            if (string.IsNullOrEmpty(g.Key.Item2) || g.Count() == 1)
+                result.AddRange(g);
+            else
+                result.Add(g.OrderBy(b => (int)b.WeightClass).ThenByDescending(b => b.Overall).First());
+        }
+        return result;
     }
 }

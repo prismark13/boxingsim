@@ -24,7 +24,9 @@ public sealed class FightersService
     {
         if (_cache is not null) return _cache;
         var defs = await _http.GetFromJsonAsync<List<FighterDefinition>>("data/fighters.json", Opts) ?? new();
-        _cache = RosterIo.ToBoxers(defs);
+        // Fold accent/middle-name duplicates of the same real fighter (same name + DOB) so nobody is champion of
+        // two divisions at once — e.g. "José Nápoles" (MW) and "Jose Napoles" (WW) are one welterweight.
+        _cache = RosterIo.DedupePeople(RosterIo.ToBoxers(defs));
         _cache.Sort((a, b) => b.Overall.CompareTo(a.Overall));
         return _cache;
     }

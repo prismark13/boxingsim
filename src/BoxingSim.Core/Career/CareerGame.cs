@@ -1128,12 +1128,14 @@ public sealed class CareerGame
         if (ranked.Count <= 1) return new FightOffer { Opponent = _factory.CreateProspect(Player.WeightClass, GeneratedCap), Rounds = 6, Context = "stay-busy" };
 
         int proFights = ProFights(Player);
-        // Build a career properly: journeyman fodder (class 1–3) for the first stretch, then a step-up through
-        // gatekeepers and fringe men, and only the elite once he's served his apprenticeship (short for a wonder
+        // Build a career properly: journeyman fodder (class 1–3) for the first stretch, then a step-up phase that
+        // MIXES gatekeepers with journeyman tune-ups (a stepping-up prospect still stays busy against tomato cans
+        // between the tougher fights), and only the elite once he's served his apprenticeship (short for a wonder
         // kid). So a green fighter spends a dozen bouts on tomato cans before real opposition, like a real prospect.
         int maxOvr = ReadyForContenders(Player) ? 99
                    : proFights < 12 ? 55
-                   : Math.Min(92, 55 + (proFights - 12) * 5);
+                   : _rng.Next(2) == 0 ? 55                              // ~half the step-up bouts are jman tune-ups
+                                       : Math.Min(92, 55 + (proFights - 12) * 5);
 
         bool holdsWba = Player.IsChampion;
         bool holdsWbc = WbcChampion?.Id == Player.Id;
