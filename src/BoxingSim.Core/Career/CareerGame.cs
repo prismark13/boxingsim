@@ -1710,28 +1710,37 @@ public sealed class CareerGame
 
         if (!draw)
         {
-            aWins = _rng.NextDouble() < pa;
-            winner = aWins ? a : b; loser = aWins ? b : a;
-            double koP = Ratings.KnockoutChance(winner.Ratings.Power, loser.Ratings.Chin, winner.Overall - loser.Overall);
-            ko = _rng.NextDouble() < koP;
-            if (ko)
+            aWins = _rng.NextDouble() < pa;                       // provisional result, by rating
+            var pw = aWins ? a : b; var pl = aWins ? b : a;
+            double koP = Ratings.KnockoutChance(pw.Ratings.Power, pl.Ratings.Chin, pw.Overall - pl.Overall);
+            if (_rng.NextDouble() < koP)
             {
-                outcome = FightOutcome.Knockout; method = "KO"; endRound = 1 + _rng.Next(rounds);
+                ko = true; outcome = FightOutcome.Knockout; method = "KO"; endRound = 1 + _rng.Next(rounds);
                 if (aWins) kdB = 1; else kdA = 1;
             }
-            // A badly cut loser is pulled out — far more likely if he's a bleeder (low cut resistance).
-            else if (_rng.NextDouble() < 0.012 + (1.0 - loser.Ratings.CutResistance / 100.0) * 0.05)
+            else
             {
-                outcome = FightOutcome.TechnicalKnockout; method = "TKO"; stopNoKd = true;
-                endRound = Math.Max(3, rounds - _rng.Next(4));
+                // Either man can be cut and pulled out — far more often if he's a bleeder — and the cut man LOSES
+                // even if he was ahead (a bleeder's curse). If both cut, the more cut-prone one goes.
+                double CutRisk(Boxer f) => 0.005 + Math.Max(0, 80 - f.Ratings.CutResistance) / 100.0 * 0.12;
+                bool aCut = _rng.NextDouble() < CutRisk(a);
+                bool bCut = _rng.NextDouble() < CutRisk(b);
+                if (aCut || bCut)
+                {
+                    bool aStopped = aCut && (!bCut || a.Ratings.CutResistance <= b.Ratings.CutResistance);
+                    aWins = !aStopped;
+                    outcome = FightOutcome.TechnicalKnockout; method = "TKO"; stopNoKd = true;
+                    endRound = Math.Max(3, rounds - _rng.Next(4));
+                }
+                // A rare disqualification (~1 in 500 fights) — not a knockout; the fouler is thrown out.
+                else if (_rng.NextDouble() < 0.0042)
+                {
+                    outcome = FightOutcome.Decision; method = "DQ"; stopNoKd = true;
+                    endRound = 2 + _rng.Next(Math.Max(1, rounds - 2));
+                }
+                else outcome = FightOutcome.Decision;
             }
-            // A very rare disqualification (not a knockout on the record — the fouler is thrown out).
-            else if (_rng.NextDouble() < 0.0025)
-            {
-                outcome = FightOutcome.Decision; method = "DQ"; stopNoKd = true;
-                endRound = 2 + _rng.Next(Math.Max(1, rounds - 2));
-            }
-            else outcome = FightOutcome.Decision;
+            winner = aWins ? a : b; loser = aWins ? b : a;
         }
 
         // Sketch a believable card: the winner takes most rounds, punch output tracks ability, and a
