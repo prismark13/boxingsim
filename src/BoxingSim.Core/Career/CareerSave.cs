@@ -44,6 +44,7 @@ public sealed class AwardWinnerSave
     public string Name { get; set; } = "";
     public string Detail { get; set; } = "";
     public string Div { get; set; } = "";
+    public string Commentary { get; set; } = "";
 }
 
 public sealed class HallOfFamerSave

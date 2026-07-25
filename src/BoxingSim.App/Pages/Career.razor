@@ -90,7 +90,7 @@ else
                 var ar = 1;
                 @foreach (var w in list)
                 {
-                    <div class="rkrow"><span class="rkn @(ar == 1 ? "" : "nr")">@ar</span><span class="rkname">@w.Name <span class="champ-tag torank">@w.Div.DisplayName()</span></span><span class="rkrec muted">@w.Detail</span></div>
+                    <div class="rkrow clickable" title="@w.Commentary" @onclick="() => _awardSel = w"><span class="rkn @(ar == 1 ? "" : "nr")">@ar</span><span class="rkname">@w.Name <span class="champ-tag torank">@w.Div.DisplayName()</span></span><span class="rkrec muted">@w.Detail</span></div>
                     ar++;
                 }
             }
@@ -414,6 +414,24 @@ else
         </div>
     }
 
+    @if (_awardSel is AwardWinner aw)
+    {
+        var awFighter = g.Active.FirstOrDefault(b => aw.Name.StartsWith(b.Name, StringComparison.OrdinalIgnoreCase) || b.Name == aw.Name);
+        <div class="modal-bg" @onclick="() => _awardSel = null">
+            <div class="modal" @onclick:stopPropagation="true">
+                <div class="modal-head">
+                    <div><div class="pname">@aw.Name</div><div class="pmeta">@aw.Div.DisplayName() · @aw.Detail</div></div>
+                    <button class="ghost icon-btn" @onclick="() => _awardSel = null"><Icon Name="close" Size="16" /></button>
+                </div>
+                <p style="margin:12px 2px; line-height:1.5;">@aw.Commentary</p>
+                @if (awFighter is not null)
+                {
+                    <button class="ghost sm" @onclick="() => { _selected = awFighter; _awardSel = null; }">View @awFighter.Name</button>
+                }
+            </div>
+        </div>
+    }
+
     @if (_selected is Boxer sel)
     {
         <div class="modal-bg" @onclick="() => _selected = null">
@@ -642,6 +660,7 @@ else
     private FightResult? _playback;
     private WeightClass? _viewDiv;
     private HallOfFamer? _hofSel;
+    private AwardWinner? _awardSel;
     private string _newsFilter = "";
     private string _rankTab = "world";
     private bool _profile;

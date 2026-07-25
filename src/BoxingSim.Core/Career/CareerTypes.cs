@@ -86,6 +86,7 @@ public sealed class AwardWinner
     public required string Name { get; init; }
     public required string Detail { get; init; }
     public WeightClass Div { get; init; }
+    public string Commentary { get; init; } = "";   // a fuller sentence for the hover tooltip
 }
 
 /// <summary>The end-of-year honours: the top three in each category.</summary>
