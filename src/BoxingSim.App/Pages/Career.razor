@@ -347,13 +347,13 @@ else
                 }
                 else
                 {
-                    <div class="panel-sub">Across the sport · tap a division for its rankings</div>
+                    <div class="panel-sub">World champions across the sport · tap a division for its rankings</div>
                     @foreach (var wc in g.LiveDivisions)
                     {
                         var dc = g.WorldChampionOf(wc);
                         <div class="divrow @(wc == g.Division ? "here" : "")" @onclick="() => _viewDiv = wc">
                             <span class="divn">@wc.DisplayName()</span>
-                            <span class="divc">@(dc?.Name ?? "vacant")</span>
+                            <span class="divc">@if (dc is not null) { <Icon Name="trophy" Size="11" /> <text> @dc.Name <span class="muted">@dc.Record</span></text> } else { <span class="muted">vacant</span> }</span>
                             <span class="divx">@g.ActiveCountOf(wc)</span>
                         </div>
                     }

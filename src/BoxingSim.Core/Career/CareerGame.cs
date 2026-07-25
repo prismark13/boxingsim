@@ -1160,7 +1160,18 @@ public sealed class CareerGame
             var c = champ();
             if (c is null || c.Id == Player.Id || !Available(c)) return;   // an injured champion doesn't defend while on the shelf
             var challenger = PickChallenger(c, other?.Invoke());
-            if (challenger is null) return;
+            if (challenger is null)
+            {
+                // No credible mandatory this slot — rather than sit idle for a year, the champion takes a stay-busy
+                // (non-title) fight against the best available gatekeeper he hasn't just met.
+                var busy = ActiveIn(c.WeightClass).Where(b => b.Id != c.Id && b.Id != Player.Id && b.Overall is >= 58
+                                                          && b.Overall <= c.Overall && Available(b) && !RecentFoes(c, 3).Contains(b.Name))
+                                                  .OrderByDescending(RankScore).FirstOrDefault();
+                if (busy is null) return;
+                Date = SpreadDate(yr, d, titleBouts);
+                ApplyOutcome(FastBout(c, busy, 10), c, busy);
+                continue;
+            }
             Date = SpreadDate(yr, d, titleBouts);
             var res = FastBout(c, challenger, 12);
             ApplyOutcome(res, c, challenger, $"{belt} title");
