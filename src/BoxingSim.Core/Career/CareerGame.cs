@@ -1128,9 +1128,12 @@ public sealed class CareerGame
         if (ranked.Count <= 1) return new FightOffer { Opponent = _factory.CreateProspect(Player.WeightClass, GeneratedCap), Rounds = 6, Context = "stay-busy" };
 
         int proFights = ProFights(Player);
-        // Build a career properly: an opponent's ceiling rises with experience, so a green fighter is
-        // never thrown in with the elite — until he's served his apprenticeship (short for a wonder kid).
-        int maxOvr = ReadyForContenders(Player) ? 99 : 50 + proFights * 3 / 2;
+        // Build a career properly: journeyman fodder (class 1–3) for the first stretch, then a step-up through
+        // gatekeepers and fringe men, and only the elite once he's served his apprenticeship (short for a wonder
+        // kid). So a green fighter spends a dozen bouts on tomato cans before real opposition, like a real prospect.
+        int maxOvr = ReadyForContenders(Player) ? 99
+                   : proFights < 12 ? 55
+                   : Math.Min(92, 55 + (proFights - 12) * 5);
 
         bool holdsWba = Player.IsChampion;
         bool holdsWbc = WbcChampion?.Id == Player.Id;
