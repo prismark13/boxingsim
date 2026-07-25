@@ -39,6 +39,9 @@ public sealed class CareerGame
 
     /// <summary>True if a fighter is fit to be matched — not currently on the shelf recovering from an injury.</summary>
     private bool Available(Boxer b) => !_outUntil.TryGetValue(b.Id, out var d) || Date >= d;
+
+    /// <summary>How well a fighter weathers punishment — the injury model's stand-in for a durable frame.</summary>
+    private static int Durability(Ratings r) => (int)Math.Round(r.Chin * 0.5 + r.Heart * 0.3 + r.Conditioning * 0.2);
     public IReadOnlyList<HallOfFamer> HallOfFame => _hof.OrderByDescending(m => m.Prestige).ToList();
     private const string UndisputedBelt = "Undisputed";
     private const int MaxFightsPerYear = 8;   // nobody boxes more than 8 times in a calendar year
@@ -1257,13 +1260,21 @@ public sealed class CareerGame
                 res.Winner.Record.KnockoutWins++;
                 res.Loser.Record.KnockoutLosses++;
                 _careers.RegisterKnockoutLoss(res.Loser);
-                // A knockout means a medical suspension — the loser is on the shelf for a couple of months.
-                _outUntil[res.Loser.Id] = Date.AddDays(63 + _rng.Next(84));
+                // A knockout means a medical suspension — a fragile fighter (low durability: chin/heart/conditioning)
+                // is hurt worse and sits out far longer; a granite-chinned man is back in a month or two.
+                int dura = Durability(res.Loser.Ratings);
+                _outUntil[res.Loser.Id] = Date.AddDays(35 + Math.Max(0, 85 - dura) * 2 + _rng.Next(45));
             }
         }
-        // The occasional training/hand injury sidelines a fighter even without a stoppage.
-        if (!res.IsDraw && !ko && _rng.NextDouble() < 0.04)
-            _outUntil[res.Loser!.Id] = Date.AddDays(49 + _rng.Next(63));
+        // Cuts and hand injuries can sideline either man, win or lose — a fighter with poor cut resistance is far
+        // more injury-prone, so brittle fighters miss real time while durable ones almost never do.
+        foreach (var f in new[] { a, b })
+        {
+            if (ko && f.Id == res.Loser?.Id) continue;   // the KO'd man is already on the shelf
+            double proneness = 0.012 + (1.0 - f.Ratings.CutResistance / 100.0) * 0.06;
+            if (_rng.NextDouble() < proneness)
+                _outUntil[f.Id] = Date.AddDays(28 + _rng.Next(63));
+        }
 
         // Each fighter's ledger: date, result, method, round, knockdowns scored / suffered.
         char ra = res.IsDraw ? 'D' : res.Winner!.Id == a.Id ? 'W' : 'L';
