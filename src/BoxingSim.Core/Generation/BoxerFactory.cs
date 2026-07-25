@@ -106,12 +106,12 @@ public sealed class BoxerFactory
         };
     }
 
-    /// <summary>Potential is right-skewed: most fighters are journeymen, a few are special.</summary>
+    /// <summary>Generated fighters are journeyman fodder: their ceiling sits at the bottom of the scale
+    /// (roughly class 1–3), right-skewed toward the floor with the odd gatekeeper near the top of the band.
+    /// The real historical roster supplies every genuine contender and champion.</summary>
     private int RollPotential()
     {
-        // Average of three rolls clusters around the middle; a rare high roll spikes it.
-        int baseRoll = (_rng.Next(35, 96) + _rng.Next(35, 96) + _rng.Next(35, 96)) / 3;
-        if (_rng.NextDouble() < 0.04) baseRoll += _rng.Next(6, 14); // occasional phenom
+        int baseRoll = Math.Min(_rng.Next(34, 56), _rng.Next(34, 56));   // min of two rolls → most stay low
         return Ratings.Clamp(baseRoll);
     }
 
