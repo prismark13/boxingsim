@@ -241,6 +241,15 @@ else
                             <span class="rkrec">@p.Record</span>
                         </div>
                     }
+                    var homeProspects = g.ProspectsOf(g.Division);
+                    @if (homeProspects.Count > 0)
+                    {
+                        <div class="panel-h" style="margin-top:14px;">Top prospects <span class="muted">· the up-and-comers</span></div>
+                        @foreach (var b in homeProspects)
+                        {
+                            <div class="rkrow @(b.Id == p.Id ? "me" : "")" @onclick="() => _selected = b"><span class="rkn nr">P</span><span class="ovrpill" style="color:@Ui.Ovr(b.Class)">@b.Class</span><span class="rkname">@b.Name <span class="champ-tag torank">age @b.Age</span></span><span class="rkrec">@b.Record</span></div>
+                        }
+                    }
                 }
                 else if (_rankTab == "p4p")
                 {

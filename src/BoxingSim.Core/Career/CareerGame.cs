@@ -1105,6 +1105,12 @@ public sealed class CareerGame
         var ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name) && champ.History.Count(h => h.Opponent == b.Name) < 3).ToList();
         if (ranked.Count == 0) ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name)).ToList();
         if (ranked.Count == 0) ranked = here.Where(Ok).ToList();   // fall back if he's fought everyone lately
+        // Thin/young division with no ranked contender yet: rather than sit idle for years, the champion defends
+        // against the best available REAL contender (a rising fighter, gatekeeper-plus) — never a class-1–3 journeyman.
+        if (ranked.Count == 0)
+            ranked = here.Where(b => b.Id != Player.Id && b.Id != champ.Id && (otherChamp is null || b.Id != otherChamp.Id)
+                                  && !RecentlyMovedUp(b) && Available(b) && b.Potential >= 66 && !recent.Contains(b.Name))
+                         .OrderByDescending(RankScore).ToList();
         if (ranked.Count == 0) return null;
         var top10 = ranked.OrderByDescending(RankScore).Take(10).ToList();
         return top10[_rng.Next(top10.Count)];
