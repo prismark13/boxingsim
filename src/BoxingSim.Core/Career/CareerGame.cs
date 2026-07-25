@@ -34,8 +34,9 @@ public sealed class CareerGame
     private readonly List<AwardsYear> _awards = new();
     private readonly List<YearBout> _yearBouts = new();   // this year's honourable-mention bouts, cleared each year end
     public IReadOnlyList<AwardsYear> Awards => _awards.OrderByDescending(a => a.Year).ToList();
-    private sealed record YearBout(int Year, string Winner, string Loser, int WinnerId, string Method, int Round,
+    private sealed record YearBout(int Year, string Winner, string Loser, int WinnerId, int LoserId, string Method, int Round,
                                    bool Title, int WinnerOvr, int LoserOvr, int Kds, bool Draw, bool Close, WeightClass Div);
+    private sealed class FoyAcc { public string Name = ""; public WeightClass Div; public double Score; public int Wins, Losses, Titles, Kos; public double BestScore = -1; public YearBout? Best; }
     private readonly HashSet<int> _everChampion = new();
     private readonly Dictionary<int, int> _peakOverall = new();
     private readonly Dictionary<int, int> _peakClass = new();
@@ -686,7 +687,7 @@ public sealed class CareerGame
         var w = res.Winner; var l = res.Loser;
         bool close = res.IsDraw || res.Method is "SD" or "MD"
                      || (res.Scorecards.Count > 0 && res.Scorecards.All(c => Math.Abs(c.A - c.B) <= 4));
-        _yearBouts.Add(new YearBout(Date.Year, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id,
+        _yearBouts.Add(new YearBout(Date.Year, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
             res.Method, res.EndRound, title, w?.Overall ?? a.Overall, l?.Overall ?? b.Overall,
             res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass));
     }
@@ -705,15 +706,32 @@ public sealed class CareerGame
         _yearBouts.RemoveAll(x => x.Year <= year);
         if (bouts.Count == 0) return;
 
-        var foy = bouts.Where(x => !x.Draw).GroupBy(x => x.WinnerId)
-            .Select(g => new { g.First().Winner, g.First().Div,
-                Score = g.Sum(x => x.LoserOvr * 0.1 + (x.Title ? 4 : 0) + Math.Max(0, x.LoserOvr - x.WinnerOvr) * 0.2),
-                Wins = g.Count(), Titles = g.Count(x => x.Title), Kos = g.Count(x => x.Method is "KO" or "TKO"),
-                Best = g.OrderByDescending(x => x.LoserOvr + (x.Title ? 20 : 0)).First() })
-            .OrderByDescending(x => x.Score).Take(3)
-            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div,
-                Detail = $"{x.Wins} win{(x.Wins == 1 ? "" : "s")}{(x.Titles > 0 ? $", {x.Titles} title bout{(x.Titles == 1 ? "" : "s")}" : "")}",
-                Commentary = $"A standout {year} in {x.Div.DisplayName()} — {x.Wins} wins ({x.Kos} inside the distance){(x.Titles > 0 ? $", including {x.Titles} world-title bout{(x.Titles == 1 ? "" : "s")}" : "")}. His best: beating {x.Best.Loser}{(x.Best.Title ? " for the belt" : "")}." }).ToList();
+        // Fighter of the Year rewards the QUALITY of results — beating high-rated men, winning titles, pulling
+        // upsets — not volume, and a loss that year is a heavy negative (a Fighter of the Year rarely loses).
+        var acc = new Dictionary<int, FoyAcc>();
+        FoyAcc Get(int id, string name, WeightClass div)
+        {
+            if (!acc.TryGetValue(id, out var a)) acc[id] = a = new FoyAcc { Name = name, Div = div };
+            return a;
+        }
+        foreach (var x in bouts)
+        {
+            if (x.Draw) continue;
+            bool inside = x.Method is "KO" or "TKO";
+            var w = Get(x.WinnerId, x.Winner, x.Div);
+            w.Score += 6 + x.LoserOvr * 0.4 + (x.Title ? 45 : 0) + Math.Max(0, x.LoserOvr - x.WinnerOvr) * 0.9 + (inside ? 5 : 0);
+            w.Wins++; if (x.Title) w.Titles++; if (inside) w.Kos++;
+            double q = x.LoserOvr + (x.Title ? 25 : 0);
+            if (q > w.BestScore) { w.BestScore = q; w.Best = x; }
+            var l = Get(x.LoserId, x.Loser, x.Div);
+            l.Score -= 32 + Math.Max(0, x.WinnerOvr - x.LoserOvr) * 0.7 + (x.Title ? 8 : 0);   // a defeat sinks his case
+            l.Losses++;
+        }
+        var foy = acc.Values.Where(a => a.Wins > a.Losses && a.Best is not null)   // must have had a winning year
+            .OrderByDescending(a => a.Score).Take(3)
+            .Select(a => new AwardWinner { Name = a.Name, Div = a.Div,
+                Detail = $"{a.Wins}-{a.Losses}{(a.Titles > 0 ? $", {a.Titles} title win{(a.Titles == 1 ? "" : "s")}" : "")}",
+                Commentary = $"A standout {year} in {a.Div.DisplayName()} — {a.Wins}-{a.Losses} with {a.Kos} inside the distance{(a.Titles > 0 ? $", including {a.Titles} world-title win{(a.Titles == 1 ? "" : "s")}" : "")}. His best: beating {a.Best!.Loser} (rated {a.Best.LoserOvr}){(a.Best.Title ? " for the belt" : "")}." }).ToList();
 
         var upset = bouts.Where(x => !x.Draw && x.WinnerOvr < x.LoserOvr)
             .OrderByDescending(x => (x.LoserOvr - x.WinnerOvr) + (x.Title ? 15 : 0)).Take(3)
@@ -733,6 +751,12 @@ public sealed class CareerGame
                 Commentary = $"{x.Winner} and {x.Loser} went to war in {x.Div.DisplayName()}{(x.Title ? " with the world title on the line" : "")}{(x.Kds > 0 ? $", trading {x.Kds} knockdown{(x.Kds == 1 ? "" : "s")}" : "")} — settled by {(x.Draw ? "a draw" : Long(x.Method))}." }).ToList();
 
         _awards.Add(new AwardsYear { Year = year, FighterOfYear = foy, UpsetOfYear = upset, KnockoutOfYear = ko, FightOfYear = foty });
+
+        // The headline honours crop up in the news feed.
+        if (foy.Count > 0) LogEvent($"{year} Fighter of the Year: {foy[0].Name} ({foy[0].Detail}).", foy[0].Name == Player.Name, kind: "award", div: foy[0].Div);
+        if (foty.Count > 0) LogEvent($"{year} Fight of the Year: {foty[0].Name}.", false, kind: "award", div: foty[0].Div);
+        if (ko.Count > 0) LogEvent($"{year} Knockout of the Year: {ko[0].Name} — {ko[0].Detail}.", ko[0].Name == Player.Name, kind: "award", div: ko[0].Div);
+        if (upset.Count > 0) LogEvent($"{year} Upset of the Year: {upset[0].Name} {upset[0].Detail}.", upset[0].Name == Player.Name, kind: "award", div: upset[0].Div);
     }
 
     /// <summary>Log a title event, tagged with the division being simulated so the news feed can filter it.</summary>
@@ -1016,7 +1040,10 @@ public sealed class CareerGame
         var top20 = Top20Ids(_cursor);
         for (int pass = 0; pass < 6; pass++)   // several cards a year so a simulated career builds a real record, not a handful of bouts
         {
-            var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b) && Available(b))
+            // A prospect stays busy on the club circuit; an established (world-ranked) fighter takes fewer, bigger
+            // bouts — long camps, ~3–4 a year — so he only appears on some cards.
+            var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b) && Available(b)
+                                          && (!WorldRanked(b) || _rng.NextDouble() < FightChancePerCard(b)))
                              .OrderByDescending(b => b.Overall).ToList();
             int n = pool.Count;
             var used = new bool[n];
@@ -1143,6 +1170,16 @@ public sealed class CareerGame
     /// <summary>How many bouts a fighter has had in the current calendar year — for the 8-a-year cap.</summary>
     private int FightsThisYear(Boxer b) => b.History.Count(h => h.Date.Year == Date.Year);
     private bool AtYearCap(Boxer b) => FightsThisYear(b) >= MaxFightsPerYear;
+
+    /// <summary>Per-card chance a world-ranked fighter takes the bout — tuned so an established man fights ~3–4
+    /// times a year (3–4 month gaps) across the season's six cards, easing off further as he ages.</summary>
+    private double FightChancePerCard(Boxer b) => CareerStages.Of(b) switch
+    {
+        CareerStage.Prime => 4.0 / 6,
+        CareerStage.PostPrime => 3.0 / 6,
+        CareerStage.End => 2.5 / 6,
+        _ => 4.5 / 6,   // world-ranked but still pre-prime — fairly active
+    };
 
     /// <summary>Days since a fighter's most recent bout (large if he has no ledger) — stops a champion
     /// from defending too frequently.</summary>

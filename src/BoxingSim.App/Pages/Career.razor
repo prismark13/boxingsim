@@ -90,7 +90,13 @@ else
                 var ar = 1;
                 @foreach (var w in list)
                 {
-                    <div class="rkrow clickable" title="@w.Commentary" @onclick="() => _awardSel = w"><span class="rkn @(ar == 1 ? "" : "nr")">@ar</span><span class="rkname">@w.Name <span class="champ-tag torank">@w.Div.DisplayName()</span></span><span class="rkrec muted">@w.Detail</span></div>
+                    <div class="rkrow clickable" title="@w.Commentary" @onclick="() => _awardSel = w" style="align-items:flex-start;gap:10px;">
+                        <span class="rkn @(ar == 1 ? "" : "nr")">@ar</span>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;">@w.Name</div>
+                            <div class="muted" style="font-size:0.84em;margin-top:2px;">@w.Div.DisplayName() · @w.Detail</div>
+                        </div>
+                    </div>
                     ar++;
                 }
             }
@@ -295,8 +301,17 @@ else
                     {
                         <div class="muted" style="padding:12px 4px;">No inductees yet — the greats are still active. Champions enter the Hall when they retire.</div>
                     }
+                    else
+                    {
+                        <select class="newsfilter" @bind="_hofSort" style="margin:6px 0;">
+                            <option value="prestige">Sort: Prestige</option>
+                            <option value="defenses">Sort: Title defences</option>
+                            <option value="record">Sort: Record (wins)</option>
+                            <option value="class">Sort: Peak class</option>
+                        </select>
+                    }
                     int hf = 1;
-                    @foreach (var m in g.HallOfFame)
+                    @foreach (var m in HofSorted(g))
                     {
                         <div class="rkrow" @onclick="() => _hofSel = m">
                             <span class="rkn"><Icon Name="trophy" Size="12" /></span>
@@ -416,7 +431,16 @@ else
 
     @if (_awardSel is AwardWinner aw)
     {
-        var awFighter = g.Active.FirstOrDefault(b => aw.Name.StartsWith(b.Name, StringComparison.OrdinalIgnoreCase) || b.Name == aw.Name);
+        var named = g.Active.Where(b => b.Name.Length >= 4 && (aw.Name.Contains(b.Name, StringComparison.OrdinalIgnoreCase) || aw.Detail.Contains(b.Name, StringComparison.OrdinalIgnoreCase)))
+                            .DistinctBy(b => b.Id).Take(2).ToList();
+        var primary = named.FirstOrDefault();
+        BoutLine? theBout = null;
+        if (primary is not null)
+        {
+            var foes = named.Where(b => b.Id != primary.Id).Select(b => b.Name).ToList();
+            theBout = primary.History.OrderByDescending(h => h.Date)
+                        .FirstOrDefault(h => foes.Any(o => o == h.Opponent) || aw.Detail.Contains(h.Opponent, StringComparison.OrdinalIgnoreCase));
+        }
         <div class="modal-bg" @onclick="() => _awardSel = null">
             <div class="modal" @onclick:stopPropagation="true">
                 <div class="modal-head">
@@ -424,9 +448,16 @@ else
                     <button class="ghost icon-btn" @onclick="() => _awardSel = null"><Icon Name="close" Size="16" /></button>
                 </div>
                 <p style="margin:12px 2px; line-height:1.5;">@aw.Commentary</p>
-                @if (awFighter is not null)
+                @if (theBout is not null)
                 {
-                    <button class="ghost sm" @onclick="() => { _selected = awFighter; _awardSel = null; }">View @awFighter.Name</button>
+                    <div class="label" style="margin:10px 0 4px;">The fight <span class="muted">· tap for the card</span></div>
+                    <div class="history">@boutRow(theBout)</div>
+                }
+                @if (named.Count > 0)
+                {
+                    <div class="savebtns" style="margin-top:12px;">
+                        @foreach (var f in named) { <button class="ghost sm" @onclick="() => { _selected = f; _awardSel = null; }">View @f.Name</button> }
+                    </div>
                 }
             </div>
         </div>
@@ -668,7 +699,7 @@ else
     private IEnumerable<CareerEvent> NewsEvents(CareerGame g)
     {
         IEnumerable<CareerEvent> src = g.Log;
-        if (_newsFilter == "") src = src.Where(e => e.Div == g.Division || e.PlayerBout);
+        if (_newsFilter == "") src = src.Where(e => e.Div == g.Division || e.PlayerBout || e.Kind is "award" or "hof");
         else if (_newsFilter != "all") src = src.Where(e => e.Div?.ToString() == _newsFilter);
         return src.Reverse().Take(40);
     }
@@ -678,6 +709,16 @@ else
     private string _talent = "contender";
     private bool _fullHistory;
     private int _awardYear;
+    private string _hofSort = "prestige";
+
+    private IEnumerable<HallOfFamer> HofSorted(CareerGame g) => _hofSort switch
+    {
+        "defenses" => g.HallOfFame.OrderByDescending(m => m.Defenses).ThenByDescending(m => m.Prestige),
+        "record" => g.HallOfFame.OrderByDescending(m => HofWins(m.Record)).ThenByDescending(m => m.Prestige),
+        "class" => g.HallOfFame.OrderByDescending(m => m.PeakClass).ThenByDescending(m => m.Prestige),
+        _ => g.HallOfFame,
+    };
+    private static int HofWins(string record) => int.TryParse(record.Split('-')[0], out var w) ? w : 0;
     private WeightClass _division = WeightClass.Heavyweight;
     private IReadOnlyList<WeightClass> _divisions = new[] { WeightClass.Heavyweight };
     private bool _busy;
@@ -759,7 +800,7 @@ else
     private static string NewsTag(CareerEvent e) => e.PlayerBout ? "YOU" : e.Kind switch
     {
         "title" => "TITLE", "upset" => "UPSET", "ko" => "KO", "streak" => "STREAK",
-        "debut" => "DEBUT", "retire" => "RETIRED", "hof" => "HALL OF FAME", _ => "NEWS"
+        "debut" => "DEBUT", "retire" => "RETIRED", "hof" => "HALL OF FAME", "award" => "AWARD", _ => "NEWS"
     };
 
     private static string Surname(string name)
