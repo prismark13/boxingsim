@@ -62,7 +62,7 @@ else
     var stage = CareerStages.Of(p);
     // A fighter only enters the rankings once he's earned it (20 pro bouts). The player isn't special —
     // he shows as "NR" until then, so a 9-fight prospect never carries a world ranking.
-    var ranked = g.Active.Where(CareerGame.WorldRanked).OrderByDescending(CareerGame.RankScore).ToList();
+    var ranked = g.Active.Where(CareerGame.WorldRanked).Where(b => b.Record.Wins + 3 >= b.Record.Losses || b.Id == p.Id).OrderByDescending(CareerGame.RankScore).ToList();
     int rank = ranked.FindIndex(b => b.Id == p.Id) + 1;   // 0 (→ "–") until he's world-ranked
     int pFights = p.Record.Wins + p.Record.Losses + p.Record.Draws;
 

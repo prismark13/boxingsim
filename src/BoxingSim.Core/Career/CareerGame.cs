@@ -132,7 +132,8 @@ public sealed class CareerGame
     public int ActiveCountOf(WeightClass wc) => _roster.Count(b => !b.Retired && b.WeightClass == wc);
     /// <summary>The top world-ranked fighters in a division (for a rankings view).</summary>
     public IReadOnlyList<Boxer> RankingOf(WeightClass wc, int take = 15) =>
-        ActiveIn(wc).Where(WorldRanked).OrderByDescending(RankScore).Take(take).ToList();
+        ActiveIn(wc).Where(WorldRanked).Where(b => b.Record.Wins + 3 >= b.Record.Losses)   // a ranked contender isn't a clear also-ran
+                    .OrderByDescending(RankScore).Take(take).ToList();
 
     /// <summary>True if the fighter currently holds any world belt (WBA/WBC/IBF) in his division.</summary>
     public bool IsWorldChampion(Boxer b) =>
@@ -158,7 +159,7 @@ public sealed class CareerGame
 
     /// <summary>The brightest prospects in a division — promising young fighters not yet world-ranked.</summary>
     public IReadOnlyList<Boxer> ProspectsOf(WeightClass wc, int take = 12) =>
-        ActiveIn(wc).Where(b => IsProspect(b) && ProFights(b) >= 3)
+        ActiveIn(wc).Where(b => b.Id != Player.Id && IsProspect(b) && ProFights(b) >= 3)
                     .OrderByDescending(b => b.Potential).ThenByDescending(b => b.Overall)
                     .Take(take).ToList();
     public IReadOnlyList<CareerEvent> RecentLog(int n) => _log.Skip(Math.Max(0, _log.Count - n)).ToList();
