@@ -110,10 +110,21 @@ public sealed class CareerService
     {
         var json = await _js.InvokeAsync<string?>("localStorage.getItem", Key);
         if (string.IsNullOrEmpty(json)) return false;
-        var save = JsonSerializer.Deserialize<CareerSave>(json, Opts);
-        if (save is null) return false;
-        Game = CareerGame.Load(save, new Random());
-        LastResult = null;
-        return true;
+        try
+        {
+            var save = JsonSerializer.Deserialize<CareerSave>(json, Opts);
+            if (save is null) return false;
+            Game = CareerGame.Load(save, new Random());
+            LastResult = null;
+            return true;
+        }
+        catch
+        {
+            // An old/incompatible or corrupt save can't be loaded — clear it so the app recovers to the
+            // create screen instead of jamming on "Continue".
+            await _js.InvokeVoidAsync("localStorage.removeItem", Key);
+            Game = null;
+            return false;
+        }
     }
 }
