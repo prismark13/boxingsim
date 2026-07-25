@@ -515,7 +515,7 @@ public sealed class CareerGame
         foreach (var wc in AllDivisions)
         {
             if (!DivisionActive(wc)) continue;
-            int debuts = 14 + _rng.Next(10);
+            int debuts = 1 + _rng.Next(3);   // a small trickle of generated journeymen — the real roster carries each division
             for (int i = 0; i < debuts; i++) AddActive(_factory.CreateProspect(wc, GeneratedCap));
         }
     }
