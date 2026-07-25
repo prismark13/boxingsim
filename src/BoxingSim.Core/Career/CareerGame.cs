@@ -35,6 +35,10 @@ public sealed class CareerGame
     private readonly Dictionary<int, int> _peakOverall = new();
     private readonly Dictionary<int, int> _peakClass = new();
     private readonly Dictionary<int, HashSet<WeightClass>> _titleDivisions = new();   // id → every division he held a world belt in
+    private readonly Dictionary<int, DateOnly> _outUntil = new();   // NPC id → date he's fit again after an injury (KO layoff)
+
+    /// <summary>True if a fighter is fit to be matched — not currently on the shelf recovering from an injury.</summary>
+    private bool Available(Boxer b) => !_outUntil.TryGetValue(b.Id, out var d) || Date >= d;
     public IReadOnlyList<HallOfFamer> HallOfFame => _hof.OrderByDescending(m => m.Prestige).ToList();
     private const string UndisputedBelt = "Undisputed";
     private const int MaxFightsPerYear = 8;   // nobody boxes more than 8 times in a calendar year
@@ -582,7 +586,7 @@ public sealed class CareerGame
     {
         var exclude = excludeIds.Where(id => id != 0).ToHashSet();
         var field = ActiveIn(wc)
-            .Where(b => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id) && WorldRanked(b) && !RecentlyMovedUp(b))
+            .Where(b => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id) && WorldRanked(b) && !RecentlyMovedUp(b) && Available(b))
             .OrderByDescending(RankScore).Take(2).ToList();
         if (field.Count == 0) return null;
         if (field.Count == 1) return field[0];   // only one credible contender — the strap is his unopposed
@@ -782,7 +786,7 @@ public sealed class CareerGame
     {
         // Champions don't fight on undercards — when they fight, it's a title defence (handled below).
         // A man who's already boxed 8 times this year sits the rest of it out.
-        var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b))
+        var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b) && Available(b))
                          .OrderByDescending(b => b.Overall).ToList();
         if (pool.Count < 2) return;
 
@@ -910,7 +914,7 @@ public sealed class CareerGame
         var top20 = Top20Ids(_cursor);
         for (int pass = 0; pass < 2; pass++)
         {
-            var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b))
+            var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b) && Available(b))
                              .OrderByDescending(b => b.Overall).ToList();
             int n = pool.Count;
             var used = new bool[n];
@@ -926,7 +930,7 @@ public sealed class CareerGame
                 if (j < 0) break;
                 used[i] = used[j] = true;
                 int rounds = i < 6 ? 10 : 8;
-                Date = SpreadDate(yr);
+                Date = SpreadDate(yr, pass, 2);
                 ApplyOutcome(FastBout(pool[i], pool[j], rounds), pool[i], pool[j]);
             }
         }
@@ -969,11 +973,11 @@ public sealed class CareerGame
         for (int d = 0; d < titleBouts; d++)
         {
             var c = Champ;
-            if (c is null || c.Id == Player.Id || !CursorUnified) return;
+            if (c is null || c.Id == Player.Id || !CursorUnified || !Available(c)) return;
             if (_rng.NextDouble() < 0.10) { RelinquishBelt(c); return; }   // ducks a mandatory, splitting the belts
             var ch = PickChallenger(c, null);
             if (ch is null) return;
-            Date = SpreadDate(yr);
+            Date = SpreadDate(yr, d, titleBouts);
             var res = FastBout(c, ch, 12);
             ApplyOutcome(res, c, ch, "Undisputed title");
             if (!res.IsDraw && res.Winner!.Id == ch.Id)
@@ -1001,10 +1005,10 @@ public sealed class CareerGame
         for (int d = 0; d < titleBouts; d++)
         {
             var c = champ();
-            if (c is null || c.Id == Player.Id) return;
+            if (c is null || c.Id == Player.Id || !Available(c)) return;   // an injured champion doesn't defend while on the shelf
             var challenger = PickChallenger(c, other?.Invoke());
             if (challenger is null) return;
-            Date = SpreadDate(yr);
+            Date = SpreadDate(yr, d, titleBouts);
             var res = FastBout(c, challenger, 12);
             ApplyOutcome(res, c, challenger, $"{belt} title");
             if (!res.IsDraw && res.Winner!.Id == challenger.Id)
@@ -1019,6 +1023,15 @@ public sealed class CareerGame
 
     /// <summary>A random calendar date within a year — spreads warmup bouts off 1 January.</summary>
     private DateOnly SpreadDate(int yr) => new(yr, 1 + _rng.Next(12), 1 + _rng.Next(28));
+
+    /// <summary>Date bout <paramref name="index"/> of <paramref name="count"/> within its own slice of the year,
+    /// so a fighter's bouts in a season land a couple of months apart instead of clustering days apart.</summary>
+    private DateOnly SpreadDate(int yr, int index, int count)
+    {
+        int slice = 365 / Math.Max(1, count);
+        int day = Math.Clamp(index * slice + _rng.Next(Math.Max(1, slice - 30)), 0, 364);
+        return new DateOnly(yr, 1, 1).AddDays(day);
+    }
 
     private static int ProFights(Boxer b) => b.Record.Wins + b.Record.Losses + b.Record.Draws;
 
@@ -1037,6 +1050,8 @@ public sealed class CareerGame
     /// against an elite, or anyone with under 20 pro bouts sharing the ring with a top-20 man.</summary>
     private bool BadMatch(Boxer x, Boxer y, HashSet<int> top20)
     {
+        // No stale rematches: don't pair two men who've met in either's last few bouts.
+        if (RecentFoes(x, 4).Contains(y.Name) || RecentFoes(y, 4).Contains(x.Name)) return true;
         var strong = x.Overall >= y.Overall ? x : y;
         var weak = ReferenceEquals(strong, x) ? y : x;
         if (strong.Overall >= 78 && ProFights(weak) < 12) return true;
@@ -1067,7 +1082,7 @@ public sealed class CareerGame
         var recent = RecentFoes(champ, 4);
         var here = ActiveIn(champ.WeightClass);   // challengers come from the champion's own division
         bool Ok(Boxer b) => b.Id != Player.Id && b.Id != champ.Id
-                         && (otherChamp is null || b.Id != otherChamp.Id) && WorldRanked(b) && !RecentlyMovedUp(b);
+                         && (otherChamp is null || b.Id != otherChamp.Id) && WorldRanked(b) && !RecentlyMovedUp(b) && Available(b);
         // Prefer a contender he hasn't just fought and hasn't already met several times.
         var ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name) && champ.History.Count(h => h.Opponent == b.Name) < 3).ToList();
         if (ranked.Count == 0) ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name)).ToList();
@@ -1229,8 +1244,13 @@ public sealed class CareerGame
                 res.Winner.Record.KnockoutWins++;
                 res.Loser.Record.KnockoutLosses++;
                 _careers.RegisterKnockoutLoss(res.Loser);
+                // A knockout means a medical suspension — the loser is on the shelf for a couple of months.
+                _outUntil[res.Loser.Id] = Date.AddDays(63 + _rng.Next(84));
             }
         }
+        // The occasional training/hand injury sidelines a fighter even without a stoppage.
+        if (!res.IsDraw && !ko && _rng.NextDouble() < 0.04)
+            _outUntil[res.Loser!.Id] = Date.AddDays(49 + _rng.Next(63));
 
         // Each fighter's ledger: date, result, method, round, knockdowns scored / suffered.
         char ra = res.IsDraw ? 'D' : res.Winner!.Id == a.Id ? 'W' : 'L';
