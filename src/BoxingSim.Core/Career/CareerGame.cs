@@ -857,7 +857,11 @@ public sealed class CareerGame
     private bool StepUpAllowed(Boxer b, WeightClass to)
     {
         if (!_historical.ContainsKey(b.Id)) return true;
-        return b.TopWeight is WeightClass top && (int)to <= (int)top;
+        // Cap at his known top weight if the data specifies one. Otherwise allow a natural climb (fighters thicken
+        // with age and chase belts up the scale) — his ratings are rebalanced DOWN at every move, so how far he
+        // realistically gets is self-limiting, but a dominant champion can now win a second and third division.
+        if (b.TopWeight is WeightClass top) return (int)to <= (int)top;
+        return true;
     }
 
     /// <summary>The flat per-fight chance any fighter drifts up a weight, from his prime onward (bodies fill out).
@@ -954,7 +958,17 @@ public sealed class CareerGame
         if (pool.Count < 2) return;
 
         if (Champ is not null && !Champ.IsChampion) Champ = null;
-        if (CursorUnified)
+
+        // A rare unification is checked FIRST and, when it fires, is the only world-title bout on this card:
+        // the belts merge in one fight rather than each champion ALSO making a separate defence the same
+        // fortnight (which produced impossible back-to-back title bouts days apart). Both men must be rested.
+        if (!CursorUnified && Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
+            && Champ.Id != Player.Id && Wbc.Id != Player.Id
+            && DaysSinceLastBout(Champ) >= 70 && DaysSinceLastBout(Wbc) >= 70 && _rng.NextDouble() < 0.015)
+        {
+            Unify();
+        }
+        else if (CursorUnified)
         {
             var c = Champ!;
             if (c.Id != Player.Id && DaysSinceLastBout(c) >= 70 && _rng.NextDouble() < 0.12)   // ~2–3 defences a year, min ~10 weeks apart
@@ -1001,11 +1015,6 @@ public sealed class CareerGame
                 else { Defended(_cursor, "IBF", Ibf.Id); LogTitle($"{Ibf.Name} retains the IBF title against {ch.Name}."); ConsiderTitleStepUp(Ibf); }
             }
         }
-
-        // Unification (rare): the two world champions finally meet, and the winner takes both belts.
-        if (Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
-            && Champ.Id != Player.Id && Wbc.Id != Player.Id && _rng.NextDouble() < 0.015)
-            Unify();
 
         // Regional title defences — a regional champ risks his belt against a fellow regional contender.
         foreach (var region in RegionalBelts)
@@ -1056,6 +1065,14 @@ public sealed class CareerGame
         // Title bouts: each champion defends 2–3 times a year (mandatories and voluntary defences),
         // dated across the calendar. The belt is where the elites meet.
         if (Champ is not null && !Champ.IsChampion) Champ = null;
+
+        // A unification (rare) is settled FIRST, early in the year, so the belts merge before the defence
+        // campaign runs. The rest of the season is then defended as one undisputed title — never a stray
+        // WBC "defence" back-dated after the belts have already come together (which read as a bug).
+        if (!CursorUnified && Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
+            && Champ.Id != Player.Id && Wbc.Id != Player.Id && _rng.NextDouble() < 0.30)
+        { Date = SpreadDate(yr, 0, 6); Unify(); }
+
         if (CursorUnified)
         {
             UnifiedDefenceSeason(yr);
@@ -1066,11 +1083,6 @@ public sealed class CareerGame
             if (WbcActive) DefendBeltSeason(() => Wbc, CrownWbc, () => Champ, "WBC", yr, dethrone: false);
         }
         if (IbfActive) DefendBeltSeason(() => Ibf, CrownIbf, null, "IBF", yr, dethrone: false);
-
-        // Unification: about once a year the two world champions can meet — the winner takes both belts.
-        if (Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
-            && Champ.Id != Player.Id && Wbc.Id != Player.Id && _rng.NextDouble() < 0.30)
-        { Date = SpreadDate(yr); Unify(); }
 
         // Two undercards. Matchmaking is by ability with the better man favoured: each fighter generally
         // meets someone a notch below him (a showcase). Champions sit these out — they only defend.
@@ -1161,7 +1173,8 @@ public sealed class CareerGame
             if (_rng.NextDouble() < 0.10) { RelinquishBelt(c); return; }   // ducks a mandatory, splitting the belts
             var ch = PickChallenger(c, null);
             if (ch is null) return;
-            Date = SpreadDate(yr, d, titleBouts);
+            if (NextTitleDate(c, yr, d, titleBouts) is not DateOnly nd) return;
+            Date = nd;
             var res = FastBout(c, ch, 12);
             ApplyOutcome(res, c, ch, "Undisputed title");
             if (!res.IsDraw && res.Winner!.Id == ch.Id)
@@ -1199,11 +1212,13 @@ public sealed class CareerGame
                                                           && b.Overall <= c.Overall && Available(b) && !RecentFoes(c, 3).Contains(b.Name))
                                                   .OrderByDescending(RankScore).FirstOrDefault();
                 if (busy is null) return;
-                Date = SpreadDate(yr, d, titleBouts);
+                if (NextTitleDate(c, yr, d, titleBouts) is not DateOnly bd) return;
+                Date = bd;
                 ApplyOutcome(FastBout(c, busy, 10), c, busy);
                 continue;
             }
-            Date = SpreadDate(yr, d, titleBouts);
+            if (NextTitleDate(c, yr, d, titleBouts) is not DateOnly td) return;
+            Date = td;
             var res = FastBout(c, challenger, 12);
             ApplyOutcome(res, c, challenger, $"{belt} title");
             if (!res.IsDraw && res.Winner!.Id == challenger.Id)
@@ -1226,6 +1241,20 @@ public sealed class CareerGame
         int slice = 365 / Math.Max(1, count);
         int day = Math.Clamp(index * slice + _rng.Next(Math.Max(1, slice - 30)), 0, 364);
         return new DateOnly(yr, 1, 1).AddDays(day);
+    }
+
+    /// <summary>A within-year date for a champion's next title bout that always sits at least ~10 weeks AFTER his
+    /// previous bout — so a season's title bouts (and a unification plus the defences that follow it) never land
+    /// days apart or out of order. Null when there's no room left in the year: the bout is then skipped, not crammed.</summary>
+    private DateOnly? NextTitleDate(Boxer c, int yr, int index, int count)
+    {
+        var d = SpreadDate(yr, index, count);
+        if (c.History.Count > 0)
+        {
+            var last = c.History.Max(h => h.Date);
+            if (d.DayNumber < last.AddDays(72).DayNumber) d = last.AddDays(72 + _rng.Next(24));
+        }
+        return d.Year == yr ? d : null;
     }
 
     private static int ProFights(Boxer b) => b.Record.Wins + b.Record.Losses + b.Record.Draws;
