@@ -117,11 +117,30 @@ public sealed class Ratings
         return 1;
     }
 
-    /// <summary>The chance a win comes by knockout, driven mainly by the winner's power and sharpened by the
-    /// gap to the loser's chin. Calibrated so a big puncher (power ~90) stops well over half his opponents and
-    /// an all-time banger nears 80%, while a light-hitting boxer lands in the 15–25% range.</summary>
-    public static double KnockoutChance(int power, int chin) =>
-        Math.Clamp(0.10 + (power - 55) / 80.0 + (power - chin) / 300.0, 0.06, 0.88);
+    // Base KO rate from the winner's power alone (vs a nominal ~75 chin, even fight), calibrated to the roster:
+    // median power (~75) stops ~40%, the p95 punchers (~88) ~65%, and the all-time bangers (Foreman/Wilder/Tyson,
+    // rated 96–99) clear 90%.
+    private static readonly (int P, double Ko)[] KoAnchors =
+    {
+        (50, 0.10), (60, 0.18), (70, 0.30), (78, 0.45), (85, 0.57), (90, 0.70), (94, 0.83), (96, 0.90), (99, 0.95)
+    };
+
+    /// <summary>The chance a win comes by knockout: driven mainly by the winner's power, sharpened by the gap to
+    /// the loser's chin, and — crucially — by how badly he outclasses the loser, since a mismatch ends in a
+    /// stoppage far more often than an even fight. <paramref name="skillGap"/> is winner Overall − loser Overall
+    /// (only a positive edge helps; an upset winner gets no bonus). An all-time banger clears 90%, a big puncher
+    /// stops well over half, a light-hitting boxer sits around 15–20% — and any of them stops a lesser man more.</summary>
+    public static double KnockoutChance(int power, int chin, double skillGap = 0)
+    {
+        var a = KoAnchors;
+        double baseKo = a[^1].Ko;
+        if (power <= a[0].P) baseKo = a[0].Ko;
+        else for (int i = 1; i < a.Length; i++)
+            if (power <= a[i].P) { var (p0, k0) = a[i - 1]; baseKo = k0 + (power - p0) * (a[i].Ko - k0) / (a[i].P - p0); break; }
+
+        double adj = (75 - chin) / 280.0 + Math.Max(0, skillGap) / 130.0;   // weaker chin / a mismatch → more stoppages
+        return Math.Clamp(baseKo + adj, 0.05, 0.97);
+    }
 
     // Attribute display floors (min 1–99 value for each 1–15 level). Real fighters' attributes cluster in
     // the 55–90 band, so a naive linear 1–99→1–15 map wastes the bottom third and bunches everyone at 11–12.

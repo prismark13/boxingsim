@@ -1455,7 +1455,7 @@ public sealed class CareerGame
             if (roll < winRate)
             {
                 b.Record.Wins++; rc = 'W';
-                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72)) { b.Record.KnockoutWins++; method = _rng.NextDouble() < 0.5 ? "KO" : "TKO"; round = 1 + _rng.Next(8); }
+                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72, b.Overall - 64)) { b.Record.KnockoutWins++; method = _rng.NextDouble() < 0.5 ? "KO" : "TKO"; round = 1 + _rng.Next(8); }
                 else method = _rng.NextDouble() < 0.75 ? "UD" : "SD";
             }
             else if (roll < winRate + 0.08) { b.Record.Draws++; rc = 'D'; method = "D"; }
@@ -1548,7 +1548,7 @@ public sealed class CareerGame
         {
             aWins = _rng.NextDouble() < pa;
             winner = aWins ? a : b; loser = aWins ? b : a;
-            double koP = Ratings.KnockoutChance(winner.Ratings.Power, loser.Ratings.Chin);
+            double koP = Ratings.KnockoutChance(winner.Ratings.Power, loser.Ratings.Chin, winner.Overall - loser.Overall);
             ko = _rng.NextDouble() < koP;
             if (ko)
             {

@@ -134,7 +134,7 @@ public sealed class BoxerFactory
             if (roll < winRate)
             {
                 b.Record.Wins++;
-                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72)) b.Record.KnockoutWins++;
+                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72, b.Overall - 64)) b.Record.KnockoutWins++;
             }
             else if (roll < winRate + 0.10)
             {
