@@ -1477,6 +1477,14 @@ public sealed class CareerGame
         a.RankPoints += k * (scoreA - ea);
         b.RankPoints += k * ((1 - scoreA) - (1 - ea));
         if (ko && res.Winner is not null) res.Winner.RankPoints += 6;
+        // Momentum matters: a win run pushes a fighter up the rankings, and an unbeaten KO run harder still, so
+        // a hot streak forces his way into contention — while a loss snaps it and costs him that built-up standing.
+        if (res.Winner is not null)
+        {
+            int ws = WinStreak(res.Winner);   // includes the bout just recorded
+            if (ws >= 3) res.Winner.RankPoints += Math.Min(ws, 14) * 3.0 + KoStreak(res.Winner) * 1.5;
+        }
+        if (res.Loser is not null) res.Loser.RankPoints -= 10;   // a defeat that ends a run stings the standing
 
         // Rare permanent wear carries forward (only matters for non-historical fighters, whose ratings
         // are recomputed from their prime each year — so apply to the player and generated fighters).
@@ -1890,7 +1898,14 @@ public sealed class CareerGame
             if (w.Overall >= 76 && WorldRanked(l) && _rng.NextDouble() < 0.4)
                 LogEvent(Pick($"{w.Name} halts {l.Name} in {res.EndRound}.",
                               $"{w.Name} takes out {l.Name} inside the distance."), kind: "ko");
+            return;
         }
+        // A long unbeaten run is news in itself — the sport takes notice of a fighter forcing his way up.
+        int wins = WinStreak(w);
+        if (wins >= 10 && wins % 3 == 0 && _rng.NextDouble() < 0.6)
+            LogEvent(Pick($"{w.Name} extends his unbeaten run to {wins} straight.",
+                          $"Still perfect — {w.Name} makes it {wins} wins in a row and is knocking on the door.",
+                          $"{w.Name} runs his streak to {wins}-0 in his last {wins}, forcing his way into the picture."), kind: "streak");
     }
 
     /// <summary>Count of a fighter's most recent bouts that were consecutive knockout wins.</summary>
@@ -1903,6 +1918,14 @@ public sealed class CareerGame
             if (h.Result == 'W' && (h.Method == "KO" || h.Method == "TKO")) n++;
             else break;
         }
+        return n;
+    }
+
+    /// <summary>Count of a fighter's most recent consecutive wins (any method).</summary>
+    private static int WinStreak(Boxer b)
+    {
+        int n = 0;
+        for (int i = b.History.Count - 1; i >= 0 && b.History[i].Result == 'W'; i--) n++;
         return n;
     }
 
