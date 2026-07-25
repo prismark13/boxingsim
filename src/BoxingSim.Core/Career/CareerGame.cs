@@ -1264,6 +1264,19 @@ public sealed class CareerGame
             if (seasoned.Count > 0) opp = seasoned.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
         }
 
+        // A ranked contender's schedule: NOT a top-10 war every time out, and NEVER fed raw prospects. Most dates
+        // are seasoned gatekeeper tune-ups; roughly one in three is a genuine clash with a fellow contender.
+        if (WorldRanked(Player) && idx >= 0 && idx <= 20)
+        {
+            var seasoned = ranked.Where(b => b.Id != Player.Id && !IsProspect(b) && ProFights(b) >= 15
+                                          && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
+            bool clash = _rng.Next(3) == 0;
+            var pick = clash ? seasoned.Where(b => b.Overall >= 74).OrderByDescending(RankScore).Take(10).ToList()
+                             : seasoned.Where(b => b.Overall is >= 58 and <= 76).OrderByDescending(RankScore).Take(10).ToList();
+            if (pick.Count == 0) pick = seasoned;
+            if (pick.Count > 0) opp = pick[_rng.Next(pick.Count)];
+        }
+
         int rounds = stage == CareerStage.Starter ? 6 : idx <= 5 ? 10 : 8;
         string ctx = capped ? "building a record"
                    : target < idx ? (idx <= 5 ? "eliminator" : "step-up")
