@@ -80,6 +80,24 @@ public sealed class CareerEvent
     public string DateLabel => On.ToString("d MMM yyyy");
 }
 
+/// <summary>One placing in an annual award (a fighter/bout with a one-line citation).</summary>
+public sealed class AwardWinner
+{
+    public required string Name { get; init; }
+    public required string Detail { get; init; }
+    public WeightClass Div { get; init; }
+}
+
+/// <summary>The end-of-year honours: the top three in each category.</summary>
+public sealed class AwardsYear
+{
+    public int Year { get; init; }
+    public List<AwardWinner> FighterOfYear { get; init; } = new();
+    public List<AwardWinner> UpsetOfYear { get; init; } = new();
+    public List<AwardWinner> KnockoutOfYear { get; init; } = new();
+    public List<AwardWinner> FightOfYear { get; init; } = new();
+}
+
 /// <summary>A retired great enshrined in the Hall of Fame — a self-contained snapshot taken at induction so
 /// it survives even after the fighter is pruned from the active roster on save.</summary>
 public sealed class HallOfFamer

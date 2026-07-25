@@ -31,6 +31,11 @@ public sealed class CareerGame
     // Hall of Fame + the trackers that decide induction. _everChampion / _peakOverall persist across saves so a
     // fighter who held a belt (or peaked as an elite) in an earlier session still qualifies when he finally retires.
     private readonly List<HallOfFamer> _hof = new();
+    private readonly List<AwardsYear> _awards = new();
+    private readonly List<YearBout> _yearBouts = new();   // this year's honourable-mention bouts, cleared each year end
+    public IReadOnlyList<AwardsYear> Awards => _awards.OrderByDescending(a => a.Year).ToList();
+    private sealed record YearBout(int Year, string Winner, string Loser, int WinnerId, string Method, int Round,
+                                   bool Title, int WinnerOvr, int LoserOvr, int Kds, bool Draw, bool Close, WeightClass Div);
     private readonly HashSet<int> _everChampion = new();
     private readonly Dictionary<int, int> _peakOverall = new();
     private readonly Dictionary<int, int> _peakClass = new();
@@ -224,6 +229,7 @@ public sealed class CareerGame
             InjectDebuts();
             RunNpcSeason();
             AgeRetireCrown();
+            ComputeAwardsFor(y);
         }
         Date = new DateOnly(startYear, 1, 1);
         InjectDebuts();
@@ -245,6 +251,8 @@ public sealed class CareerGame
         // the Hall fills with fighters who retire during his career rather than a generation he never saw.
         _log.Clear();
         _hof.Clear();
+        _awards.Clear();
+        _yearBouts.Clear();
         Date = new DateOnly(startYear, 3, 1);
         if (Champion is not null) LogEvent($"{Champion.Name} reigns as {PrimaryBelt} champion as {player.Name} turns pro.", kind: "title");
 
@@ -299,6 +307,15 @@ public sealed class CareerGame
                     Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
                 }).ToList()
             });
+        AwardWinner AwLoad(AwardWinnerSave w) => new() { Name = w.Name, Detail = w.Detail, Div = Enum.TryParse<WeightClass>(w.Div, out var wd) ? wd : WeightClass.Heavyweight };
+        foreach (var a in s.Awards) _awards.Add(new AwardsYear
+        {
+            Year = a.Year,
+            FighterOfYear = a.FighterOfYear.Select(AwLoad).ToList(),
+            UpsetOfYear = a.UpsetOfYear.Select(AwLoad).ToList(),
+            KnockoutOfYear = a.KnockoutOfYear.Select(AwLoad).ToList(),
+            FightOfYear = a.FightOfYear.Select(AwLoad).ToList(),
+        });
         foreach (var id in s.EverChampion) _everChampion.Add(id);
         foreach (var kv in s.PeakOverall) if (int.TryParse(kv.Key, out var id)) _peakOverall[id] = kv.Value;
         foreach (var kv in s.PeakClass) if (int.TryParse(kv.Key, out var id)) _peakClass[id] = kv.Value;
@@ -366,6 +383,15 @@ public sealed class CareerGame
                 Date = h.Date.ToString("yyyy-MM-dd"), Opponent = h.Opponent, Result = h.Result.ToString(),
                 Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
             }).ToList()
+        });
+        AwardWinnerSave AwSave(AwardWinner w) => new() { Name = w.Name, Detail = w.Detail, Div = w.Div.ToString() };
+        foreach (var a in _awards) s.Awards.Add(new AwardsYearSave
+        {
+            Year = a.Year,
+            FighterOfYear = a.FighterOfYear.Select(AwSave).ToList(),
+            UpsetOfYear = a.UpsetOfYear.Select(AwSave).ToList(),
+            KnockoutOfYear = a.KnockoutOfYear.Select(AwSave).ToList(),
+            FightOfYear = a.FightOfYear.Select(AwSave).ToList(),
         });
         s.EverChampion.AddRange(_everChampion);
         foreach (var kv in _peakOverall) s.PeakOverall[kv.Key.ToString()] = kv.Value;
@@ -500,7 +526,7 @@ public sealed class CareerGame
             if (next > target) next = target;
             bool yearTurned = next.Year != Date.Year;
             Date = next;
-            if (yearTurned) { InjectDebuts(); AgeRetireCrown(); }
+            if (yearTurned) { ComputeAwardsFor(Date.Year - 1); InjectDebuts(); AgeRetireCrown(); }
             RunEvent();
             if (Player.Retired) return;
         }
@@ -643,6 +669,54 @@ public sealed class CareerGame
         });
         LogEvent($"{b.Name} ({b.Record}) retires and enters the Hall of Fame.", b.Id == Player.Id, kind: "hof", div: b.WeightClass);
         return true;
+    }
+
+    /// <summary>Log a completed bout as a candidate for the year-end awards — only fights worth honouring
+    /// (a world title bout, two decent men, or a knockout of a decent fighter).</summary>
+    private void CaptureBout(FightResult res, Boxer a, Boxer b, string? note)
+    {
+        bool title = IsWorldTitleNote(note);
+        bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
+        int lo = Math.Min(a.Overall, b.Overall);
+        if (!title && lo < 66 && !(ko && (res.Loser?.Overall ?? 0) >= 66)) return;
+        var w = res.Winner; var l = res.Loser;
+        bool close = res.IsDraw || res.Method is "SD" or "MD"
+                     || (res.Scorecards.Count > 0 && res.Scorecards.All(c => Math.Abs(c.A - c.B) <= 4));
+        _yearBouts.Add(new YearBout(Date.Year, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id,
+            res.Method, res.EndRound, title, w?.Overall ?? a.Overall, l?.Overall ?? b.Overall,
+            res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass));
+    }
+
+    /// <summary>Hand out the end-of-year honours (top three per category) from the year's captured bouts.</summary>
+    private void ComputeAwardsFor(int year)
+    {
+        var bouts = _yearBouts.Where(x => x.Year == year).ToList();
+        _yearBouts.RemoveAll(x => x.Year <= year);
+        if (bouts.Count == 0) return;
+
+        var foy = bouts.Where(x => !x.Draw).GroupBy(x => x.WinnerId)
+            .Select(g => new { g.First().Winner, g.First().Div,
+                Score = g.Sum(x => x.LoserOvr * 0.1 + (x.Title ? 4 : 0) + Math.Max(0, x.LoserOvr - x.WinnerOvr) * 0.2),
+                Wins = g.Count(), Titles = g.Count(x => x.Title) })
+            .OrderByDescending(x => x.Score).Take(3)
+            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div,
+                Detail = $"{x.Wins} win{(x.Wins == 1 ? "" : "s")}{(x.Titles > 0 ? $", {x.Titles} title bout{(x.Titles == 1 ? "" : "s")}" : "")}" }).ToList();
+
+        var upset = bouts.Where(x => !x.Draw && x.WinnerOvr < x.LoserOvr)
+            .OrderByDescending(x => (x.LoserOvr - x.WinnerOvr) + (x.Title ? 15 : 0)).Take(3)
+            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div,
+                Detail = $"beat {x.Loser} ({x.WinnerOvr} vs {x.LoserOvr}){(x.Title ? " · title" : "")}" }).ToList();
+
+        var ko = bouts.Where(x => x.Method is "KO" or "TKO")
+            .OrderByDescending(x => x.LoserOvr + (x.Title ? 12 : 0) + Math.Max(0, 9 - x.Round) * 2 + x.Kds * 3).Take(3)
+            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div,
+                Detail = $"KO{(x.Round > 0 ? $" rd{x.Round}" : "")} {x.Loser}{(x.Title ? " · title" : "")}" }).ToList();
+
+        var foty = bouts.OrderByDescending(x => Math.Min(x.WinnerOvr, x.LoserOvr) + (x.Title ? 15 : 0) + (x.Close ? 12 : 0) + x.Kds * 4).Take(3)
+            .Select(x => new AwardWinner { Name = $"{x.Winner} vs {x.Loser}", Div = x.Div,
+                Detail = $"{(x.Draw ? "draw" : x.Method)}{(x.Title ? " · title" : "")}{(x.Kds > 0 ? $" · {x.Kds} KD" : "")}" }).ToList();
+
+        _awards.Add(new AwardsYear { Year = year, FighterOfYear = foy, UpsetOfYear = upset, KnockoutOfYear = ko, FightOfYear = foty });
     }
 
     /// <summary>Log a title event, tagged with the division being simulated so the news feed can filter it.</summary>
@@ -1363,6 +1437,8 @@ public sealed class CareerGame
         // Every bout is a chance for either man, from his prime on, to decide he's outgrowing the weight.
         ConsiderStepUp(a);
         ConsiderStepUp(b);
+
+        CaptureBout(res, a, b, note);   // a candidate for the year-end awards
     }
 
     private static void ApplyLasting(Ratings r, LastingEffect le)

@@ -1,5 +1,6 @@
 @page "/career"
 @inject CareerService Svc
+@inject Microsoft.JSInterop.IJSRuntime Js
 
 <PageTitle>Career</PageTitle>
 
@@ -74,6 +75,20 @@ else
             @if (bt.Note is not null) { <span class="fnote @(IsWorldNote(bt.Note) ? "world" : "")">@bt.Note</span> }
             <span class="muted"> · @bt.Method@((bt.Method == "KO" || bt.Method == "TKO") ? $" rd{bt.Round}" : "")@(bt.KdFor + bt.KdAgainst > 0 ? $" · KD {bt.KdFor}-{bt.KdAgainst}" : "")</span>
         </div>;
+
+    Func<string, IReadOnlyList<AwardWinner>, RenderFragment> AwardCat = (title, list) =>
+        @<text>
+            @if (list.Count > 0)
+            {
+                <div class="label" style="margin:10px 0 4px;">@title</div>
+                var ar = 1;
+                @foreach (var w in list)
+                {
+                    <div class="rkrow"><span class="rkn @(ar == 1 ? "" : "nr")">@ar</span><span class="rkname">@w.Name <span class="champ-tag torank">@w.Div.DisplayName()</span></span><span class="rkrec muted">@w.Detail</span></div>
+                    ar++;
+                }
+            }
+        </text>;
 
     <div class="career-top">
         <div class="pident">
@@ -189,6 +204,7 @@ else
                     <button class="@(_rankTab == "p4p" ? "on" : "")" @onclick='() => _rankTab = "p4p"'>Pound-for-pound</button>
                     <button class="@(_rankTab == "sport" ? "on" : "")" @onclick='() => _rankTab = "sport"'>Divisions</button>
                     <button class="@(_rankTab == "hof" ? "on" : "")" @onclick='() => _rankTab = "hof"'>Hall of Fame</button>
+                    <button class="@(_rankTab == "awards" ? "on" : "")" @onclick='() => _rankTab = "awards"'>Awards</button>
                 </div>
 
                 @if (_rankTab == "world")
@@ -283,6 +299,22 @@ else
                             <span class="rkrec">@m.Record</span>
                         </div>
                         hf++;
+                    }
+                }
+                else if (_rankTab == "awards")
+                {
+                    <div class="panel-sub">Annual awards · end-of-year honours</div>
+                    @if (g.Awards.Count == 0)
+                    {
+                        <div class="muted" style="padding:12px 4px;">No awards yet — they're handed out at the end of each year.</div>
+                    }
+                    @foreach (var yr in g.Awards)
+                    {
+                        <div class="panel-h" style="margin-top:14px;">@yr.Year</div>
+                        @AwardCat("Fighter of the Year", yr.FighterOfYear)
+                        @AwardCat("Fight of the Year", yr.FightOfYear)
+                        @AwardCat("Knockout of the Year", yr.KnockoutOfYear)
+                        @AwardCat("Upset of the Year", yr.UpsetOfYear)
                     }
                 }
                 else
@@ -669,7 +701,15 @@ else
     private async Task RelinquishWbc() => await Svc.RelinquishWbcAsync();
     private async Task MoveUp() => await Svc.MoveUpAsync();
     private static string WeightText(WeightClass wc) => wc == WeightClass.Heavyweight ? "200+ lb" : $"{wc.WeightLimitLbs()} lb";
-    private async Task NewCareer() { await Svc.AbandonAsync(); _hasSave = false; }
+    private async Task NewCareer()
+    {
+        // A deliberate "clear my local history" — wipes the saved career from this browser. Confirm first so a
+        // stray click can't erase a career, since there's no cloud backup to restore from.
+        if (!await Js.InvokeAsync<bool>("confirm", "Clear your saved career? This erases your local history in this browser and can't be undone."))
+            return;
+        await Svc.AbandonAsync();
+        _hasSave = false;
+    }
 
     private static IEnumerable<string> PlayerBelts(CareerGame g) =>
         g.BeltsHeld(g.Player).Select(BeltLabel);

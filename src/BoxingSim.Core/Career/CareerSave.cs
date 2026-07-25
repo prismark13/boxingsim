@@ -21,12 +21,29 @@ public sealed class CareerSave
     public List<TitleReignSave> Reigns { get; set; } = new();
     public Dictionary<string, int> Regional { get; set; } = new();   // "Division|Region" → holder Id
     public List<HallOfFamerSave> HallOfFame { get; set; } = new();
+    public List<AwardsYearSave> Awards { get; set; } = new();
     public List<int> EverChampion { get; set; } = new();             // ids that ever held a world belt
     public Dictionary<string, int> PeakOverall { get; set; } = new();// "id" → best overall reached
     public Dictionary<string, int> PeakClass { get; set; } = new();  // "id" → best class reached
     public Dictionary<string, string> TitleDivisions { get; set; } = new();// "id" → "Div1|Div2" world-belt divisions
     public Dictionary<string, int> BeltDefenses { get; set; } = new();// "Division|Belt|HolderId" → defence count
     public OfferSave? Offer { get; set; }
+}
+
+public sealed class AwardsYearSave
+{
+    public int Year { get; set; }
+    public List<AwardWinnerSave> FighterOfYear { get; set; } = new();
+    public List<AwardWinnerSave> UpsetOfYear { get; set; } = new();
+    public List<AwardWinnerSave> KnockoutOfYear { get; set; } = new();
+    public List<AwardWinnerSave> FightOfYear { get; set; } = new();
+}
+
+public sealed class AwardWinnerSave
+{
+    public string Name { get; set; } = "";
+    public string Detail { get; set; } = "";
+    public string Div { get; set; } = "";
 }
 
 public sealed class HallOfFamerSave
