@@ -35,7 +35,7 @@ public sealed class CareerGame
     private readonly List<YearBout> _yearBouts = new();   // this year's honourable-mention bouts, cleared each year end
     public IReadOnlyList<AwardsYear> Awards => _awards.OrderByDescending(a => a.Year).ToList();
     private sealed record YearBout(int Year, string Winner, string Loser, int WinnerId, int LoserId, string Method, int Round,
-                                   bool Title, int WinnerOvr, int LoserOvr, int Kds, bool Draw, bool Close, WeightClass Div);
+                                   bool Title, int WinnerOvr, int LoserOvr, int Kds, bool Draw, bool Close, WeightClass Div, string LoserStanding);
     private sealed class FoyAcc { public string Name = ""; public WeightClass Div; public double Score; public int Wins, Losses, Titles, Kos; public double BestScore = -1; public YearBout? Best; }
     private readonly HashSet<int> _everChampion = new();
     private readonly Dictionary<int, int> _peakOverall = new();
@@ -691,7 +691,20 @@ public sealed class CareerGame
                      || (res.Scorecards.Count > 0 && res.Scorecards.All(c => Math.Abs(c.A - c.B) <= 4));
         _yearBouts.Add(new YearBout(Date.Year, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
             res.Method, res.EndRound, title, w?.Overall ?? a.Overall, l?.Overall ?? b.Overall,
-            res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass));
+            res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass, l is not null ? Standing(l) : ""));
+    }
+
+    /// <summary>A short description of where a fighter stands — a reigning champion (with defences), a ranked
+    /// contender, or nobody in particular — for colour in the award commentary. Kept cheap (no ranking sort).</summary>
+    private string Standing(Boxer b)
+    {
+        var belts = BeltsHeld(b).Where(x => x.Belt is "WBA" or "WBC" or "IBF").ToList();
+        if (belts.Count > 0)
+        {
+            int def = belts.Max(x => x.Defenses);
+            return def >= 1 ? $"the reigning champion with {def} defence{(def == 1 ? "" : "s")}" : "the reigning champion";
+        }
+        return WorldRanked(b) && b.Class >= 8 ? "a top contender" : WorldRanked(b) ? "a ranked contender" : "";
     }
 
     /// <summary>Expand a method abbreviation into words for award commentary.</summary>
@@ -733,19 +746,19 @@ public sealed class CareerGame
             .OrderByDescending(a => a.Score).Take(3)
             .Select(a => new AwardWinner { Name = a.Name, Div = a.Div,
                 Detail = $"{a.Wins}-{a.Losses}{(a.Titles > 0 ? $", {a.Titles} title win{(a.Titles == 1 ? "" : "s")}" : "")}",
-                Commentary = $"A standout {year} in {a.Div.DisplayName()} — {a.Wins}-{a.Losses} with {a.Kos} inside the distance{(a.Titles > 0 ? $", including {a.Titles} world-title win{(a.Titles == 1 ? "" : "s")}" : "")}. His best: beating {a.Best!.Loser} (rated {a.Best.LoserOvr}){(a.Best.Title ? " for the belt" : "")}." }).ToList();
+                Commentary = $"A standout {year} in {a.Div.DisplayName()} — {a.Wins}-{a.Losses} with {a.Kos} inside the distance{(a.Titles > 0 ? $", including {a.Titles} world-title win{(a.Titles == 1 ? "" : "s")}" : "")}. His best: beating {a.Best!.Loser}{(string.IsNullOrEmpty(a.Best.LoserStanding) ? $" (rated {a.Best.LoserOvr})" : $", {a.Best.LoserStanding},")}{(a.Best.Title ? " for the belt" : "")}." }).ToList();
 
         var upset = bouts.Where(x => !x.Draw && x.WinnerOvr < x.LoserOvr)
             .OrderByDescending(x => (x.LoserOvr - x.WinnerOvr) + (x.Title ? 15 : 0)).Take(3)
             .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div,
                 Detail = $"beat {x.Loser} ({x.WinnerOvr} vs {x.LoserOvr}){(x.Title ? " · title" : "")}",
-                Commentary = $"Nobody saw it coming: {x.Winner} (rated {x.WinnerOvr}) upset {x.Loser} (rated {x.LoserOvr}) by {Long(x.Method)}{(x.Title ? " to rip away the world title" : "")} in {x.Div.DisplayName()}." }).ToList();
+                Commentary = $"Nobody saw it coming: {x.Winner} (rated {x.WinnerOvr}) upset {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? $" (rated {x.LoserOvr})" : $", {x.LoserStanding},")} by {Long(x.Method)}{(x.Title ? " to rip away the world title" : "")} in {x.Div.DisplayName()}." }).ToList();
 
         var ko = bouts.Where(x => x.Method is "KO" or "TKO")
             .OrderByDescending(x => x.LoserOvr + (x.Title ? 12 : 0) + Math.Max(0, 9 - x.Round) * 2 + x.Kds * 3).Take(3)
             .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div,
                 Detail = $"KO{(x.Round > 0 ? $" rd{x.Round}" : "")} {x.Loser}{(x.Title ? " · title" : "")}",
-                Commentary = $"{x.Winner} flattened {x.Loser}{(x.Round > 0 ? $" in round {x.Round}" : "")}{(x.Title ? " in a world-title fight" : "")} — the year's most emphatic knockout in {x.Div.DisplayName()}." }).ToList();
+                Commentary = $"{x.Winner} flattened {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? "" : $", {x.LoserStanding},")}{(x.Round > 0 ? $" in round {x.Round}" : "")}{(x.Title ? " in a world-title fight" : "")} — the year's most emphatic knockout in {x.Div.DisplayName()}." }).ToList();
 
         var foty = bouts.OrderByDescending(x => Math.Min(x.WinnerOvr, x.LoserOvr) + (x.Title ? 15 : 0) + (x.Close ? 12 : 0) + x.Kds * 4).Take(3)
             .Select(x => new AwardWinner { Name = $"{x.Winner} vs {x.Loser}", Div = x.Div,
@@ -804,6 +817,8 @@ public sealed class CareerGame
         if (vacated.Count > 0 && (b.Id == Player.Id || from == Division))
             LogEvent($"{b.Name} relinquishes the {string.Join(", ", vacated)} title{(vacated.Count > 1 ? "s" : "")} to move up to {to.DisplayName()}.", b.Id == Player.Id, kind: "title", div: from);
         b.WeightClass = to;
+        if (b.Id != Player.Id && (WorldRanked(b) || b.Class >= 8))
+            LogEvent($"{b.Name} campaigns up to {to.DisplayName()}{(vacated.Count > 0 ? $", vacating the {string.Join(", ", vacated)}" : "")}.", false, kind: "title", div: to);
         RebalanceRatings(b.Ratings);
         b.Potential = b.Overall;
         if (_historical.TryGetValue(b.Id, out var h)) { var prime = h.Prime.Clone(); RebalanceRatings(prime); _historical[b.Id] = (prime, h.Peak); }
@@ -992,7 +1007,7 @@ public sealed class CareerGame
 
         int bouts = 2 + _rng.Next(3);
         var used = new HashSet<int>();
-        var top20 = Top20Ids(_cursor);
+        var top20 = Top20Ids(_cursor); var top8 = Top8Ids(_cursor);
         for (int b = 0; b < bouts; b++)
         {
             int i = _rng.Next(pool.Count);
@@ -1000,8 +1015,8 @@ public sealed class CareerGame
             int span = _rng.NextDouble() < 0.35 ? 40 + _rng.Next(70) : 12;   // ~35% a wide-gap tune-up
             int j = -1;
             for (int k = i + 1; k < Math.Min(pool.Count, i + span); k++)
-                if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
-            if (j < 0) for (int k = i + 1; k < pool.Count; k++) if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20)) { j = k; break; }
+                if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20, top8) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
+            if (j < 0) for (int k = i + 1; k < pool.Count; k++) if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20, top8)) { j = k; break; }
             if (j < 0) continue;
             used.Add(i); used.Add(j);
             var res = FastBout(pool[i], pool[j], 10);
@@ -1043,7 +1058,7 @@ public sealed class CareerGame
 
         // Two undercards. Matchmaking is by ability with the better man favoured: each fighter generally
         // meets someone a notch below him (a showcase). Champions sit these out — they only defend.
-        var top20 = Top20Ids(_cursor);
+        var top20 = Top20Ids(_cursor); var top8 = Top8Ids(_cursor);
         for (int pass = 0; pass < 6; pass++)   // several cards a year so a simulated career builds a real record, not a handful of bouts
         {
             // A prospect stays busy on the club circuit; an established (world-ranked) fighter takes fewer, bigger
@@ -1060,8 +1075,8 @@ public sealed class CareerGame
                 int hi = _rng.NextDouble() < 0.30 ? Math.Min(n - 1, i + 30 + _rng.Next(80))
                                                   : Math.Min(n - 1, i + 4 + _rng.Next(8));
                 int j = -1;
-                for (int k = i + 1; k <= hi; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
-                if (j < 0) for (int k = i + 1; k < n; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20)) { j = k; break; }
+                for (int k = i + 1; k <= hi; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20, top8) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
+                if (j < 0) for (int k = i + 1; k < n; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20, top8)) { j = k; break; }
                 if (j < 0) continue;   // this man has no valid opponent on this card — skip HIM, don't halt the whole card
                 used[i] = used[j] = true;
                 int rounds = i < 6 ? 10 : 8;
@@ -1222,8 +1237,11 @@ public sealed class CareerGame
 
     /// <summary>True if pairing these two would be a mismatch a prospect shouldn't be in: a raw fighter
     /// against an elite, or anyone with under 20 pro bouts sharing the ring with a top-20 man.</summary>
-    private bool BadMatch(Boxer x, Boxer y, HashSet<int> top20)
+    private bool BadMatch(Boxer x, Boxer y, HashSet<int> top20, HashSet<int> top8)
     {
+        // The elite don't waste each other in non-title bouts: two of the division's top 8 only meet with a belt
+        // on the line (a title fight or eliminator), never on an ordinary card.
+        if (top8.Contains(x.Id) && top8.Contains(y.Id)) return true;
         // No stale rematches: don't pair two men who've met in either's last few bouts.
         if (RecentFoes(x, 4).Contains(y.Name) || RecentFoes(y, 4).Contains(x.Name)) return true;
         // Contenders build a record before facing each other: two genuine contender-calibre fighters (a high
@@ -2007,6 +2025,7 @@ public sealed class CareerGame
 
     /// <summary>The current top-20 of a division (world-ranked fighters by ranking score).</summary>
     private HashSet<int> Top20Ids(WeightClass wc) => ActiveIn(wc).Where(WorldRanked).OrderByDescending(RankScore).Take(20).Select(b => b.Id).ToHashSet();
+    private HashSet<int> Top8Ids(WeightClass wc) => ActiveIn(wc).Where(WorldRanked).OrderByDescending(RankScore).Take(8).Select(b => b.Id).ToHashSet();
 
     /// <summary>Ranking score: Elo, pulled toward reality by the fighter's win/loss margin, so a
     /// padded Elo can't keep a losing record near the top of the ratings.</summary>
