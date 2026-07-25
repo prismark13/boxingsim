@@ -189,7 +189,7 @@ public sealed class CareerGame
         // player's debut year everyone has a real record, the rankings have settled and there are
         // established champions in every weight class.
         warmupYears = Math.Max(0, warmupYears);
-        if (seedHistory) warmupYears = Math.Clamp(startYear - 1905, 30, 50);   // run ~two generations of history so the Hall fills with the past greats (bounded so career start stays tolerable)
+        if (seedHistory) warmupYears = Math.Clamp(startYear - 1898, 30, 65);   // run most of the sport's history for a full Hall of Fame (opt-in accepts a longer setup)
         int seedYear = startYear - warmupYears;
         Date = new DateOnly(seedYear, 1, 1);
 
@@ -653,7 +653,10 @@ public sealed class CareerGame
         int weightTitles = _titleDivisions.TryGetValue(b.Id, out var tds) ? tds.Count : (wasChamp ? 1 : 0);
         // A real champion with a genuine reign (3+ defences) or a multi-weight champion — but only a true top-tier
         // fighter (peakClass floor keeps journeyman champions of a thin division out) — or an outright elite talent.
-        bool worthy = (((wasChamp && defenses >= 3) || weightTitles >= 2) && peakClass >= 8) || peak >= 88;
+        // A Hall of Famer needs a real body of work, not a handful of bouts — plus either a genuine title reign,
+        // a multi-weight title, or an elite career-long talent.
+        int pf = ProFights(b);
+        bool worthy = pf >= 15 && ((((wasChamp && defenses >= 3) || weightTitles >= 2) && peakClass >= 8) || (peak >= 88 && pf >= 25));
         if (!worthy) return false;
 
         _hof.Add(new HallOfFamer
@@ -999,7 +1002,7 @@ public sealed class CareerGame
         // Two undercards. Matchmaking is by ability with the better man favoured: each fighter generally
         // meets someone a notch below him (a showcase). Champions sit these out — they only defend.
         var top20 = Top20Ids(_cursor);
-        for (int pass = 0; pass < 2; pass++)
+        for (int pass = 0; pass < 6; pass++)   // several cards a year so a simulated career builds a real record, not a handful of bouts
         {
             var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b) && Available(b))
                              .OrderByDescending(b => b.Overall).ToList();
@@ -1014,10 +1017,10 @@ public sealed class CareerGame
                 int j = -1;
                 for (int k = i + 1; k <= hi; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
                 if (j < 0) for (int k = i + 1; k < n; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20)) { j = k; break; }
-                if (j < 0) break;
+                if (j < 0) continue;   // this man has no valid opponent on this card — skip HIM, don't halt the whole card
                 used[i] = used[j] = true;
                 int rounds = i < 6 ? 10 : 8;
-                Date = SpreadDate(yr, pass, 2);
+                Date = SpreadDate(yr, pass, 6);
                 ApplyOutcome(FastBout(pool[i], pool[j], rounds), pool[i], pool[j]);
             }
         }
@@ -1867,8 +1870,8 @@ public sealed class CareerGame
 
     private int DaysForStage(CareerStage s) => s switch
     {
-        CareerStage.Starter => 45 + _rng.Next(21),      // 6.5–9.5 weeks — a busy club-show schedule, up to 8 a year
-        CareerStage.PrePrime => 52 + _rng.Next(28),     // 7.5–11.5 weeks — still active, stepping up (~5–7 a year)
+        CareerStage.Starter => 55 + _rng.Next(25),      // ~8–11 weeks — an active club schedule (~5–6 a year)
+        CareerStage.PrePrime => 62 + _rng.Next(32),     // ~9–13 weeks — still active, stepping up (~4–6 a year)
         CareerStage.Prime => 84 + _rng.Next(56),        // 12–20 weeks — big fights, long camps (~3–4 a year)
         CareerStage.PostPrime => 98 + _rng.Next(46),    // 14–20 weeks (~3 a year) — still active
         CareerStage.End => 126 + _rng.Next(60),         // 18–27 weeks (~2–3 a year), winding down

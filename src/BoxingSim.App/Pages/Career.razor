@@ -56,8 +56,9 @@
         </label>
 
         <button class="primary" @onclick="StartAsync" disabled="@_busy">
-            @if (_busy) { <text>Setting up…</text> } else { <text>Turn pro</text><Icon Name="arrow" Size="15" /> }
+            @if (_busy) { <text>@(_fullHistory ? "Simulating the sport's history… (up to a minute)" : "Setting up…")</text> } else { <text>Turn pro</text><Icon Name="arrow" Size="15" /> }
         </button>
+        @if (_busy && _fullHistory) { <div class="muted" style="margin-top:8px;">Playing out decades of fights to fill the Hall of Fame — hang tight.</div> }
     </div>
 }
 else
@@ -313,7 +314,14 @@ else
                     {
                         <div class="muted" style="padding:12px 4px;">No awards yet — they're handed out at the end of each year.</div>
                     }
-                    @foreach (var yr in g.Awards)
+                    else
+                    {
+                        <select class="newsfilter" @bind="_awardYear" style="margin:6px 0;">
+                            <option value="0">All years</option>
+                            @foreach (var a in g.Awards) { <option value="@a.Year">@a.Year</option> }
+                        </select>
+                    }
+                    @foreach (var yr in g.Awards.Where(a => _awardYear == 0 || a.Year == _awardYear))
                     {
                         <div class="panel-h" style="margin-top:14px;">@yr.Year</div>
                         @AwardCat("Fighter of the Year", yr.FighterOfYear)
@@ -650,6 +658,7 @@ else
     private int _year = 1965;
     private string _talent = "contender";
     private bool _fullHistory;
+    private int _awardYear;
     private WeightClass _division = WeightClass.Heavyweight;
     private IReadOnlyList<WeightClass> _divisions = new[] { WeightClass.Heavyweight };
     private bool _busy;
@@ -687,6 +696,8 @@ else
     private async Task StartAsync()
     {
         _busy = true;
+        StateHasChanged();
+        await Task.Delay(50);   // paint the "Simulating…" message before the (possibly long) build blocks the UI thread
         var (lo, hi) = TalentRange(_talent);
         int potential = _rng.Next(lo, hi + 1);
         var name = string.IsNullOrWhiteSpace(_name) ? NameGen.Generate(_country, _rng) : _name.Trim();
