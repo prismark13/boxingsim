@@ -316,7 +316,7 @@ else
                         <div class="rkrow" @onclick="() => _hofSel = m">
                             <span class="rkn"><Icon Name="trophy" Size="12" /></span>
                             <span class="ovrpill" style="color:@Ui.Ovr(m.PeakClass)">@m.PeakClass</span>
-                            <span class="rkname">@m.Name @if (m.WeightTitles >= 2) { <span class="champ-tag">@(m.WeightTitles)-weight champ</span> } else if (m.WasChampion) { <span class="champ-tag">World champ</span> } <span class="champ-tag torank">@m.Division.DisplayName()@(m.Defenses > 0 ? $" · {m.Defenses} def" : "")</span></span>
+                            <span class="rkname">@m.Name @if (m.WeightTitles >= 2) { <span class="champ-tag">@(m.WeightTitles)-weight champ@(m.TitleDivisions.Count > 0 ? $" · {string.Join("/", m.TitleDivisions.Select(d => d.Abbrev()))}" : "")</span> } else if (m.WasChampion) { <span class="champ-tag">World champ</span> } <span class="champ-tag torank">@m.Division.Abbrev()@(m.Defenses > 0 ? $" · {m.Defenses} def" : "")</span></span>
                             <span class="rkrec">@m.Record</span>
                         </div>
                         hf++;
@@ -408,7 +408,7 @@ else
                     <button class="ghost icon-btn" @onclick="() => _hofSel = null"><Icon Name="close" Size="16" /></button>
                 </div>
                 <div class="hof-facts">
-                    @if (hm.WeightTitles >= 2) { <span class="champ-tag">@(hm.WeightTitles)-weight world champion</span> }
+                    @if (hm.WeightTitles >= 2) { <span class="champ-tag">@(hm.WeightTitles)-weight world champion@(hm.TitleDivisions.Count > 0 ? $" — {string.Join(", ", hm.TitleDivisions.Select(d => d.DisplayName()))}" : "")</span> }
                     else if (hm.WasChampion) { <span class="champ-tag">World champion</span> }
                     @if (hm.Defenses > 0) { <span class="champ-tag torank">@hm.Defenses title defence@(hm.Defenses == 1 ? "" : "s")</span> }
                     <span class="champ-tag torank">peak class @hm.PeakClass</span>

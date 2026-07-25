@@ -114,6 +114,7 @@ public sealed class HallOfFamer
     public int Defenses { get; init; }     // total world-title defences across every belt and division
     public bool WasChampion { get; init; }
     public int WeightTitles { get; init; } // number of distinct weight classes he won a world belt in
+    public List<WeightClass> TitleDivisions { get; init; } = new();   // the specific divisions he won a world belt in
     public int Age { get; init; }          // age at retirement
     public int Year { get; init; }         // year inducted (= year retired)
     public List<BoutLine> History { get; init; } = new();   // his fight ledger, snapshotted at induction

@@ -60,6 +60,7 @@ public sealed class HallOfFamerSave
     public int Defenses { get; set; }
     public bool WasChampion { get; set; }
     public int WeightTitles { get; set; }
+    public List<string> TitleDivisions { get; set; } = new();
     public int Age { get; set; }
     public int Year { get; set; }
     public List<BoutLineSave> History { get; set; } = new();

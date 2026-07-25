@@ -302,7 +302,9 @@ public sealed class CareerGame
             {
                 Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country,
                 Division = Enum.TryParse<WeightClass>(m.Division, out var md) ? md : WeightClass.Heavyweight,
-                Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, WeightTitles = m.WeightTitles, Age = m.Age, Year = m.Year,
+                Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, WeightTitles = m.WeightTitles,
+                TitleDivisions = m.TitleDivisions.Select(s => Enum.TryParse<WeightClass>(s, out var d) ? (WeightClass?)d : null).Where(x => x is not null).Select(x => x!.Value).ToList(),
+                Age = m.Age, Year = m.Year,
                 History = m.History.Select(h => new BoutLine
                 {
                     Date = ParseDate(h.Date, Date), Opponent = h.Opponent, Result = h.Result.Length > 0 ? h.Result[0] : 'D',
@@ -379,7 +381,7 @@ public sealed class CareerGame
         {
             Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country, Division = m.Division.ToString(),
             Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses,
-            WasChampion = m.WasChampion, WeightTitles = m.WeightTitles, Age = m.Age, Year = m.Year,
+            WasChampion = m.WasChampion, WeightTitles = m.WeightTitles, TitleDivisions = m.TitleDivisions.Select(d => d.ToString()).ToList(), Age = m.Age, Year = m.Year,
             History = m.History.Select(h => new BoutLineSave
             {
                 Date = h.Date.ToString("yyyy-MM-dd"), Opponent = h.Opponent, Result = h.Result.ToString(),
@@ -664,7 +666,7 @@ public sealed class CareerGame
         {
             Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, Division = b.WeightClass,
             Record = b.Record.ToString(), PeakOverall = peak, PeakClass = peakClass, Defenses = defenses, WasChampion = wasChamp,
-            WeightTitles = weightTitles, Age = b.Age, Year = Date.Year,
+            WeightTitles = weightTitles, TitleDivisions = tds?.OrderBy(d => (int)d).ToList() ?? new(), Age = b.Age, Year = Date.Year,
             // Snapshot the ledger (drop the heavy per-round grid/commentary) so the Hall keeps his fight history.
             History = b.History.Select(h => new BoutLine
             {
@@ -883,7 +885,11 @@ public sealed class CareerGame
         if (b is null || b.Id == Player.Id || b.Retired || p <= 0) return;
         if (_stepUpQueued.Contains(b.Id)) return;
         if (NextActiveUp(b.WeightClass) is not WeightClass to || !StepUpAllowed(b, to)) return;
-        if (_rng.NextDouble() < p) _stepUpQueued.Add(b.Id);
+        // The greater the fighter, the more he chases legacy across the weights — an all-time great is far likelier
+        // to move up and hunt a second and third belt, so his step-up chance is skewed sharply upward.
+        int ceiling = Math.Max(b.Overall, b.Potential);
+        double greatness = 1.0 + Math.Max(0, ceiling - 76) / 14.0;   // ~1.0 at contender level, ~2.6 for an ATG
+        if (_rng.NextDouble() < p * greatness) _stepUpQueued.Add(b.Id);
     }
 
     /// <summary>Apply every queued move-up. Run once a year (from AgeRetireCrown) so weight changes land between
@@ -1061,6 +1067,24 @@ public sealed class CareerGame
                 int rounds = i < 6 ? 10 : 8;
                 Date = SpreadDate(yr, pass, 6);
                 ApplyOutcome(FastBout(pool[i], pool[j], rounds), pool[i], pool[j]);
+            }
+        }
+
+        // Club circuit: guarantee young prospects stay genuinely busy. The pooled matchmaking above leaves many
+        // unpaired, so top up any unranked young fighter who's been idle this year with bouts against lower
+        // opposition — so a real prospect actually piles up a record instead of stalling on a handful of fights.
+        foreach (var pr in ActiveHere.Where(b => b.Id != Player.Id && !WorldRanked(b) && b.Age <= 26).OrderByDescending(b => b.Potential).ToList())
+        {
+            int guard = 0;
+            while (FightsThisYear(pr) < 5 && !AtYearCap(pr) && guard++ < 6)
+            {
+                var foe = ActiveHere.Where(b => b.Id != pr.Id && b.Id != Player.Id && ProFights(b) >= 4
+                                             && b.Overall <= pr.Overall + 4 && Available(b) && !AtYearCap(b)
+                                             && !RecentFoes(pr, 3).Contains(b.Name))
+                                    .OrderBy(_ => _rng.Next()).FirstOrDefault();
+                if (foe is null) break;
+                Date = SpreadDate(yr);
+                ApplyOutcome(FastBout(pr, foe, pr.History.Count < 6 ? 6 : 8), pr, foe);
             }
         }
         Date = new DateOnly(yr, 1, 1);   // leave the clock where the warmup loop expects it
@@ -1878,34 +1902,38 @@ public sealed class CareerGame
         var w = res.Winner; var l = res.Loser;
         bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
 
+        var div = w.WeightClass;   // tag every headline with the division so the news feed filters by weight
         if (WorldRanked(l) && l.Overall - w.Overall >= 8 && _rng.NextDouble() < 0.7)
         {
             LogEvent(Pick($"UPSET! {w.Name} shocks {l.Name}{(ko ? $", stopped in {res.EndRound}" : "")}.",
                           $"Boilover — {w.Name} outpoints the fancied {l.Name}.",
-                          $"{l.Name} is stunned by {w.Name} in a major upset."), kind: "upset");
+                          $"{l.Name} is stunned by {w.Name} in a major upset."), kind: "upset", div: div);
+            return;
+        }
+        // A long unbeaten run is news in itself — reported once it hits 10, then every 5 (15, 20, …).
+        int wins = WinStreak(w);
+        if (wins >= 10 && wins % 5 == 0 && _rng.NextDouble() < 0.7)
+        {
+            LogEvent(Pick($"{w.Name} extends his unbeaten run to {wins} straight.",
+                          $"Still perfect — {w.Name} makes it {wins} wins in a row and is knocking on the door.",
+                          $"{w.Name} runs his streak to {wins} in a row, forcing his way into the picture."), kind: "streak", div: div);
             return;
         }
         if (ko)
         {
             int streak = KoStreak(w);
-            if (streak >= 3 && _rng.NextDouble() < 0.6)
+            if (streak >= 10 && streak % 5 == 0 && _rng.NextDouble() < 0.7)
             {
                 LogEvent(Pick($"{w.Name} rolls on — {streak} straight inside the distance.",
                               $"{w.Name} keeps the KO streak going, now {streak} in a row.",
-                              $"Another one bites the dust — {w.Name} up to {streak} consecutive KOs."), kind: "streak");
+                              $"Frightening — {w.Name} up to {streak} consecutive knockouts."), kind: "streak", div: div);
                 return;
             }
             if (w.Overall >= 76 && WorldRanked(l) && _rng.NextDouble() < 0.4)
                 LogEvent(Pick($"{w.Name} halts {l.Name} in {res.EndRound}.",
-                              $"{w.Name} takes out {l.Name} inside the distance."), kind: "ko");
+                              $"{w.Name} takes out {l.Name} inside the distance."), kind: "ko", div: div);
             return;
         }
-        // A long unbeaten run is news in itself — the sport takes notice of a fighter forcing his way up.
-        int wins = WinStreak(w);
-        if (wins >= 10 && wins % 3 == 0 && _rng.NextDouble() < 0.6)
-            LogEvent(Pick($"{w.Name} extends his unbeaten run to {wins} straight.",
-                          $"Still perfect — {w.Name} makes it {wins} wins in a row and is knocking on the door.",
-                          $"{w.Name} runs his streak to {wins}-0 in his last {wins}, forcing his way into the picture."), kind: "streak");
     }
 
     /// <summary>Count of a fighter's most recent bouts that were consecutive knockout wins.</summary>

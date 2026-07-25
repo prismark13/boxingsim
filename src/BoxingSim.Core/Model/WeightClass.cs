@@ -46,6 +46,23 @@ public static class WeightClasses
         _ => wc.ToString()
     };
 
+    /// <summary>Short code for compact lists (HW, LHW, MW, WW, LW, FW, BW, Fly, …).</summary>
+    public static string Abbrev(this WeightClass wc) => wc switch
+    {
+        WeightClass.Heavyweight => "HW",
+        WeightClass.Cruiserweight => "CW",
+        WeightClass.LightHeavyweight => "LHW",
+        WeightClass.Middleweight => "MW",
+        WeightClass.LightMiddleweight => "LMW",
+        WeightClass.Welterweight => "WW",
+        WeightClass.LightWelterweight => "LWW",
+        WeightClass.Lightweight => "LW",
+        WeightClass.Featherweight => "FW",
+        WeightClass.Bantamweight => "BW",
+        WeightClass.Flyweight => "Fly",
+        _ => wc.ToString(),
+    };
+
     /// <summary>The year this division came into being. The traditional eight are "always" (0); the
     /// junior/intermediate divisions only exist from their founding year onward.</summary>
     public static int FoundedYear(this WeightClass wc) => wc switch
