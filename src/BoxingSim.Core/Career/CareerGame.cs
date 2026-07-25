@@ -1065,13 +1065,15 @@ public sealed class CareerGame
         // No stale rematches: don't pair two men who've met in either's last few bouts.
         if (RecentFoes(x, 4).Contains(y.Name) || RecentFoes(y, 4).Contains(x.Name)) return true;
         // Contenders build a record before facing each other: two genuine contender-calibre fighters (a high
-        // ceiling — the real-roster talents) avoid each other until BOTH have earned a ranking (20 bouts). Until
+        // ceiling — the real-roster talents) avoid each other until BOTH have served their apprenticeship. Until
         // then they campaign against journeymen and gatekeepers rather than trading losses among themselves.
-        if (x.Potential >= 72 && y.Potential >= 72 && (!WorldRanked(x) || !WorldRanked(y))) return true;
+        // A wonder kid's apprenticeship is short, so a phenom can break in early.
+        if (x.Potential >= 72 && y.Potential >= 72 && (!ReadyForContenders(x) || !ReadyForContenders(y))) return true;
         var strong = x.Overall >= y.Overall ? x : y;
         var weak = ReferenceEquals(strong, x) ? y : x;
         if (strong.Overall >= 78 && ProFights(weak) < 12) return true;
-        if ((top20.Contains(x.Id) && ProFights(y) < 20) || (top20.Contains(y.Id) && ProFights(x) < 20)) return true;
+        // A ranked contender won't face a fighter who hasn't served his apprenticeship yet (shorter for a phenom).
+        if ((top20.Contains(x.Id) && !ReadyForContenders(y)) || (top20.Contains(y.Id) && !ReadyForContenders(x))) return true;
         // Prospects are protected: two unbeaten-ish young hopefuls generally avoid each other, building
         // records against journeymen and gatekeepers rather than risking a blemish early.
         if (IsProspect(x) && IsProspect(y) && _rng.NextDouble() < 0.9) return true;
@@ -1127,8 +1129,8 @@ public sealed class CareerGame
 
         int proFights = ProFights(Player);
         // Build a career properly: an opponent's ceiling rises with experience, so a green fighter is
-        // never thrown in with the elite. World class (80+) is off-limits until he has ~20 pro fights.
-        int maxOvr = proFights >= 20 ? 99 : 50 + proFights * 3 / 2;
+        // never thrown in with the elite — until he's served his apprenticeship (short for a wonder kid).
+        int maxOvr = ReadyForContenders(Player) ? 99 : 50 + proFights * 3 / 2;
 
         bool holdsWba = Player.IsChampion;
         bool holdsWbc = WbcChampion?.Id == Player.Id;
@@ -1154,7 +1156,7 @@ public sealed class CareerGame
         // A title shot is earned by being world-ranked (top 5) with a real body of work behind you:
         // an exceptional talent breaks in after 20 fights, an ordinary fighter needs 24. (Champions are
         // 80+, so this never lets a novice near the belt inside his first 20 bouts.)
-        int fightsToRank = Player.Potential >= 85 ? 20 : 24;
+        int fightsToRank = ContenderApprenticeship(Player) switch { 12 => 14, 15 => 17, _ => Player.Potential >= 85 ? 20 : 24 };
         // After a title bout, rebuild with a few wins before the next shot — no back-to-back challenges.
         bool titleCooldownOk = proFights - _lastTitleShot >= 3;
         if (idx >= 0 && idx <= 4 && proFights >= fightsToRank && titleCooldownOk && !RecentlyMovedUp(Player))
@@ -1227,7 +1229,8 @@ public sealed class CareerGame
         // away from the division's top men BY RANKING (not just by current rating: an unproven #1 is often a
         // young fighter whose rating hasn't caught up), so he can never be leapfrogged into a top contender.
         // This runs last so nothing above (the rating cap, the rematch swap) can re-introduce a ranked man.
-        if (proFights < 20)
+        // A wonder kid (short apprenticeship) is exempt — he's allowed to challenge ranked contenders early.
+        if (!ReadyForContenders(Player))
         {
             var topRanked = ActiveIn(Player.WeightClass).Where(WorldRanked)
                                 .OrderByDescending(RankScore).Take(15).Select(b => b.Id).ToHashSet();
@@ -1745,6 +1748,15 @@ public sealed class CareerGame
 
     /// <summary>A fighter is only "world-ranked" once he's built a real body of work — 20 pro bouts.</summary>
     public static bool WorldRanked(Boxer b) => b.Record.Wins + b.Record.Losses + b.Record.Draws >= 20;
+
+    /// <summary>How many pro bouts a fighter must build before he'll be matched with ranked contenders. Most
+    /// serve the full apprenticeship (20); a rare phenom (a "wonder kid" — a very high ceiling) is fast-tracked
+    /// into contention far sooner, the way the odd real great wins a belt inside 12–15 fights. Roughly the top
+    /// ~1% (Potential ≥ 93) go at 12, the top ~5% (≥ 87) at 15.</summary>
+    public static int ContenderApprenticeship(Boxer b) => b.Potential >= 92 ? 12 : b.Potential >= 78 ? 15 : 20;
+
+    /// <summary>True once a fighter has served his apprenticeship and is ready to share the ring with contenders.</summary>
+    public static bool ReadyForContenders(Boxer b) => (b.Record.Wins + b.Record.Losses + b.Record.Draws) >= ContenderApprenticeship(b);
 
     /// <summary>The current top-20 of a division (world-ranked fighters by ranking score).</summary>
     private HashSet<int> Top20Ids(WeightClass wc) => ActiveIn(wc).Where(WorldRanked).OrderByDescending(RankScore).Take(20).Select(b => b.Id).ToHashSet();
