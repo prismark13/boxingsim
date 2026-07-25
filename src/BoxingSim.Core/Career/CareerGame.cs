@@ -238,8 +238,10 @@ public sealed class CareerGame
             UpdateBeltsFor(wc);
         }
 
-        // The decade of build-up isn't the player's story — start his timeline clean.
+        // The decade of build-up isn't the player's story — start his timeline (and the Hall of Fame) clean, so
+        // the Hall fills with fighters who retire during his career rather than a generation he never saw.
         _log.Clear();
+        _hof.Clear();
         Date = new DateOnly(startYear, 3, 1);
         if (Champion is not null) LogEvent($"{Champion.Name} reigns as {PrimaryBelt} champion as {player.Name} turns pro.", kind: "title");
 
@@ -585,11 +587,17 @@ public sealed class CareerGame
     private Boxer? ContestVacantTitle(WeightClass wc, string belt, params int[] excludeIds)
     {
         var exclude = excludeIds.Where(id => id != 0).ToHashSet();
-        var field = ActiveIn(wc)
-            .Where(b => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id) && WorldRanked(b) && !RecentlyMovedUp(b) && Available(b))
-            .OrderByDescending(RankScore).Take(2).ToList();
+        bool Eligible(Boxer b) => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id) && !RecentlyMovedUp(b) && Available(b);
+        var field = ActiveIn(wc).Where(b => Eligible(b) && WorldRanked(b)).OrderByDescending(RankScore).Take(2).ToList();
         if (field.Count == 0) return null;
-        if (field.Count == 1) return field[0];   // only one credible contender — the strap is his unopposed
+        if (field.Count == 1)
+        {
+            // Only one ranked contender — bring in the best available challenger so the belt is still fought for,
+            // never simply handed over (a great shouldn't become champion without a title-winning bout).
+            var next = ActiveIn(wc).Where(b => Eligible(b) && b.Id != field[0].Id).OrderByDescending(RankScore).FirstOrDefault();
+            if (next is null) return field[0];   // a truly bare division — he takes it unopposed
+            field.Add(next);
+        }
 
         var (savedDate, savedCursor) = (Date, _cursor);
         _cursor = wc;
@@ -613,8 +621,9 @@ public sealed class CareerGame
                         || ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
         int defenses = _beltDefenses.Where(kv => kv.Key.Holder == b.Id).Sum(kv => kv.Value);
         int weightTitles = _titleDivisions.TryGetValue(b.Id, out var tds) ? tds.Count : (wasChamp ? 1 : 0);
-        // A world champion with a genuine reign (3+ defences), a multi-weight champion, or an elite talent.
-        bool worthy = (wasChamp && defenses >= 3) || weightTitles >= 2 || peak >= 88;
+        // A real champion with a genuine reign (3+ defences) or a multi-weight champion — but only a true top-tier
+        // fighter (peakClass floor keeps journeyman champions of a thin division out) — or an outright elite talent.
+        bool worthy = (((wasChamp && defenses >= 3) || weightTitles >= 2) && peakClass >= 8) || peak >= 88;
         if (!worthy) return false;
 
         _hof.Add(new HallOfFamer
