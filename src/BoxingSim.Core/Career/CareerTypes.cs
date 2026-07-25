@@ -123,3 +123,13 @@ public sealed class HallOfFamer
     /// defences and pure ability — a two- or three-weight champion outranks a one-belt titlist.</summary>
     public int Prestige => (WasChampion ? 1000 : 0) + Math.Max(0, WeightTitles - 1) * 60 + Defenses * 8 + PeakOverall;
 }
+
+/// <summary>One division's whole championship picture, for the champions list: each sanctioned belt with its
+/// holder and defence count, the lineal ("Ring") champion, and the undisputed man if one exists.</summary>
+public sealed record DivisionChampions(
+    WeightClass Division,
+    Boxer? Wba, int WbaDefenses,
+    Boxer? Wbc, int WbcDefenses,
+    Boxer? Ibf, int IbfDefenses,
+    Boxer? Lineal, int LinealDefenses,
+    Boxer? Undisputed);

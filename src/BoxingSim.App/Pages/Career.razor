@@ -68,7 +68,7 @@ else
     var stage = CareerStages.Of(p);
     // A fighter only enters the rankings once he's earned it (20 pro bouts). The player isn't special —
     // he shows as "NR" until then, so a 9-fight prospect never carries a world ranking.
-    var ranked = g.Active.Where(CareerGame.WorldRanked).Where(b => b.Record.Wins + 3 >= b.Record.Losses || b.Id == p.Id).OrderByDescending(CareerGame.RankScore).ToList();
+    var ranked = g.Active.Where(b => CareerGame.RankedContender(b) || (CareerGame.WorldRanked(b) && b.Id == p.Id)).OrderByDescending(CareerGame.RankScore).ToList();
     int rank = ranked.FindIndex(b => b.Id == p.Id) + 1;   // 0 (→ "–") until he's world-ranked
     int pFights = p.Record.Wins + p.Record.Losses + p.Record.Draws;
 
@@ -82,23 +82,42 @@ else
             <span class="muted"> · @bt.Method@((bt.Method == "KO" || bt.Method == "TKO") ? $" rd{bt.Round}" : "")@(bt.KdFor + bt.KdAgainst > 0 ? $" · KD {bt.KdFor}-{bt.KdAgainst}" : "")</span>
         </div>;
 
+    // One belt's line in the champions board. The lineal/Ring title is marked out — it's the "man who beat the
+    // man" line rather than a sanctioning body's strap, so it reads differently from the alphabet belts.
+    RenderFragment BeltLine(string belt, Boxer? holder, int defences, bool lineal) =>
+        @<div class="chrow @(lineal ? "lineal" : "")" @onclick="() => { if (holder is not null) _selected = holder; }">
+            <span class="chbelt">@belt</span>
+            @if (holder is null)
+            {
+                <span class="chname muted">vacant</span>
+            }
+            else
+            {
+                <span class="ovrpill" style="color:@Ui.Ovr(holder.Class)">@holder.Class</span>
+                <span class="chname">@holder.Name</span>
+                <span class="chdef">@holder.Record@(defences > 0 ? $" · {defences} def" : "")</span>
+            }
+        </div>;
+
+    // The top three sit side by side — a podium, winner first and highlighted — rather than a stacked list.
     Func<string, IReadOnlyList<AwardWinner>, RenderFragment> AwardCat = (title, list) =>
         @<text>
             @if (list.Count > 0)
             {
-                <div class="label" style="margin:10px 0 4px;">@title</div>
+                <div class="awcat">@title</div>
                 var ar = 1;
-                @foreach (var w in list)
-                {
-                    <div class="rkrow clickable" title="@w.Commentary" @onclick="() => _awardSel = w" style="align-items:flex-start;gap:10px;">
-                        <span class="rkn @(ar == 1 ? "" : "nr")">@ar</span>
-                        <div style="flex:1;min-width:0;">
-                            <div style="font-weight:600;">@w.Name</div>
-                            <div class="muted" style="font-size:0.84em;margin-top:2px;">@w.Div.DisplayName() · @w.Detail</div>
+                <div class="awgrid">
+                    @foreach (var w in list)
+                    {
+                        <div class="awcard @(ar == 1 ? "win" : "")" title="@w.Commentary" @onclick="() => _awardSel = w">
+                            <div class="awpos">@if (ar == 1) { <Icon Name="trophy" Size="11" /> }<span>@Ordinal(ar)</span></div>
+                            <div class="awname">@w.Name</div>
+                            <div class="awdiv">@w.Div.DisplayName()</div>
+                            <div class="awmeta">@w.Detail</div>
                         </div>
-                    </div>
-                    ar++;
-                }
+                        ar++;
+                    }
+                </div>
             }
         </text>;
 
@@ -331,7 +350,7 @@ else
                     }
                     else
                     {
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 18px 4px;">
                             <select class="newsfilter" @bind="_awardYear">
                                 <option value="0">All years</option>
                                 @foreach (var a in g.Awards) { <option value="@a.Year">@a.Year</option> }
@@ -353,14 +372,22 @@ else
                 }
                 else
                 {
-                    <div class="panel-sub">World champions across the sport · tap a division for its rankings</div>
-                    @foreach (var wc in g.LiveDivisions)
+                    <div class="panel-sub">Every belt in every division · tap a division for its rankings</div>
+                    @foreach (var d in g.ChampionsBoard())
                     {
-                        var dc = g.WorldChampionOf(wc);
-                        <div class="divrow @(wc == g.Division ? "here" : "")" @onclick="() => _viewDiv = wc">
-                            <span class="divn">@wc.DisplayName()</span>
-                            <span class="divc">@if (dc is not null) { <Icon Name="trophy" Size="11" /> <text> @dc.Name <span class="muted">@dc.Record</span></text> } else { <span class="muted">vacant</span> }</span>
-                            <span class="divx">@g.ActiveCountOf(wc)</span>
+                        <div class="chdiv @(d.Division == g.Division ? "here" : "")">
+                            <div class="chdiv-h" @onclick="() => _viewDiv = d.Division">
+                                <span class="chdiv-n">@d.Division.DisplayName()</span>
+                                @if (d.Undisputed is Boxer u)
+                                {
+                                    <span class="chdiv-undisputed"><Icon Name="trophy" Size="10" /> undisputed · @u.Name</span>
+                                }
+                                <span class="chdiv-x">@g.ActiveCountOf(d.Division) active</span>
+                            </div>
+                            @BeltLine(g.LinealBelt, d.Lineal, d.LinealDefenses, true)
+                            @BeltLine(g.PrimaryBelt, d.Wba, d.WbaDefenses, false)
+                            @if (g.WbcActive) { @BeltLine("WBC", d.Wbc, d.WbcDefenses, false) }
+                            @if (g.IbfActive) { @BeltLine("IBF", d.Ibf, d.IbfDefenses, false) }
                         </div>
                     }
                 }
@@ -718,6 +745,8 @@ else
     private int _awardDiv = -1;
     private IReadOnlyList<AwardWinner> AwFilter(IReadOnlyList<AwardWinner> list) =>
         _awardDiv < 0 ? list : list.Where(w => (int)w.Div == _awardDiv).ToList();
+
+    private static string Ordinal(int n) => n switch { 1 => "1st", 2 => "2nd", 3 => "3rd", _ => $"{n}th" };
     private string _hofSort = "prestige";
 
     private IEnumerable<HallOfFamer> HofSorted(CareerGame g) => _hofSort switch

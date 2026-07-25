@@ -13,6 +13,7 @@ public sealed class CareerSave
     public Dictionary<string, int> Champions { get; set; } = new();      // division name → WBA/World holder Id
     public Dictionary<string, int> WbcChampions { get; set; } = new();   // division name → WBC holder Id
     public Dictionary<string, int> IbfChampions { get; set; } = new();   // division name → IBF holder Id
+    public Dictionary<string, int> LinealChampions { get; set; } = new();   // division name → lineal/Ring holder Id
     public int LastTitleShot { get; set; } = -100;
     public List<BoxerSave> Roster { get; set; } = new();
     public List<HistoricalSave> Historical { get; set; } = new();
@@ -104,6 +105,7 @@ public sealed class BoxerSave
     public string? PrimeYears { get; set; }
     public WeightClass WeightClass { get; set; }
     public string? TopWeight { get; set; }
+    public string? DebutWeight { get; set; }
     public int Reach { get; set; }
     public int Age { get; set; }
     public int PeakAge { get; set; }
@@ -120,7 +122,8 @@ public sealed class BoxerSave
         var s = new BoxerSave
         {
             Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, DateOfBirth = b.DateOfBirth,
-            DebutYear = b.DebutYear, PrimeYears = b.PrimeYears, WeightClass = b.WeightClass, TopWeight = b.TopWeight?.ToString(), Reach = b.Reach, Age = b.Age,
+            DebutYear = b.DebutYear, PrimeYears = b.PrimeYears, WeightClass = b.WeightClass, TopWeight = b.TopWeight?.ToString(),
+            DebutWeight = b.DebutWeight?.ToString(), Reach = b.Reach, Age = b.Age,
             PeakAge = b.PeakAge, Potential = b.Potential, Retired = b.Retired, IsChampion = b.IsChampion,
             RankPoints = b.RankPoints, Wins = b.Record.Wins, Losses = b.Record.Losses, Draws = b.Record.Draws,
             KoWins = b.Record.KnockoutWins, KoLosses = b.Record.KnockoutLosses, Ratings = RatingsSave.From(b.Ratings)
@@ -147,7 +150,8 @@ public sealed class BoxerSave
         {
             Id = Id, Name = Name, Nickname = Nickname, Country = Country, DateOfBirth = DateOfBirth,
             DebutYear = DebutYear, PrimeYears = PrimeYears, WeightClass = WeightClass,
-            TopWeight = Enum.TryParse<WeightClass>(TopWeight, out var tw) ? tw : null, Age = Age,
+            TopWeight = Enum.TryParse<WeightClass>(TopWeight, out var tw) ? tw : null,
+            DebutWeight = Enum.TryParse<WeightClass>(DebutWeight, out var dw) ? dw : null, Age = Age,
             PeakAge = PeakAge, Potential = Potential, Retired = Retired, IsChampion = IsChampion,
             RankPoints = RankPoints, Ratings = Ratings.ToRatings()
         };

@@ -61,7 +61,12 @@ public sealed class World
         }
     }
 
+    /// <summary>What a fighter's standing is worth on ability alone. This is the spine of the ratings and the
+    /// anchor a career's ranking points are pulled back toward, so the ratings track how good a man IS rather
+    /// than how many times he's boxed.</summary>
+    public static double AbilityAnchor(int overall) => 1000 + (overall - 50) * 16.0;
+
     /// <summary>Initial ranking points track a fighter's headline ability with a little noise.</summary>
     public static void SeedRankPoints(Boxer b) =>
-        b.RankPoints = 1000 + (b.Overall - 50) * 9;
+        b.RankPoints = AbilityAnchor(b.Overall);
 }

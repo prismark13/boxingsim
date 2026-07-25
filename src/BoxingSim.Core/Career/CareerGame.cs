@@ -59,6 +59,9 @@ public sealed class CareerGame
     private readonly Dictionary<WeightClass, Boxer?> _champions = new();   // WBA / "World"
     private readonly Dictionary<WeightClass, Boxer?> _wbc = new();          // WBC (from 1963)
     private readonly Dictionary<WeightClass, Boxer?> _ibf = new();          // IBF (from 1983)
+    // The lineal ("Ring") championship: unsanctioned, so it never passes on a relinquishment or a vacant-belt
+    // bout. The holder keeps it until he's beaten in the ring, retires, or leaves the division.
+    private readonly Dictionary<WeightClass, Boxer?> _lineal = new();
 
     // The division the world-sim is currently resolving (RunEvent/RunNpcSeason loop over all eight and set
     // this). Cursor-scoped belt accessors let the season logic stay division-agnostic.
@@ -73,9 +76,16 @@ public sealed class CareerGame
     public Boxer? Champion { get => _champions.GetValueOrDefault(Division); private set => _champions[Division] = value; }
     public Boxer? WbcChampion { get => _wbc.GetValueOrDefault(Division); private set => _wbc[Division] = value; }
     public Boxer? IbfChampion { get => _ibf.GetValueOrDefault(Division); private set => _ibf[Division] = value; }
+    public Boxer? LinealChampion { get => _lineal.GetValueOrDefault(Division); }
     private Boxer? ChampOf(WeightClass wc) => _champions.GetValueOrDefault(wc);
     private Boxer? WbcOf(WeightClass wc) => _wbc.GetValueOrDefault(wc);
     private Boxer? IbfOf(WeightClass wc) => _ibf.GetValueOrDefault(wc);
+    /// <summary>The lineal holder, ignoring a stale reference: the line ends the moment he retires or leaves the
+    /// division, and a seeded-history warmup can retire a champion without passing through the yearly hooks.</summary>
+    private Boxer? LinealOf(WeightClass wc) =>
+        _lineal.GetValueOrDefault(wc) is Boxer b && !b.Retired && b.WeightClass == wc ? b : null;
+    /// <summary>The Ring began recognising champions in 1922 — before that the lineal title is just "the man".</summary>
+    public string LinealBelt => Year >= 1922 ? "Ring" : "Lineal";
     public string PrimaryBelt => Year < 1962 ? "World" : "WBA";
     public bool WbcActive => Year >= 1963;
     public bool IbfActive => Year >= 1983;   // the IBF is the third sanctioning body; no WBO or minor belts
@@ -113,8 +123,30 @@ public sealed class CareerGame
     public Boxer? WorldChampionOf(WeightClass wc) => ChampOf(wc);
     public Boxer? WbcChampionOf(WeightClass wc) => WbcOf(wc);
     public Boxer? IbfChampionOf(WeightClass wc) => IbfOf(wc);
+    public Boxer? LinealChampionOf(WeightClass wc) => LinealOf(wc);
 
-    private static string BeltSlot(string belt) => belt == "WBC" ? "WBC" : belt == "IBF" ? "IBF" : "WBA";
+    /// <summary>Every division's championship picture in one pass — for the champions list. Heaviest first.</summary>
+    public IReadOnlyList<DivisionChampions> ChampionsBoard() =>
+        LiveDivisions.Select(wc => new DivisionChampions(
+            wc,
+            ChampOf(wc), DefensesOf(wc, "WBA", ChampOf(wc)?.Id ?? 0),
+            WbcActive ? WbcOf(wc) : null, DefensesOf(wc, "WBC", WbcOf(wc)?.Id ?? 0),
+            IbfActive ? IbfOf(wc) : null, DefensesOf(wc, "IBF", IbfOf(wc)?.Id ?? 0),
+            LinealOf(wc), DefensesOf(wc, "Ring", LinealOf(wc)?.Id ?? 0),
+            UndisputedOf(wc))).ToList();
+
+    /// <summary>The man holding every belt going in a division — the true undisputed champion, or null.</summary>
+    private Boxer? UndisputedOf(WeightClass wc)
+    {
+        var a = ChampOf(wc);
+        if (a is null) return null;
+        if (WbcActive && WbcOf(wc)?.Id != a.Id) return null;
+        if (IbfActive && IbfOf(wc)?.Id != a.Id) return null;
+        return a;
+    }
+
+    private static string BeltSlot(string belt) =>
+        belt switch { "WBC" => "WBC", "IBF" => "IBF", "Ring" or "Lineal" => "Ring", _ => "WBA" };
     private void Defended(WeightClass wc, string slot, int holder) =>
         _beltDefenses[(wc, slot, holder)] = _beltDefenses.GetValueOrDefault((wc, slot, holder)) + 1;
     public int DefensesOf(WeightClass wc, string belt, int holderId) => _beltDefenses.GetValueOrDefault((wc, BeltSlot(belt), holderId));
@@ -127,14 +159,14 @@ public sealed class CareerGame
         if (ChampOf(wc)?.Id == b.Id) yield return (PrimaryBelt, DefensesOf(wc, "WBA", b.Id));
         if (WbcOf(wc)?.Id == b.Id) yield return ("WBC", DefensesOf(wc, "WBC", b.Id));
         if (IbfOf(wc)?.Id == b.Id) yield return ("IBF", DefensesOf(wc, "IBF", b.Id));
+        if (LinealOf(wc)?.Id == b.Id) yield return (LinealBelt, DefensesOf(wc, "Ring", b.Id));
         foreach (var kv in _regional.Where(kv => kv.Key.Div == wc && kv.Value.Id == b.Id))
             yield return (kv.Key.Region, 0);
     }
     public int ActiveCountOf(WeightClass wc) => _roster.Count(b => !b.Retired && b.WeightClass == wc);
     /// <summary>The top world-ranked fighters in a division (for a rankings view).</summary>
     public IReadOnlyList<Boxer> RankingOf(WeightClass wc, int take = 15) =>
-        ActiveIn(wc).Where(WorldRanked).Where(b => b.Record.Wins + 3 >= b.Record.Losses)   // a ranked contender isn't a clear also-ran
-                    .OrderByDescending(RankScore).Take(take).ToList();
+        ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(take).ToList();
 
     /// <summary>True if the fighter currently holds any world belt (WBA/WBC/IBF) in his division.</summary>
     public bool IsWorldChampion(Boxer b) =>
@@ -143,18 +175,29 @@ public sealed class CareerGame
     /// <summary>Pound-for-pound: the best fighters across every division, ranked by ability tempered by record.
     /// Reigning world champions are strongly favoured, so the list reads like a real P4P board (champions on top).</summary>
     public IReadOnlyList<Boxer> PoundForPound(int take = 15) =>
-        _roster.Where(b => !b.Retired && (WorldRanked(b) || IsWorldChampion(b)))
+        _roster.Where(b => !b.Retired && (RankedContender(b) || IsWorldChampion(b) || LinealOf(b.WeightClass)?.Id == b.Id))
                .OrderByDescending(P4PScore)
                .Take(take).ToList();
 
-    /// <summary>P4P standing: ability is the base, tempered by how much he's actually winning — losses bite and
-    /// holding a world belt lifts him hard, so a filler with a losing record can't crowd out a reigning champion.</summary>
+    /// <summary>P4P standing. Ability is the spine of the board — a class-6 titlist does not belong above a
+    /// class-11 fighter, which a flat "is champion" bonus produced. On top of ability sits ACHIEVEMENT, scaled to
+    /// what a man has actually won: how many belts he holds, how often he's defended, and whether he's the lineal
+    /// champion. Losses cost him through the win rate, so they aren't charged twice.</summary>
     private double P4PScore(Boxer b)
     {
         int fights = b.Record.Wins + b.Record.Losses + b.Record.Draws;
         double winRate = fights > 0 ? (b.Record.Wins + 0.5 * b.Record.Draws) / fights : 0;
-        double score = b.Overall * (0.6 + 0.5 * winRate) - b.Record.Losses * 1.5;
-        if (IsWorldChampion(b)) score += 14;   // a reigning world champion belongs near the top of the board
+        double score = b.Overall * (0.75 + 0.35 * winRate);
+
+        int belts = 0, bestDef = 0;
+        foreach (var (belt, def) in BeltsHeld(b))
+        {
+            if (belt is "Ring" or "Lineal") { score += 4; continue; }   // the man who beat the man
+            if (RegionalBelts.Contains(belt)) continue;                 // a regional strap is not a P4P credential
+            belts++;
+            bestDef = Math.Max(bestDef, def);
+        }
+        if (belts > 0) score += 5 + belts * 3 + Math.Min(bestDef, 10) * 0.8;
         return score;
     }
 
@@ -286,6 +329,7 @@ public sealed class CareerGame
         foreach (var kv in s.Champions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _champions[wc] = c;
         foreach (var kv in s.WbcChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _wbc[wc] = c;
         foreach (var kv in s.IbfChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _ibf[wc] = c;
+        foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _lineal[wc] = c;
         _lastTitleShot = s.LastTitleShot;
         foreach (var h in s.Historical) _historical[h.Id] = (h.Prime.ToRatings(), h.Peak);
         foreach (var f in s.Future) _future.Add((f.DebutYear, f.Proto.ToBoxer(), f.DebutAge, f.Peak));
@@ -355,6 +399,7 @@ public sealed class CareerGame
         foreach (var kv in _champions) if (kv.Value is Boxer c) s.Champions[kv.Key.ToString()] = c.Id;
         foreach (var kv in _wbc) if (kv.Value is Boxer c) s.WbcChampions[kv.Key.ToString()] = c.Id;
         foreach (var kv in _ibf) if (kv.Value is Boxer c) s.IbfChampions[kv.Key.ToString()] = c.Id;
+        foreach (var kv in _lineal) if (kv.Value is Boxer c) s.LinealChampions[kv.Key.ToString()] = c.Id;
         // Keep the save lean: only active fighters are persisted (retired journeymen across eight divisions
         // would balloon localStorage). The fight ledger is kept for the player and for anyone above class 9
         // (the contenders and champions you'd actually inspect); their bouts drop the heavy round-by-round
@@ -564,6 +609,11 @@ public sealed class CareerGame
             else _careers.AdvanceOneYear(b);
             CapStarter(b);
 
+            // Ranking points drift back toward what the man can actually do NOW. Without this the ratings only ever
+            // ratchet up, so a padded record compounds forever and a faded former great never slides down the list.
+            // A real run still lifts a fighter well clear of his anchor — it just can't outrun ability indefinitely.
+            b.RankPoints += (World.AbilityAnchor(b.Overall) - b.RankPoints) * 0.28;
+
             // Track Hall-of-Fame credentials: best rating ever reached, and whether he ever held a world belt.
             _peakOverall[b.Id] = Math.Max(_peakOverall.GetValueOrDefault(b.Id), b.Overall);
             _peakClass[b.Id] = Math.Max(_peakClass.GetValueOrDefault(b.Id), b.Class);
@@ -585,6 +635,7 @@ public sealed class CareerGame
                 if (ChampOf(b.WeightClass)?.Id == b.Id) _champions[b.WeightClass] = null;
                 if (WbcOf(b.WeightClass)?.Id == b.Id) _wbc[b.WeightClass] = null;
                 if (IbfOf(b.WeightClass)?.Id == b.Id) _ibf[b.WeightClass] = null;
+                VacateLineal(b.WeightClass, b, "retires as champion");
                 bool inducted = MaybeInductHoF(b);
                 if (b.Id == Player.Id) { if (!inducted) LogEvent($"{Player.Name} retires from boxing.", true, kind: "retire"); }
                 else if (!inducted && b.Overall >= 80) LogEvent($"{b.Name} ({b.Record}) hangs them up after a fine career.", kind: "retire", div: b.WeightClass);
@@ -652,7 +703,9 @@ public sealed class CareerGame
         if (_historical.TryGetValue(b.Id, out var h)) { peak = Math.Max(peak, h.Prime.Overall); peakClass = Math.Max(peakClass, h.Prime.Class); }
         bool wasChamp = _everChampion.Contains(b.Id)
                         || ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
-        int defenses = _beltDefenses.Where(kv => kv.Key.Holder == b.Id).Sum(kv => kv.Value);
+        // The lineal line is not a fourth belt to defend — a Ring defence IS one of the sanctioned defences, so
+        // it's tracked for the champions board but must never be double-counted into a career total.
+        int defenses = _beltDefenses.Where(kv => kv.Key.Holder == b.Id && kv.Key.Belt != "Ring").Sum(kv => kv.Value);
         int weightTitles = _titleDivisions.TryGetValue(b.Id, out var tds) ? tds.Count : (wasChamp ? 1 : 0);
         // A real champion with a genuine reign (3+ defences) or a multi-weight champion — but only a true top-tier
         // fighter (peakClass floor keeps journeyman champions of a thin division out) — or an outright elite talent.
@@ -808,11 +861,13 @@ public sealed class CareerGame
     private void MoveUpTo(Boxer b, WeightClass to, bool warmup = true)
     {
         var from = b.WeightClass;
+        b.DebutWeight ??= from;   // captured on the first move up — the floor the two-division climb cap measures from
         var vacated = BeltsHeld(b).Select(x => x.Belt).ToList();
         if (b.IsChampion) b.IsChampion = false;
         if (ChampOf(from)?.Id == b.Id) _champions[from] = null;
         if (WbcOf(from)?.Id == b.Id) _wbc[from] = null;
         if (IbfOf(from)?.Id == b.Id) _ibf[from] = null;
+        VacateLineal(from, b, $"moves up to {to.DisplayName()}");
         foreach (var region in RegionalBelts) if (_regional.GetValueOrDefault((from, region))?.Id == b.Id) _regional.Remove((from, region));
         if (vacated.Count > 0 && (b.Id == Player.Id || from == Division))
             LogEvent($"{b.Name} relinquishes the {string.Join(", ", vacated)} title{(vacated.Count > 1 ? "s" : "")} to move up to {to.DisplayName()}.", b.Id == Player.Id, kind: "title", div: from);
@@ -830,6 +885,10 @@ public sealed class CareerGame
 
     /// <summary>The escalating champion step-up hazard, exposed for verification/tuning.</summary>
     public static double DefenceStepUpHazardAt(int defenceNumber) => DefenceStepUpHazard(defenceNumber);
+
+    /// <summary>The defence-driven unification curve, exposed for verification/tuning.</summary>
+    public static double UnificationChanceAt(int defencesA, int defencesB, double baseChance, double cap) =>
+        baseChance + (cap - baseChance) * Math.Min(1.0, (Math.Min(defencesA, defencesB) * 3 + Math.Max(defencesA, defencesB)) / 18.0);
 
     /// <summary>The year a division is founded, seed it by moving a tier of established contenders up from the
     /// division just below — so it opens with ranked fighters and crowns a champion straight away, rather than
@@ -856,12 +915,12 @@ public sealed class CareerGame
     /// they actually campaigned at; generated fighters (and multi-weight greats below their ceiling) can.</summary>
     private bool StepUpAllowed(Boxer b, WeightClass to)
     {
-        if (!_historical.ContainsKey(b.Id)) return true;
-        // Cap at his known top weight if the data specifies one. Otherwise allow a natural climb (fighters thicken
-        // with age and chase belts up the scale) — his ratings are rebalanced DOWN at every move, so how far he
-        // realistically gets is self-limiting, but a dominant champion can now win a second and third division.
-        if (b.TopWeight is WeightClass top) return (int)to <= (int)top;
-        return true;
+        // A real fighter with a documented ceiling never climbs past the top weight he actually campaigned at.
+        if (_historical.ContainsKey(b.Id) && b.TopWeight is WeightClass top) return (int)to <= (int)top;
+        // Otherwise he can thicken out and chase belts up the scale, but only so far: two divisions above where
+        // he started is already a rare career (a three-weight champion). A welterweight has no business ending
+        // up at heavyweight — and if he does, the division's ratings are nonsense.
+        return (int)to - (int)(b.DebutWeight ?? b.WeightClass) <= 2;
     }
 
     /// <summary>The flat per-fight chance any fighter drifts up a weight, from his prime onward (bodies fill out).
@@ -941,6 +1000,19 @@ public sealed class CareerGame
         _stepUpQueued.Clear();
     }
 
+    /// <summary>How likely the two world champions finally meet. Demand builds with DEFENCES: two established
+    /// champions who each keep turning back challengers are the fight the public wants and the one the sanctioning
+    /// bodies can't keep apart, while a pair who've only just won their belts have everything to lose and little
+    /// to gain. The shorter of the two reigns drives it — it takes two established men to make the fight — with
+    /// the longer reign adding a little on top. Roughly five defences apiece maxes the pressure out.</summary>
+    private double UnificationChance(WeightClass wc, double baseChance, double cap)
+    {
+        if (ChampOf(wc) is not Boxer a || WbcOf(wc) is not Boxer b || a.Id == b.Id) return 0;
+        int da = DefensesOf(wc, "WBA", a.Id), db = DefensesOf(wc, "WBC", b.Id);
+        int pressure = Math.Min(da, db) * 3 + Math.Max(da, db);
+        return baseChance + (cap - baseChance) * Math.Min(1.0, pressure / 18.0);
+    }
+
     /// <summary>A fortnight's fight cards across every division.</summary>
     private void RunEvent()
     {
@@ -964,7 +1036,8 @@ public sealed class CareerGame
         // fortnight (which produced impossible back-to-back title bouts days apart). Both men must be rested.
         if (!CursorUnified && Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
             && Champ.Id != Player.Id && Wbc.Id != Player.Id
-            && DaysSinceLastBout(Champ) >= 70 && DaysSinceLastBout(Wbc) >= 70 && _rng.NextDouble() < 0.015)
+            && DaysSinceLastBout(Champ) >= 70 && DaysSinceLastBout(Wbc) >= 70
+            && _rng.NextDouble() < UnificationChance(_cursor, 0.006, 0.04))
         {
             Unify();
         }
@@ -1070,7 +1143,8 @@ public sealed class CareerGame
         // campaign runs. The rest of the season is then defended as one undisputed title — never a stray
         // WBC "defence" back-dated after the belts have already come together (which read as a bug).
         if (!CursorUnified && Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
-            && Champ.Id != Player.Id && Wbc.Id != Player.Id && _rng.NextDouble() < 0.30)
+            && Champ.Id != Player.Id && Wbc.Id != Player.Id
+            && _rng.NextDouble() < UnificationChance(_cursor, 0.15, 0.80))
         { Date = SpreadDate(yr, 0, 6); Unify(); }
 
         if (CursorUnified)
@@ -1144,6 +1218,7 @@ public sealed class CareerGame
             var w = res.Winner!;
             LogTitle($"{w.Name} UNIFIES the {PrimaryBelt} and WBC titles!");
             CrownChampion(w); CrownWbc(w);
+            ClaimLinealByUnification(w.WeightClass);
         }
     }
 
@@ -1363,10 +1438,14 @@ public sealed class CareerGame
         // MIXES gatekeepers with journeyman tune-ups (a stepping-up prospect still stays busy against tomato cans
         // between the tougher fights), and only the elite once he's served his apprenticeship (short for a wonder
         // kid). So a green fighter spends a dozen bouts on tomato cans before real opposition, like a real prospect.
-        int maxOvr = ReadyForContenders(Player) ? 99
-                   : proFights < 12 ? 55
-                   : _rng.Next(2) == 0 ? 55                              // ~half the step-up bouts are jman tune-ups
-                                       : Math.Min(92, 55 + (proFights - 12) * 5);
+        // The ceiling RAMPS with experience and never jumps straight to "anyone". Graduating the apprenticeship
+        // earns a prospect real contenders, not an all-time great: a 14-fight novice offered a class-14 champion
+        // isn't a step up, it's a mismatch. (Title shots bypass this cap entirely — they're earned by ranking.)
+        int maxOvr = !ReadyForContenders(Player)
+                   ? (proFights < 12 ? 55
+                      : _rng.Next(2) == 0 ? 55                           // ~half the step-up bouts are jman tune-ups
+                                          : Math.Min(78, 55 + (proFights - 12) * 3))   // gatekeeper, not contender
+                   : Math.Min(99, 70 + (proFights - ContenderApprenticeship(Player)) * 3);
 
         bool holdsWba = Player.IsChampion;
         bool holdsWbc = WbcChampion?.Id == Player.Id;
@@ -1418,7 +1497,7 @@ public sealed class CareerGame
         {
             if (PlayerHolds(region))   // defend the regional belt against a fellow regional contender
             {
-                var chall = ranked.FirstOrDefault(b => b.Id != Player.Id && RegionOf(b) == region);
+                var chall = ranked.FirstOrDefault(b => b.Id != Player.Id && RegionOf(b) == region && !IsWorldChampion(b));
                 if (chall is not null)
                     return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = region, Context = $"{region} title defence" };
             }
@@ -1465,10 +1544,12 @@ public sealed class CareerGame
         // away from the division's top men BY RANKING (not just by current rating: an unproven #1 is often a
         // young fighter whose rating hasn't caught up), so he can never be leapfrogged into a top contender.
         // This runs last so nothing above (the rating cap, the rematch swap) can re-introduce a ranked man.
-        // A wonder kid (short apprenticeship) is exempt — he's allowed to challenge ranked contenders early.
-        if (!ReadyForContenders(Player))
+        // It applies for as long as he's under 20 bouts, INCLUDING a fast-tracked wonder kid: graduating early
+        // earns him ranked opposition (#16 and below), not the division's very best. He can still meet them in
+        // a title bout, which returns above this and is gated by ranking instead.
+        if (!WorldRanked(Player))
         {
-            var topRanked = ActiveIn(Player.WeightClass).Where(WorldRanked)
+            var topRanked = ActiveIn(Player.WeightClass).Where(RankedContender)
                                 .OrderByDescending(RankScore).Take(15).Select(b => b.Id).ToHashSet();
             if (topRanked.Contains(opp.Id))
             {
@@ -1500,6 +1581,19 @@ public sealed class CareerGame
                              : seasoned.Where(b => b.Overall is >= 58 and <= 76).OrderByDescending(RankScore).Take(10).ToList();
             if (pick.Count == 0) pick = seasoned;
             if (pick.Count > 0) opp = pick[_rng.Next(pick.Count)];
+        }
+
+        // ABSOLUTE final guard: a reigning world champion only ever meets the player with his belt on the line.
+        // The NPC world already keeps champions off undercards; without the same rule here the player could be
+        // matched with the WBA champion in a stay-busy bout, beat him, and walk away with nothing — which reads
+        // as a bug, and is one. A title shot returns far above this, so a real challenge is unaffected.
+        if (IsWorldChampion(opp))
+        {
+            var noBelt = ranked.Where(b => b.Id != Player.Id && !IsWorldChampion(b) && b.Overall <= maxOvr
+                                        && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
+            if (noBelt.Count == 0)
+                noBelt = ranked.Where(b => b.Id != Player.Id && !IsWorldChampion(b)).ToList();
+            if (noBelt.Count > 0) opp = noBelt.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
         }
 
         int rounds = stage == CareerStage.Starter ? 6 : idx <= 5 ? 10 : 8;
@@ -1574,15 +1668,19 @@ public sealed class CareerGame
         double ea = 1.0 / (1.0 + Math.Pow(10, (b.RankPoints - a.RankPoints) / 400.0));
         a.RankPoints += k * (scoreA - ea);
         b.RankPoints += k * ((1 - scoreA) - (1 - ea));
-        if (ko && res.Winner is not null) res.Winner.RankPoints += 6;
-        // Momentum matters: a win run pushes a fighter up the rankings, and an unbeaten KO run harder still, so
-        // a hot streak forces his way into contention — while a loss snaps it and costs him that built-up standing.
-        if (res.Winner is not null)
+        // Momentum matters — a win run forces a fighter into contention — but ONLY against real opposition, and
+        // only in capped amounts. These bonuses are the one part of the rating that isn't zero-sum, so paying them
+        // for every win turned the ratings into a fight counter: a busy journeyman out-earned an elite simply by
+        // boxing more often, and a 60-fight record beat a 23-0 champion.
+        if (res.Winner is Boxer wn && res.Loser is Boxer ls && WorldRanked(ls) && ls.Overall >= wn.Overall - 10)
         {
-            int ws = WinStreak(res.Winner);   // includes the bout just recorded
-            if (ws >= 3) res.Winner.RankPoints += Math.Min(ws, 14) * 3.0 + KoStreak(res.Winner) * 1.5;
+            if (ko) wn.RankPoints += 4;
+            int ws = WinStreak(wn);   // includes the bout just recorded
+            if (ws >= 3) wn.RankPoints += Math.Min(ws, 10) * 1.2;
         }
-        if (res.Loser is not null) res.Loser.RankPoints -= 10;   // a defeat that ends a run stings the standing
+        if (res.Loser is not null) res.Loser.RankPoints -= 12;   // a defeat that ends a run stings the standing
+
+        UpdateLineal(res, a, b, note);
 
         // Rare permanent wear carries forward (only matters for non-historical fighters, whose ratings
         // are recomputed from their prime each year — so apply to the player and generated fighters).
@@ -1620,6 +1718,61 @@ public sealed class CareerGame
 
     private void CrownWbc(Boxer b) { _cursor = b.WeightClass; Wbc = b; }
     private void CrownIbf(Boxer b) { _cursor = b.WeightClass; Ibf = b; }
+
+    // ---- the lineal ("Ring") championship ----
+
+    /// <summary>Move the lineal title, applying "the man who beat the man". It is NOT sanctioned, so unlike the
+    /// alphabet belts it never changes hands on a relinquishment, a stripping, or a vacant-title bout — only in
+    /// the ring. A draw leaves it where it is. When it's vacant it's filled the way The Ring fills it: by the
+    /// division's two leading men meeting for a world title, or by a man unifying the belts.</summary>
+    private void UpdateLineal(FightResult res, Boxer a, Boxer b, string? note)
+    {
+        var wc = a.WeightClass;
+        if (wc != b.WeightClass || res.IsDraw || res.Winner is null || res.Loser is null) return;
+        var champ = LinealOf(wc);
+
+        if (champ is not null)
+        {
+            if (res.Loser.Id == champ.Id)
+            {
+                _lineal[wc] = res.Winner;
+                _everChampion.Add(res.Winner.Id);
+                LogEvent($"{res.Winner.Name} beats the man who beat the man — {res.Loser.Name}'s {LinealBelt} championship changes hands.",
+                         res.Winner.Id == Player.Id, kind: "title", div: wc);
+            }
+            else if (res.Winner.Id == champ.Id && IsWorldTitleNote(note))
+                Defended(wc, "Ring", champ.Id);
+            return;
+        }
+
+        // Vacant — only a genuine championship bout between the two leading men can establish a new line.
+        if (!IsWorldTitleNote(note)) return;
+        var top2 = ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(2).Select(x => x.Id).ToHashSet();
+        if (!(top2.Contains(a.Id) && top2.Contains(b.Id))) return;
+        _lineal[wc] = res.Winner;
+        _everChampion.Add(res.Winner.Id);
+        LogEvent($"{res.Winner.Name} beats {res.Loser.Name} to establish himself as the {LinealBelt} champion at {wc.DisplayName()}.",
+                 res.Winner.Id == Player.Id, kind: "title", div: wc);
+    }
+
+    /// <summary>A unified champion holds every belt going, so he IS the man — he takes a vacant lineal title.</summary>
+    private void ClaimLinealByUnification(WeightClass wc)
+    {
+        if (LinealOf(wc) is not null || UndisputedOf(wc) is not Boxer u) return;
+        _lineal[wc] = u;
+        LogEvent($"{u.Name} holds every belt at {wc.DisplayName()} and is recognised as {LinealBelt} champion.",
+                 u.Id == Player.Id, kind: "title", div: wc);
+    }
+
+    /// <summary>The lineal title can't be inherited: when the champion retires or leaves the division the line
+    /// simply ends, and the next two leading men have to start a new one.</summary>
+    private void VacateLineal(WeightClass wc, Boxer who, string why)
+    {
+        if (LinealOf(wc)?.Id != who.Id) return;
+        _lineal[wc] = null;
+        LogEvent($"The {LinealBelt} championship at {wc.DisplayName()} falls vacant — {who.Name} {why}.",
+                 who.Id == Player.Id, kind: "title", div: wc);
+    }
 
     // ---- regional belts ----
 
@@ -1691,6 +1844,12 @@ public sealed class CareerGame
             var winner = ContestVacantTitle(wc, "IBF", ChampOf(wc)?.Id ?? 0, WbcOf(wc)?.Id ?? 0);
             if (winner is not null) { _ibf[wc] = winner; _everChampion.Add(winner.Id); LogEvent($"{winner.Name} wins the vacant IBF title.", winner.Id == Player.Id, kind: "title", div: wc); }
         }
+
+        // A line that has ended (its holder retired or moved) is cleared, and a man who now holds every belt
+        // going is recognised as the lineal champion — otherwise a division can show an "undisputed" champion
+        // while the Ring title sits with someone else, which reads as a bug even though the rules allow it.
+        if (_lineal.GetValueOrDefault(wc) is Boxer lc && (lc.Retired || lc.WeightClass != wc)) _lineal[wc] = null;
+        ClaimLinealByUnification(wc);
 
         // Regional belts: each region's title goes to its best fighter in this division who isn't a world champion.
         foreach (var region in RegionalBelts)
@@ -2063,22 +2222,28 @@ public sealed class CareerGame
     /// <summary>A fighter is only "world-ranked" once he's built a real body of work — 20 pro bouts.</summary>
     public static bool WorldRanked(Boxer b) => b.Record.Wins + b.Record.Losses + b.Record.Draws >= 20;
 
+    /// <summary>A ranked contender: a real body of work AND a genuinely winning record (65%+). A man hovering
+    /// around .500 is a gatekeeper however long he's been around — he belongs on the undercard, not the top 15.</summary>
+    public static bool RankedContender(Boxer b) =>
+        WorldRanked(b) && b.Record.Wins * 100 >= (b.Record.Wins + b.Record.Losses) * 65;
+
     /// <summary>How many pro bouts a fighter must build before he'll be matched with ranked contenders. Most
     /// serve the full apprenticeship (20); a rare phenom (a "wonder kid" — a very high ceiling) is fast-tracked
     /// into contention far sooner, the way the odd real great wins a belt inside 12–15 fights. Roughly the top
     /// ~1% (Potential ≥ 93) go at 12, the top ~5% (≥ 87) at 15.</summary>
-    public static int ContenderApprenticeship(Boxer b) => b.Potential >= 92 ? 12 : b.Potential >= 78 ? 15 : 20;
+    public static int ContenderApprenticeship(Boxer b) => b.Potential >= 92 ? 12 : b.Potential >= 87 ? 15 : 20;
 
     /// <summary>True once a fighter has served his apprenticeship and is ready to share the ring with contenders.</summary>
     public static bool ReadyForContenders(Boxer b) => (b.Record.Wins + b.Record.Losses + b.Record.Draws) >= ContenderApprenticeship(b);
 
     /// <summary>The current top-20 of a division (world-ranked fighters by ranking score).</summary>
-    private HashSet<int> Top20Ids(WeightClass wc) => ActiveIn(wc).Where(WorldRanked).OrderByDescending(RankScore).Take(20).Select(b => b.Id).ToHashSet();
-    private HashSet<int> Top8Ids(WeightClass wc) => ActiveIn(wc).Where(WorldRanked).OrderByDescending(RankScore).Take(8).Select(b => b.Id).ToHashSet();
+    private HashSet<int> Top20Ids(WeightClass wc) => ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(20).Select(b => b.Id).ToHashSet();
+    private HashSet<int> Top8Ids(WeightClass wc) => ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(8).Select(b => b.Id).ToHashSet();
 
-    /// <summary>Ranking score: Elo, pulled toward reality by the fighter's win/loss margin, so a
-    /// padded Elo can't keep a losing record near the top of the ratings.</summary>
-    public static double RankScore(Boxer b) => b.RankPoints + (b.Record.Wins - b.Record.Losses) * 6.0;
+    /// <summary>Ranking score: ability-anchored Elo, nudged by the fighter's win/loss margin so a padded Elo can't
+    /// keep a losing record near the top. The margin is deliberately a light touch — weighted any heavier it just
+    /// rewards volume, and a 60-fight journeyman outranks an unbeaten champion.</summary>
+    public static double RankScore(Boxer b) => b.RankPoints + (b.Record.Wins - b.Record.Losses) * 2.5;
 
     private static int Scale(int v, double dev) => Ratings.Clamp((int)Math.Round(v * dev));
     private static double Lerp(double dev, double floor) => floor + (1.0 - floor) * dev;

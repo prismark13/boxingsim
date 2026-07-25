@@ -18,6 +18,10 @@ public sealed class Boxer
     /// at several weights starts at his lowest and moves up toward this ceiling; null/equal = single-division.</summary>
     public WeightClass? TopWeight { get; set; }
 
+    /// <summary>The division he was campaigning in before his first move up, captured the first time he steps up.
+    /// Null until then (he's still in it). Bounds how far up the scale a career can travel.</summary>
+    public WeightClass? DebutWeight { get; set; }
+
     public required Ratings Ratings { get; set; }
 
     /// <summary>Arm reach in inches — a physical frame trait, not a skill. It never feeds Overall/Class;
