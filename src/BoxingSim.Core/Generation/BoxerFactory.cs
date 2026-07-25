@@ -40,7 +40,7 @@ public sealed class BoxerFactory
             double t = (age - 17.0) / (peakAge - 17.0);
             return 0.55 + 0.45 * Math.Clamp(t, 0, 1);
         }
-        double decline = (age - peakAge) * 0.035; // ~3.5% of potential lost per year past peak
+        double decline = (age - peakAge) * 0.045; // ~4.5% of potential lost per year past peak — a fading champion turns beatable sooner
         return Math.Max(0.45, 1.0 - decline);
     }
 

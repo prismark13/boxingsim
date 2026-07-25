@@ -893,6 +893,22 @@ public sealed class CareerGame
         if (champ is null) return;
         int defs = BeltsHeld(champ).Select(x => x.Defenses).DefaultIfEmpty(0).Max();
         TryQueueStepUp(champ, DefenceStepUpHazard(defs));
+        // Nobody defends forever: a champion piling up defences (who hasn't moved up) increasingly walks away on
+        // top rather than fighting on — capping ultra-long reigns, especially in a division he can't climb out of.
+        if (defs >= 12 && champ.Id != Player.Id && !champ.Retired)
+        {
+            double retireOnTop = (defs - 11) * 0.05;   // ~5% at 12 defences, rising past ~40% by 20
+            if (_rng.NextDouble() < retireOnTop)
+            {
+                champ.Retired = true;
+                if (ChampOf(champ.WeightClass)?.Id == champ.Id) _champions[champ.WeightClass] = null;
+                if (WbcOf(champ.WeightClass)?.Id == champ.Id) _wbc[champ.WeightClass] = null;
+                if (IbfOf(champ.WeightClass)?.Id == champ.Id) _ibf[champ.WeightClass] = null;
+                champ.IsChampion = false;
+                MaybeInductHoF(champ);
+                LogEvent($"{champ.Name} retires as champion after {defs} defences, going out on top.", kind: "retire", div: champ.WeightClass);
+            }
+        }
     }
 
     private void TryQueueStepUp(Boxer? b, double p)
@@ -1813,6 +1829,10 @@ public sealed class CareerGame
         // prospect very rarely loses to a journeyman who's already maxed out.
         double gap = (a.Overall + YouthEdge(a)) - (b.Overall + YouthEdge(b));
         double pa = 1.0 / (1.0 + Math.Pow(10, -gap / 8.0));   // a's win probability by effective rating
+        // Any given night: between two genuine world-class men, even a dominant champion can be caught — so the
+        // underdog always keeps a real puncher's chance. This caps ultra-long unbeaten reigns without letting a
+        // prospect get upset by a journeyman (the floor only applies when BOTH are top-tier).
+        if (a.Overall >= 66 && b.Overall >= 66) pa = Math.Clamp(pa, 0.07, 0.93);
         double drawP = 0.05 * (1 - Math.Abs(pa - 0.5) * 2);
         Boxer? winner = null, loser = null;
         FightOutcome outcome = FightOutcome.Draw;
