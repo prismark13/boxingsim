@@ -1706,7 +1706,7 @@ public sealed class CareerGame
         string method = "D";
         int endRound = rounds, kdA = 0, kdB = 0;
         bool draw = _rng.NextDouble() < drawP;
-        bool aWins = false, ko = false;
+        bool aWins = false, ko = false, stopNoKd = false;   // stopNoKd: a cut/DQ stoppage — trims the card, no knockdown
 
         if (!draw)
         {
@@ -1719,13 +1719,25 @@ public sealed class CareerGame
                 outcome = FightOutcome.Knockout; method = "KO"; endRound = 1 + _rng.Next(rounds);
                 if (aWins) kdB = 1; else kdA = 1;
             }
+            // A badly cut loser is pulled out — far more likely if he's a bleeder (low cut resistance).
+            else if (_rng.NextDouble() < 0.012 + (1.0 - loser.Ratings.CutResistance / 100.0) * 0.05)
+            {
+                outcome = FightOutcome.TechnicalKnockout; method = "TKO"; stopNoKd = true;
+                endRound = Math.Max(3, rounds - _rng.Next(4));
+            }
+            // A very rare disqualification (not a knockout on the record — the fouler is thrown out).
+            else if (_rng.NextDouble() < 0.0025)
+            {
+                outcome = FightOutcome.Decision; method = "DQ"; stopNoKd = true;
+                endRound = 2 + _rng.Next(Math.Max(1, rounds - 2));
+            }
             else outcome = FightOutcome.Decision;
         }
 
         // Sketch a believable card: the winner takes most rounds, punch output tracks ability, and a
         // stoppage is a 10-8 final round. Cheap enough to run for the whole division, so even quick
         // NPC undercards are inspectable round by round.
-        int lastRound = ko ? endRound : rounds;
+        int lastRound = (ko || stopNoKd) ? endRound : rounds;
         var rr = new List<RoundResult>(lastRound);
         for (int r = 1; r <= lastRound; r++)
         {
@@ -1744,7 +1756,7 @@ public sealed class CareerGame
         }
 
         IReadOnlyList<(int A, int B)> cards = Array.Empty<(int, int)>();
-        if (!ko)   // went to the cards (a decision or a draw)
+        if (!ko && !stopNoKd)   // went to the cards (a decision or a draw); a cut/DQ stoppage has none
         {
             method = draw ? "D" : (Math.Abs(pa - 0.5) > 0.14 ? "UD" : _rng.NextDouble() < 0.5 ? "SD" : "MD");
             cards = BuildCards(aWins, rounds, method, draw);
