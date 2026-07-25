@@ -331,18 +331,24 @@ else
                     }
                     else
                     {
-                        <select class="newsfilter" @bind="_awardYear" style="margin:6px 0;">
-                            <option value="0">All years</option>
-                            @foreach (var a in g.Awards) { <option value="@a.Year">@a.Year</option> }
-                        </select>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;">
+                            <select class="newsfilter" @bind="_awardYear">
+                                <option value="0">All years</option>
+                                @foreach (var a in g.Awards) { <option value="@a.Year">@a.Year</option> }
+                            </select>
+                            <select class="newsfilter" @bind="_awardDiv">
+                                <option value="-1">All weights</option>
+                                @foreach (var wc in g.LiveDivisions) { <option value="@((int)wc)">@wc.DisplayName()</option> }
+                            </select>
+                        </div>
                     }
                     @foreach (var yr in g.Awards.Where(a => _awardYear == 0 || a.Year == _awardYear))
                     {
                         <div class="panel-h" style="margin-top:14px;">@yr.Year</div>
-                        @AwardCat("Fighter of the Year", yr.FighterOfYear)
-                        @AwardCat("Fight of the Year", yr.FightOfYear)
-                        @AwardCat("Knockout of the Year", yr.KnockoutOfYear)
-                        @AwardCat("Upset of the Year", yr.UpsetOfYear)
+                        @AwardCat("Fighter of the Year", AwFilter(yr.FighterOfYear))
+                        @AwardCat("Fight of the Year", AwFilter(yr.FightOfYear))
+                        @AwardCat("Knockout of the Year", AwFilter(yr.KnockoutOfYear))
+                        @AwardCat("Upset of the Year", AwFilter(yr.UpsetOfYear))
                     }
                 }
                 else
@@ -709,6 +715,9 @@ else
     private string _talent = "contender";
     private bool _fullHistory;
     private int _awardYear;
+    private int _awardDiv = -1;
+    private IReadOnlyList<AwardWinner> AwFilter(IReadOnlyList<AwardWinner> list) =>
+        _awardDiv < 0 ? list : list.Where(w => (int)w.Div == _awardDiv).ToList();
     private string _hofSort = "prestige";
 
     private IEnumerable<HallOfFamer> HofSorted(CareerGame g) => _hofSort switch
