@@ -1215,23 +1215,28 @@ public sealed class CareerGame
             if (pool.Count > 0) { opp = pool[_rng.Next(Math.Min(pool.Count, 5))]; capped = true; }
         }
 
-        // A fighter with fewer than 20 pro bouts hasn't earned a top-20 opponent yet.
-        if (proFights < 20)
-        {
-            var top20 = Top20Ids(_cursor);
-            if (top20.Contains(opp.Id))
-            {
-                var below = ranked.Where(b => b.Id != Player.Id && !top20.Contains(b.Id) && b.Overall <= maxOvr).ToList();
-                if (below.Count > 0) opp = below.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
-            }
-        }
-
         // Avoid a stale rematch — don't keep serving up a man he's just fought or has met many times.
         if (RecentFoes(Player, 3).Contains(opp.Name) || TimesFaced(opp.Name) >= 3)
         {
             var fresh = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr
                                        && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
             if (fresh.Count > 0) opp = fresh.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
+        }
+
+        // FINAL guard: a fighter with fewer than 20 pro bouts hasn't earned a ranked contender yet — keep him
+        // away from the division's top men BY RANKING (not just by current rating: an unproven #1 is often a
+        // young fighter whose rating hasn't caught up), so he can never be leapfrogged into a top contender.
+        // This runs last so nothing above (the rating cap, the rematch swap) can re-introduce a ranked man.
+        if (proFights < 20)
+        {
+            var topRanked = ActiveIn(Player.WeightClass).Where(WorldRanked)
+                                .OrderByDescending(RankScore).Take(15).Select(b => b.Id).ToHashSet();
+            if (topRanked.Contains(opp.Id))
+            {
+                var below = ranked.Where(b => b.Id != Player.Id && !topRanked.Contains(b.Id) && b.Overall <= maxOvr
+                                           && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
+                if (below.Count > 0) opp = below.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
+            }
         }
 
         int rounds = stage == CareerStage.Starter ? 6 : idx <= 5 ? 10 : 8;
