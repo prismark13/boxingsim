@@ -1061,6 +1061,10 @@ public sealed class CareerGame
     {
         // No stale rematches: don't pair two men who've met in either's last few bouts.
         if (RecentFoes(x, 4).Contains(y.Name) || RecentFoes(y, 4).Contains(x.Name)) return true;
+        // Contenders build a record before facing each other: two genuine contender-calibre fighters (a high
+        // ceiling — the real-roster talents) avoid each other until BOTH have earned a ranking (20 bouts). Until
+        // then they campaign against journeymen and gatekeepers rather than trading losses among themselves.
+        if (x.Potential >= 72 && y.Potential >= 72 && (!WorldRanked(x) || !WorldRanked(y))) return true;
         var strong = x.Overall >= y.Overall ? x : y;
         var weak = ReferenceEquals(strong, x) ? y : x;
         if (strong.Overall >= 78 && ProFights(weak) < 12) return true;
