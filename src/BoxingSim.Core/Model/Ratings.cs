@@ -117,6 +117,12 @@ public sealed class Ratings
         return 1;
     }
 
+    /// <summary>The chance a win comes by knockout, driven mainly by the winner's power and sharpened by the
+    /// gap to the loser's chin. Calibrated so a big puncher (power ~90) stops well over half his opponents and
+    /// an all-time banger nears 80%, while a light-hitting boxer lands in the 15–25% range.</summary>
+    public static double KnockoutChance(int power, int chin) =>
+        Math.Clamp(0.10 + (power - 55) / 80.0 + (power - chin) / 300.0, 0.06, 0.88);
+
     // Attribute display floors (min 1–99 value for each 1–15 level). Real fighters' attributes cluster in
     // the 55–90 band, so a naive linear 1–99→1–15 map wastes the bottom third and bunches everyone at 11–12.
     // These floors are calibrated to the actual roster: a typical pro attribute (~72) shows ~7–8, weak

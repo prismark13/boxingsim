@@ -251,7 +251,7 @@ else
                         <div class="rkrow @(b.Id == p.Id ? "me" : "")" @onclick="() => _selected = b">
                             <span class="rkn">@pp</span>
                             <span class="ovrpill" style="color:@Ui.Ovr(b.Class)">@b.Class</span>
-                            <span class="rkname">@b.Name <span class="champ-tag torank">@b.WeightClass.DisplayName()</span></span>
+                            <span class="rkname">@b.Name @if (g.IsWorldChampion(b)) { <span class="champ-tag"><Icon Name="trophy" Size="10" /> champ</span> } <span class="champ-tag torank">@b.WeightClass.DisplayName()</span></span>
                             <span class="rkrec">@b.Record</span>
                         </div>
                         pp++;
@@ -267,7 +267,7 @@ else
                     int hf = 1;
                     @foreach (var m in g.HallOfFame)
                     {
-                        <div class="rkrow">
+                        <div class="rkrow" @onclick="() => _hofSel = m">
                             <span class="rkn"><Icon Name="trophy" Size="12" /></span>
                             <span class="ovrpill" style="color:@Ui.Ovr(m.PeakClass)">@m.PeakClass</span>
                             <span class="rkname">@m.Name @if (m.WeightTitles >= 2) { <span class="champ-tag">@(m.WeightTitles)-weight champ</span> } else if (m.WasChampion) { <span class="champ-tag">World champ</span> } <span class="champ-tag torank">@m.Division.DisplayName()@(m.Defenses > 0 ? $" · {m.Defenses} def" : "")</span></span>
@@ -321,6 +321,40 @@ else
                     {
                         <div class="rkrow"><span class="rkn nr">P</span><span class="ovrpill" style="color:@Ui.Ovr(b.Class)">@b.Class</span><span class="rkname">@b.Name <span class="champ-tag torank">age @b.Age</span></span><span class="rkrec">@b.Record</span></div>
                     }
+                }
+            </div>
+        </div>
+    }
+
+    @if (_hofSel is HallOfFamer hm)
+    {
+        <div class="modal-bg" @onclick="() => _hofSel = null">
+            <div class="modal" @onclick:stopPropagation="true">
+                <div class="modal-head">
+                    <div class="ovrpill big" style="color:@Ui.Ovr(hm.PeakClass)">@hm.PeakClass</div>
+                    <div>
+                        <div class="pname">@hm.Name <span class="badge-champ"><Icon Name="trophy" Size="12" /> Hall of Fame</span></div>
+                        <div class="pmeta"><span class="cc">@Ui.Code(hm.Country)</span> · @hm.Division.DisplayName() · @hm.Record</div>
+                    </div>
+                    <button class="ghost icon-btn" @onclick="() => _hofSel = null"><Icon Name="close" Size="16" /></button>
+                </div>
+                <div class="hof-facts">
+                    @if (hm.WeightTitles >= 2) { <span class="champ-tag">@(hm.WeightTitles)-weight world champion</span> }
+                    else if (hm.WasChampion) { <span class="champ-tag">World champion</span> }
+                    @if (hm.Defenses > 0) { <span class="champ-tag torank">@hm.Defenses title defence@(hm.Defenses == 1 ? "" : "s")</span> }
+                    <span class="champ-tag torank">peak class @hm.PeakClass</span>
+                    <span class="champ-tag torank">inducted @hm.Year · retired at @hm.Age</span>
+                </div>
+                @if (hm.History.Count > 0)
+                {
+                    <div class="label" style="margin:14px 0 8px;">Fight history (@hm.History.Count)</div>
+                    <div class="history">
+                        @foreach (var bt in hm.History.OrderByDescending(h => h.Date)) { @boutRow(bt) }
+                    </div>
+                }
+                else
+                {
+                    <div class="muted" style="padding:10px 4px;">Fight-by-fight history wasn't recorded for this inductee.</div>
                 }
             </div>
         </div>
@@ -553,6 +587,7 @@ else
     private BoutLine? _bout;
     private FightResult? _playback;
     private WeightClass? _viewDiv;
+    private HallOfFamer? _hofSel;
     private string _newsFilter = "";
     private string _rankTab = "world";
     private bool _profile;

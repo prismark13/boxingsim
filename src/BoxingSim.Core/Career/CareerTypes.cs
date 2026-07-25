@@ -97,6 +97,7 @@ public sealed class HallOfFamer
     public int WeightTitles { get; init; } // number of distinct weight classes he won a world belt in
     public int Age { get; init; }          // age at retirement
     public int Year { get; init; }         // year inducted (= year retired)
+    public List<BoutLine> History { get; init; } = new();   // his fight ledger, snapshotted at induction
 
     /// <summary>Ranking weight for the Hall: a world belt is the entry ticket, then multi-division reigns,
     /// defences and pure ability — a two- or three-weight champion outranks a one-belt titlist.</summary>

@@ -122,20 +122,25 @@ public sealed class CareerGame
     public IReadOnlyList<Boxer> RankingOf(WeightClass wc, int take = 15) =>
         ActiveIn(wc).Where(WorldRanked).OrderByDescending(RankScore).Take(take).ToList();
 
-    /// <summary>Pound-for-pound: the best fighters across every division, ranked by ability tempered by record.</summary>
+    /// <summary>True if the fighter currently holds any world belt (WBA/WBC/IBF) in his division.</summary>
+    public bool IsWorldChampion(Boxer b) =>
+        ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
+
+    /// <summary>Pound-for-pound: the best fighters across every division, ranked by ability tempered by record.
+    /// Reigning world champions are strongly favoured, so the list reads like a real P4P board (champions on top).</summary>
     public IReadOnlyList<Boxer> PoundForPound(int take = 15) =>
-        _roster.Where(b => !b.Retired && (WorldRanked(b) || b.IsChampion))
+        _roster.Where(b => !b.Retired && (WorldRanked(b) || IsWorldChampion(b)))
                .OrderByDescending(P4PScore)
                .Take(take).ToList();
 
     /// <summary>P4P standing: ability is the base, tempered by how much he's actually winning — losses bite and
-    /// holding a world belt lifts him, so a filler with a losing record can't crowd out a dominant champion.</summary>
-    private static double P4PScore(Boxer b)
+    /// holding a world belt lifts him hard, so a filler with a losing record can't crowd out a reigning champion.</summary>
+    private double P4PScore(Boxer b)
     {
         int fights = b.Record.Wins + b.Record.Losses + b.Record.Draws;
         double winRate = fights > 0 ? (b.Record.Wins + 0.5 * b.Record.Draws) / fights : 0;
         double score = b.Overall * (0.6 + 0.5 * winRate) - b.Record.Losses * 1.5;
-        if (b.IsChampion) score += 6;
+        if (IsWorldChampion(b)) score += 14;   // a reigning world champion belongs near the top of the board
         return score;
     }
 
@@ -278,7 +283,12 @@ public sealed class CareerGame
             {
                 Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country,
                 Division = Enum.TryParse<WeightClass>(m.Division, out var md) ? md : WeightClass.Heavyweight,
-                Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, WeightTitles = m.WeightTitles, Age = m.Age, Year = m.Year
+                Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, WeightTitles = m.WeightTitles, Age = m.Age, Year = m.Year,
+                History = m.History.Select(h => new BoutLine
+                {
+                    Date = ParseDate(h.Date, Date), Opponent = h.Opponent, Result = h.Result.Length > 0 ? h.Result[0] : 'D',
+                    Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
+                }).ToList()
             });
         foreach (var id in s.EverChampion) _everChampion.Add(id);
         foreach (var kv in s.PeakOverall) if (int.TryParse(kv.Key, out var id)) _peakOverall[id] = kv.Value;
@@ -340,7 +350,13 @@ public sealed class CareerGame
         foreach (var m in _hof) s.HallOfFame.Add(new HallOfFamerSave
         {
             Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country, Division = m.Division.ToString(),
-            Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, Age = m.Age, Year = m.Year
+            Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses,
+            WasChampion = m.WasChampion, WeightTitles = m.WeightTitles, Age = m.Age, Year = m.Year,
+            History = m.History.Select(h => new BoutLineSave
+            {
+                Date = h.Date.ToString("yyyy-MM-dd"), Opponent = h.Opponent, Result = h.Result.ToString(),
+                Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
+            }).ToList()
         });
         s.EverChampion.AddRange(_everChampion);
         foreach (var kv in _peakOverall) s.PeakOverall[kv.Key.ToString()] = kv.Value;
@@ -601,7 +617,13 @@ public sealed class CareerGame
         {
             Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, Division = b.WeightClass,
             Record = b.Record.ToString(), PeakOverall = peak, PeakClass = peakClass, Defenses = defenses, WasChampion = wasChamp,
-            WeightTitles = weightTitles, Age = b.Age, Year = Date.Year
+            WeightTitles = weightTitles, Age = b.Age, Year = Date.Year,
+            // Snapshot the ledger (drop the heavy per-round grid/commentary) so the Hall keeps his fight history.
+            History = b.History.Select(h => new BoutLine
+            {
+                Date = h.Date, Opponent = h.Opponent, Result = h.Result, Method = h.Method,
+                Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
+            }).ToList()
         });
         LogEvent($"{b.Name} ({b.Record}) retires and enters the Hall of Fame.", b.Id == Player.Id, kind: "hof", div: b.WeightClass);
         return true;
@@ -1433,7 +1455,7 @@ public sealed class CareerGame
             if (roll < winRate)
             {
                 b.Record.Wins++; rc = 'W';
-                if (_rng.NextDouble() < b.Ratings.Power / 200.0) { b.Record.KnockoutWins++; method = _rng.NextDouble() < 0.5 ? "KO" : "TKO"; round = 1 + _rng.Next(8); }
+                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72)) { b.Record.KnockoutWins++; method = _rng.NextDouble() < 0.5 ? "KO" : "TKO"; round = 1 + _rng.Next(8); }
                 else method = _rng.NextDouble() < 0.75 ? "UD" : "SD";
             }
             else if (roll < winRate + 0.08) { b.Record.Draws++; rc = 'D'; method = "D"; }
@@ -1526,7 +1548,7 @@ public sealed class CareerGame
         {
             aWins = _rng.NextDouble() < pa;
             winner = aWins ? a : b; loser = aWins ? b : a;
-            double koP = Math.Clamp(0.12 + (winner.Ratings.Power - loser.Ratings.Chin) / 260.0, 0.05, 0.6);
+            double koP = Ratings.KnockoutChance(winner.Ratings.Power, loser.Ratings.Chin);
             ko = _rng.NextDouble() < koP;
             if (ko)
             {

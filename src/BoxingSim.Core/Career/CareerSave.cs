@@ -44,6 +44,7 @@ public sealed class HallOfFamerSave
     public int WeightTitles { get; set; }
     public int Age { get; set; }
     public int Year { get; set; }
+    public List<BoutLineSave> History { get; set; } = new();
 }
 
 public sealed class TitleReignSave
