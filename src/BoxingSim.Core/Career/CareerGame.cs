@@ -1109,7 +1109,7 @@ public sealed class CareerGame
         // against the best available REAL contender (a rising fighter, gatekeeper-plus) — never a class-1–3 journeyman.
         if (ranked.Count == 0)
             ranked = here.Where(b => b.Id != Player.Id && b.Id != champ.Id && (otherChamp is null || b.Id != otherChamp.Id)
-                                  && !RecentlyMovedUp(b) && Available(b) && b.Potential >= 66 && !recent.Contains(b.Name))
+                                  && !RecentlyMovedUp(b) && Available(b) && b.Potential >= 66 && ProFights(b) >= 15 && !recent.Contains(b.Name))
                          .OrderByDescending(RankScore).ToList();
         if (ranked.Count == 0) return null;
         var top10 = ranked.OrderByDescending(RankScore).Take(10).ToList();
@@ -1251,6 +1251,17 @@ public sealed class CareerGame
                                            && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
                 if (below.Count > 0) opp = below.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
             }
+        }
+
+        // A gatekeeper is a SEASONED fighter (15+ bouts) — a mid-rated man with a thin record is a rising prospect,
+        // not a test. If a gatekeeper-tier opponent (not an elite contender, and not a ranked man) is green, swap
+        // him for an experienced fighter at a similar level, else drop back to a journeyman tune-up.
+        if (opp.Overall is > 55 and < 78 && ProFights(opp) < 15 && !Top20Ids(Player.WeightClass).Contains(opp.Id))
+        {
+            var seasoned = ranked.Where(b => b.Id != Player.Id && b.Id != opp.Id && b.Overall <= maxOvr
+                                          && (ProFights(b) >= 15 || b.Overall <= 55)
+                                          && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
+            if (seasoned.Count > 0) opp = seasoned.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
         }
 
         int rounds = stage == CareerStage.Starter ? 6 : idx <= 5 ? 10 : 8;
