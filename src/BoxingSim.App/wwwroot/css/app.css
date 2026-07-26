@@ -207,6 +207,17 @@ table.rounds td{padding:8px;border-bottom:1px solid var(--line);font-variant-num
 .champ-tag.torank{color:var(--muted);}
 .rkn.nr{font-size:9px;font-weight:800;letter-spacing:.05em;color:var(--muted);}
 
+/* P4P rows carry a second line of credentials — the board should show the reasoning behind its own order,
+   so a champion with a long reign visibly outranks a higher-rated man who has just won a belt. */
+.p4prow{align-items:center;}
+.p4pwho{display:flex;flex-direction:column;gap:4px;min-width:0;}
+.p4pach{display:flex;flex-wrap:wrap;align-items:center;gap:5px;}
+.ach{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;
+  border:1px solid var(--line-2);border-radius:4px;padding:2px 6px;color:var(--muted);}
+.ach.gold{color:var(--gold);border-color:var(--gold-line);display:inline-flex;align-items:center;gap:3px;}
+.ach.ring{color:var(--gold);border-color:var(--gold-line);background:var(--gold-soft);}
+.ach.dim{color:var(--faint);border-color:var(--line);}
+
 /* Awards podium — the top three read across in one row, the winner picked out in gold.
    Always three columns wide so every category lines up, even when a weight filter leaves fewer. */
 .awcat{font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);padding:20px 18px 9px;}

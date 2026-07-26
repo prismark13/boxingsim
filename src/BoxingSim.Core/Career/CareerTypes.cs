@@ -133,3 +133,12 @@ public sealed record DivisionChampions(
     Boxer? Ibf, int IbfDefenses,
     Boxer? Lineal, int LinealDefenses,
     Boxer? Undisputed);
+
+/// <summary>What a fighter has actually WON — the credentials behind his pound-for-pound placing.</summary>
+public sealed record Achievements(
+    IReadOnlyList<string> Belts,   // sanctioned world belts held right now
+    bool Lineal,                   // holds the lineal ("Ring") championship
+    bool Undisputed,               // holds every belt going in his division
+    int Defences,                  // longest current reign, in defences
+    int WeightTitles,              // divisions he's won a world belt in
+    int TitleWins);                // world title bouts won across his career

@@ -304,10 +304,28 @@ else
                     int pp = 1;
                     @foreach (var b in g.PoundForPound(15))
                     {
-                        <div class="rkrow @(b.Id == p.Id ? "me" : "")" @onclick="() => _selected = b">
+                        var ach = g.AchievementsOf(b);
+                        <div class="rkrow p4prow @(b.Id == p.Id ? "me" : "")" @onclick="() => _selected = b">
                             <span class="rkn">@pp</span>
                             <span class="ovrpill" style="color:@Ui.Ovr(b.Class)">@b.Class</span>
-                            <span class="rkname">@b.Name @if (g.IsWorldChampion(b)) { <span class="champ-tag"><Icon Name="trophy" Size="10" /> champ</span> } <span class="champ-tag torank">@b.WeightClass.DisplayName()</span></span>
+                            <span class="p4pwho">
+                                <span class="rkname">@b.Name</span>
+                                <span class="p4pach">
+                                    <span class="champ-tag torank">@b.WeightClass.DisplayName()</span>
+                                    @* The credentials the P4P order is actually built on, heaviest first. *@
+                                    @if (ach.Undisputed) { <span class="ach gold"><Icon Name="trophy" Size="9" /> undisputed</span> }
+                                    else { @foreach (var belt in ach.Belts) { <span class="ach gold">@belt</span> } }
+                                    @if (ach.Lineal) { <span class="ach ring">@g.LinealBelt</span> }
+                                    @if (ach.Defences > 0) { <span class="ach">@ach.Defences defence@(ach.Defences == 1 ? "" : "s")</span> }
+                                    @if (ach.WeightTitles >= 2) { <span class="ach">@ach.WeightTitles-weight champ</span> }
+                                    @* For a man holding a belt the straps and defences say it. For one who isn't,
+                                       his title-bout record is the whole credential — that's the ex-champion. *@
+                                    @if (ach.Belts.Count == 0 && !ach.Lineal && ach.TitleWins > 0)
+                                    {
+                                        <span class="ach dim">ex-champ · @ach.TitleWins title win@(ach.TitleWins == 1 ? "" : "s")</span>
+                                    }
+                                </span>
+                            </span>
                             <span class="rkrec">@b.Record</span>
                         </div>
                         pp++;

@@ -218,6 +218,24 @@ public sealed class CareerGame
     private static int WorldTitleWins(Boxer b) =>
         b.History.Count(h => h.Result == 'W' && IsWorldTitleNote(h.Note));
 
+    /// <summary>A fighter's championship credentials — exactly what the P4P order is built on, so the board can
+    /// show its own reasoning instead of a bare "champ" tag.</summary>
+    public Achievements AchievementsOf(Boxer b)
+    {
+        var belts = new List<string>();
+        bool lineal = false;
+        int defences = 0;
+        foreach (var (belt, def) in BeltsHeld(b))
+        {
+            if (belt is "Ring" or "Lineal") { lineal = true; defences = Math.Max(defences, def); continue; }
+            if (RegionalBelts.Contains(belt)) continue;
+            belts.Add(belt);
+            defences = Math.Max(defences, def);
+        }
+        int weightTitles = _titleDivisions.TryGetValue(b.Id, out var td) ? td.Count : 0;
+        return new Achievements(belts, lineal, UndisputedOf(b.WeightClass)?.Id == b.Id, defences, weightTitles, WorldTitleWins(b));
+    }
+
     /// <summary>The brightest prospects in a division — promising young fighters not yet world-ranked.</summary>
     public IReadOnlyList<Boxer> ProspectsOf(WeightClass wc, int take = 12) =>
         ActiveIn(wc).Where(b => b.Id != Player.Id && IsProspect(b) && ProFights(b) >= 3)
