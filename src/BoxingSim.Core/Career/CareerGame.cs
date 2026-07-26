@@ -1589,25 +1589,6 @@ public sealed class CareerGame
             if (fresh.Count > 0) opp = fresh.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
         }
 
-        // FINAL guard: a fighter with fewer than 20 pro bouts hasn't earned a ranked contender yet — keep him
-        // away from the division's top men BY RANKING (not just by current rating: an unproven #1 is often a
-        // young fighter whose rating hasn't caught up), so he can never be leapfrogged into a top contender.
-        // This runs last so nothing above (the rating cap, the rematch swap) can re-introduce a ranked man.
-        // It applies for as long as he's under 20 bouts, INCLUDING a fast-tracked wonder kid: graduating early
-        // earns him ranked opposition (#16 and below), not the division's very best. He can still meet them in
-        // a title bout, which returns above this and is gated by ranking instead.
-        if (!WorldRanked(Player))
-        {
-            var topRanked = ActiveIn(Player.WeightClass).Where(RankedContender)
-                                .OrderByDescending(RankScore).Take(15).Select(b => b.Id).ToHashSet();
-            if (topRanked.Contains(opp.Id))
-            {
-                var below = ranked.Where(b => b.Id != Player.Id && !topRanked.Contains(b.Id) && b.Overall <= maxOvr
-                                           && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-                if (below.Count > 0) opp = below.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
-            }
-        }
-
         // A gatekeeper is a SEASONED fighter (15+ bouts) — a mid-rated man with a thin record is a rising prospect,
         // not a test. If a gatekeeper-tier opponent (not an elite contender, and not a ranked man) is green, swap
         // him for an experienced fighter at a similar level, else drop back to a journeyman tune-up.
@@ -1632,17 +1613,27 @@ public sealed class CareerGame
             if (pick.Count > 0) opp = pick[_rng.Next(pick.Count)];
         }
 
-        // ABSOLUTE final guard: a reigning world champion only ever meets the player with his belt on the line.
-        // The NPC world already keeps champions off undercards; without the same rule here the player could be
-        // matched with the WBA champion in a stay-busy bout, beat him, and walk away with nothing — which reads
-        // as a bug, and is one. A title shot returns far above this, so a real challenge is unaffected.
-        if (IsWorldChampion(opp))
+        // ABSOLUTE final guard, enforcing BOTH hard rules at once. Run as separate passes they each undid the
+        // other — the top-15 guard picked a champion, and the champion guard picked a top-15 man.
+        //   1. A reigning world champion only ever meets the player with his belt on the line. The NPC world
+        //      already keeps champions off undercards; without the same rule here the player could beat the WBA
+        //      champion in a stay-busy bout and walk away with nothing.
+        //   2. Until he's world-ranked (20 bouts) the player is kept away from the division's top men BY RANKING,
+        //      not just by rating — an unproven #1 is often a young fighter whose rating hasn't caught up. This
+        //      holds for a fast-tracked wonder kid too: graduating early earns him ranked opposition (#16 and
+        //      below), not the very best.
+        // Title bouts return far above this, so a genuinely earned challenge is unaffected.
+        var offLimits = WorldRanked(Player)
+            ? new HashSet<int>()
+            : ActiveIn(Player.WeightClass).Where(RankedContender)
+                  .OrderByDescending(RankScore).Take(15).Select(b => b.Id).ToHashSet();
+        bool Barred(Boxer b) => IsWorldChampion(b) || offLimits.Contains(b.Id);
+        if (Barred(opp))
         {
-            var noBelt = ranked.Where(b => b.Id != Player.Id && !IsWorldChampion(b) && b.Overall <= maxOvr
-                                        && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-            if (noBelt.Count == 0)
-                noBelt = ranked.Where(b => b.Id != Player.Id && !IsWorldChampion(b)).ToList();
-            if (noBelt.Count > 0) opp = noBelt.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
+            var ok = ranked.Where(b => b.Id != Player.Id && !Barred(b) && b.Overall <= maxOvr
+                                    && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
+            if (ok.Count == 0) ok = ranked.Where(b => b.Id != Player.Id && !Barred(b)).ToList();
+            if (ok.Count > 0) opp = ok.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
         }
 
         int rounds = stage == CareerStage.Starter ? 6 : idx <= 5 ? 10 : 8;

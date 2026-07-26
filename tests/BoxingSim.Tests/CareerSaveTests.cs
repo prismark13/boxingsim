@@ -36,6 +36,13 @@ public class CareerSaveTests
         Assert.Equal(game.Champion?.Id, loaded.Champion?.Id);
         Assert.Equal(game.Offer?.Opponent.Id, loaded.Offer?.Opponent.Id);
 
+        // The lineal line and the division a fighter started in are state the sim can't recompute — they only
+        // survive because they're persisted, so a save that drops them silently rewrites championship history.
+        foreach (var wc in game.Divisions)
+            Assert.Equal(game.LinealChampionOf(wc)?.Id, loaded.LinealChampionOf(wc)?.Id);
+        foreach (var b in game.Active)
+            Assert.Equal(b.DebutWeight, loaded.Active.First(x => x.Id == b.Id).DebutWeight);
+
         // The player's fights go through the full engine, so their ledger must carry per-round detail
         // (scorecards + round-by-round stats) across the save round-trip.
         var pre = game.Player.History;
