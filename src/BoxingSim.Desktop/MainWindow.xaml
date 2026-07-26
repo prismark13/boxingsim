@@ -74,38 +74,44 @@
             </Button>
         </DataTemplate>
 
+        <!-- A bout in a ledger. Clicking it opens the round-by-round card for that fight. -->
         <DataTemplate x:Key="LedgerRowTemplate">
-            <Grid Margin="18,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="92" />
-                    <ColumnDefinition Width="26" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}"
-                           VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Text="{Binding Result}" FontWeight="Bold" FontSize="12"
-                           VerticalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Win}" Value="True">
-                                    <Setter Property="Foreground" Value="{StaticResource Win}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Loss}" Value="True">
-                                    <Setter Property="Foreground" Value="{StaticResource Loss}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="{Binding Opponent}" FontSize="13" Foreground="{StaticResource Text}"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource Muted}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </Grid>
+            <Button Style="{StaticResource RowButton}" AutomationProperties.Name="{Binding Opponent}"
+                    ToolTip="See the round-by-round card"
+                    Command="{Binding DataContext.ShowFight, RelativeSource={RelativeSource AncestorType=Window}}"
+                    CommandParameter="{Binding}">
+                <Grid Margin="18,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="92" />
+                        <ColumnDefinition Width="26" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding Result}" FontWeight="Bold" FontSize="12"
+                               VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Win}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Loss}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource Loss}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Binding Opponent}" FontSize="13" Foreground="{StaticResource Text}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource Muted}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </Button>
         </DataTemplate>
     </Window.Resources>
 
@@ -715,6 +721,169 @@
                                     Content="{Binding PlaybackButtonLabel}"
                                     AutomationProperties.Name="{Binding PlaybackButtonLabel}" />
                         </StackPanel>
+                    </Grid>
+                </Border>
+            </Border>
+
+            <!-- ============ FIGHT DETAIL (overlay) ============ -->
+            <Border Grid.ColumnSpan="2" Background="#E0060A10" Panel.ZIndex="10"
+                    Visibility="{Binding HasFight, Converter={StaticResource BoolVis}}">
+                <Border Style="{StaticResource Card}" Width="700" MaxHeight="800" Padding="0"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        DataContext="{Binding SelectedFight}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Margin="24,22,24,14">
+                            <TextBlock Text="{Binding Opponent}" FontSize="21" FontWeight="Light"
+                                       Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Verdict}" FontSize="14" Margin="0,5,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Win}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Loss}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Loss}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                <TextBlock Text="{Binding Date}" FontSize="11.5" Foreground="{StaticResource Faint}" />
+                                <TextBlock Text="  ·  " FontSize="11.5" Foreground="{StaticResource Faint}"
+                                           Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                <TextBlock Text="{Binding Note}" FontSize="11.5" Foreground="{StaticResource Gold}"
+                                           Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
+                                <!-- Totals for the bout -->
+                                <ItemsControl ItemsSource="{Binding Totals}" Margin="16,0,16,6">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                                    BorderThickness="1" CornerRadius="9" Padding="12,10" Margin="4">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Label}" FontSize="9" FontWeight="Bold"
+                                                               Foreground="{StaticResource Faint}" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Value}" FontSize="19" FontWeight="Light"
+                                                               Foreground="{StaticResource Text}" Margin="0,5,0,0" />
+                                                    <TextBlock Text="{Binding Note}" FontSize="10.5"
+                                                               Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                                                               Margin="0,2,0,0"
+                                                               Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="{Binding NoRoundsNote}" FontSize="12.5" Margin="24,14,24,14"
+                                           Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                                           Visibility="{Binding HasRounds, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
+
+                                <StackPanel Visibility="{Binding HasRounds, Converter={StaticResource BoolVis}}">
+                                    <TextBlock Text="ROUND BY ROUND" Style="{StaticResource PanelHeader}" Margin="24,12,24,4" />
+                                    <Grid Margin="24,0,24,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="46" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="96" />
+                                            <ColumnDefinition Width="60" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="RD" Style="{StaticResource TagText}" Foreground="{StaticResource Faint}" />
+                                        <TextBlock Grid.Column="1" Text="SCORE" Style="{StaticResource TagText}" Foreground="{StaticResource Faint}" />
+                                        <TextBlock Grid.Column="2" Text="SHARE OF PUNCHES LANDED" Style="{StaticResource TagText}" Foreground="{StaticResource Faint}" />
+                                        <TextBlock Grid.Column="3" Text="LANDED" Style="{StaticResource TagText}" Foreground="{StaticResource Faint}" />
+                                        <TextBlock Grid.Column="4" Text="KD" Style="{StaticResource TagText}" Foreground="{StaticResource Faint}" />
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Rounds}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="24,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="46" />
+                                                        <ColumnDefinition Width="70" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="96" />
+                                                        <ColumnDefinition Width="60" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Round}" FontSize="11.5"
+                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Score}" FontSize="13.5"
+                                                               FontWeight="SemiBold" VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding WonRound}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <!-- How the round's punches split, at a glance. -->
+                                                    <Grid x:Name="Track" Grid.Column="2" Height="8" VerticalAlignment="Center"
+                                                          Margin="0,0,14,0">
+                                                        <Border Background="{StaticResource Line}" CornerRadius="4" />
+                                                        <Border HorizontalAlignment="Left" CornerRadius="4"
+                                                                Background="{StaticResource Accent}">
+                                                            <Border.Width>
+                                                                <MultiBinding Converter="{StaticResource BarWidth}">
+                                                                    <Binding Path="ShareFor" />
+                                                                    <Binding Path="ActualWidth" ElementName="Track" />
+                                                                </MultiBinding>
+                                                            </Border.Width>
+                                                        </Border>
+                                                    </Grid>
+                                                    <TextBlock Grid.Column="3" Text="{Binding Landed}" FontSize="12"
+                                                               Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding Knockdowns}" FontSize="12"
+                                                               FontWeight="Bold" Foreground="{StaticResource Gold}"
+                                                               VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasCards, Converter={StaticResource BoolVis}}">
+                                    <TextBlock Text="JUDGES" Style="{StaticResource PanelHeader}" Margin="24,14,24,4" />
+                                    <TextBlock Text="{Binding Cards}" FontSize="13" Margin="24,0,24,4"
+                                               Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasCommentary, Converter={StaticResource BoolVis}}">
+                                    <TextBlock Text="HIGHLIGHTS" Style="{StaticResource PanelHeader}" Margin="24,14,24,4" />
+                                    <ItemsControl ItemsSource="{Binding Commentary}" Margin="24,0,24,8">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" FontSize="12.5" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource Muted}" Margin="0,3" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Button Grid.Row="2" Content="Close" Margin="24,12,24,22"
+                                Command="{Binding DataContext.CloseFight, RelativeSource={RelativeSource AncestorType=Window}}" />
                     </Grid>
                 </Border>
             </Border>

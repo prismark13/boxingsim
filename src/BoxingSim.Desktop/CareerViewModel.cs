@@ -43,7 +43,34 @@ public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyLi
 public sealed record NewsRow(string Date, string Text, string Kind, bool PlayerBout);
 public sealed record AwardRow(string Category, int Year, IReadOnlyList<AwardPlace> Places);
 public sealed record AwardPlace(string Position, string Name, string Division, string Detail, bool Winner);
-public sealed record LedgerRow(string Date, string Result, string Opponent, string Detail, bool Win, bool Loss);
+public sealed record LedgerRow(string Date, string Result, string Opponent, string Detail, bool Win, bool Loss,
+                               BoutLine? Bout = null);
+
+/// <summary>One round of a stored bout, from the owning fighter's point of view.</summary>
+public sealed record FightRoundRow(string Round, string Score, string Landed, string Knockdowns,
+                                   bool WonRound, bool Knockdown, double ShareFor);
+
+/// <summary>A single fight opened out: the round-by-round card, the totals, the judges and the highlights.
+/// Everything here was already being stored on the bout — it simply had nowhere to be seen.</summary>
+public sealed class FightDetail
+{
+    public string Opponent { get; init; } = "";
+    public string Date { get; init; } = "";
+    public string Verdict { get; init; } = "";
+    public string Note { get; init; } = "";
+    public string Cards { get; init; } = "";
+    public bool Win { get; init; }
+    public bool Loss { get; init; }
+    public IReadOnlyList<FightRoundRow> Rounds { get; init; } = Array.Empty<FightRoundRow>();
+    public IReadOnlyList<string> Commentary { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<StatRow> Totals { get; init; } = Array.Empty<StatRow>();
+    public bool HasRounds => Rounds.Count > 0;
+    public bool HasCommentary => Commentary.Count > 0;
+    public bool HasCards => !string.IsNullOrWhiteSpace(Cards);
+    /// <summary>Only the full engine records rounds; the fast NPC resolver doesn't, so old or minor bouts
+    /// legitimately have none.</summary>
+    public string NoRoundsNote => "No round-by-round detail was recorded for this bout.";
+}
 public sealed record StatRow(string Label, string Value, string Note);
 
 /// <summary>One attribute in the tale of the tape. The fractions drive the bar widths.</summary>
@@ -89,6 +116,8 @@ public sealed class CareerViewModel : Observable
         AbandonCareer = new Cmd(Abandon);
         RollName = new Cmd(() => PlayerName = NameGen.Generate(Country, _rng));
         ShowFighter = new Cmd(OnShowFighter);
+        ShowFight = new Cmd(OnShowFight);
+        CloseFight = new Cmd(() => { SelectedFight = null; });
         CloseCard = new Cmd(() => { SelectedCard = null; });
         FinishPlayback = new Cmd(EndPlayback);
         GoBack = new Cmd(DoGoBack, () => CanGoBack);
@@ -97,7 +126,8 @@ public sealed class CareerViewModel : Observable
         // Escape backs out of whatever is on top: the fighter card, the playback, then the page you came from.
         Dismiss = new Cmd(() =>
         {
-            if (SelectedCard is not null) SelectedCard = null;
+            if (SelectedFight is not null) SelectedFight = null;
+            else if (SelectedCard is not null) SelectedCard = null;
             else if (IsPlayingBack) EndPlayback();
             else if (CanGoBack) DoGoBack();
         });
@@ -284,6 +314,8 @@ public sealed class CareerViewModel : Observable
     public Cmd RollName { get; }
     public Cmd ShowFighter { get; }
     public Cmd CloseCard { get; }
+    public Cmd ShowFight { get; }
+    public Cmd CloseFight { get; }
     public Cmd FinishPlayback { get; }
     public Cmd GoBack { get; }
     public Cmd Navigate { get; }
@@ -350,7 +382,7 @@ public sealed class CareerViewModel : Observable
 
     private void Decline() { _svc.Decline(); RefreshAll(); }
     private void DoMoveUp() { _svc.MoveUp(); RefreshAll(); }
-    private void Abandon() { EndPlayback(); SelectedCard = null; _svc.Abandon(); RefreshAll(); }
+    private void Abandon() { EndPlayback(); SelectedCard = null; SelectedFight = null; _svc.Abandon(); RefreshAll(); }
 
     public static bool HasSave => DesktopCareerService.HasSave;
     public string? SaveError => _svc.LastSaveError;
@@ -513,8 +545,67 @@ public sealed class CareerViewModel : Observable
     {
         string detail = h.Method + (h.Round > 0 && h.Method is "KO" or "TKO" ? $" rd{h.Round}" : "");
         if (h.Note is not null) detail = $"{h.Note} · {detail}";
+        if (h.Rounds is { Count: > 0 } rs)
+        {
+            int f = rs.Sum(r => r.LandedFor), a = rs.Sum(r => r.LandedAgainst);
+            detail += $"  ·  {rs.Count} rd · {f}/{a} landed";
+            int kd = rs.Sum(r => r.KdFor), kda = rs.Sum(r => r.KdAgainst);
+            if (kd + kda > 0) detail += $" · KD {kd}-{kda}";
+        }
         return new LedgerRow(h.Date.ToString("d MMM yyyy"), h.Result.ToString(), h.Opponent, detail,
-                             h.Result == 'W', h.Result == 'L');
+                             h.Result == 'W', h.Result == 'L', h);
+    }
+
+    // ---- a single fight, opened out ----
+
+    private FightDetail? _selectedFight;
+    public FightDetail? SelectedFight
+    {
+        get => _selectedFight;
+        private set { _selectedFight = value; Raise(); Raise(nameof(HasFight)); }
+    }
+    public bool HasFight => _selectedFight is not null;
+
+    private void OnShowFight(object? param)
+    {
+        if (param is not LedgerRow row || row.Bout is not BoutLine h) return;
+        var rounds = h.Rounds ?? Array.Empty<BoutRound>();
+        int lf = rounds.Sum(r => r.LandedFor), la = rounds.Sum(r => r.LandedAgainst);
+        int kf = rounds.Sum(r => r.KdFor), ka = rounds.Sum(r => r.KdAgainst);
+        int won = rounds.Count(r => r.ScoreFor > r.ScoreAgainst);
+        int lost = rounds.Count(r => r.ScoreAgainst > r.ScoreFor);
+
+        var totals = new List<StatRow>();
+        if (rounds.Count > 0)
+        {
+            totals.Add(new StatRow("Rounds", rounds.Count.ToString(), $"{won} won · {lost} lost"));
+            totals.Add(new StatRow("Punches landed", lf.ToString(), $"{(double)lf / rounds.Count:0.0} a round"));
+            totals.Add(new StatRow("Punches absorbed", la.ToString(), $"{(double)la / rounds.Count:0.0} a round"));
+            totals.Add(new StatRow("Knockdowns", $"{kf}–{ka}", kf > ka ? "scored more" : ka > kf ? "took more" : ""));
+        }
+
+        SelectedFight = new FightDetail
+        {
+            Opponent = h.Opponent,
+            Date = h.Date.ToString("d MMMM yyyy"),
+            Verdict = (h.Result == 'W' ? "Won" : h.Result == 'L' ? "Lost" : "Drew") + $" by {h.Method}"
+                      + (h.Round > 0 && h.Method is "KO" or "TKO" ? $", round {h.Round}" : ""),
+            Note = h.Note ?? "",
+            Cards = h.Cards ?? "",
+            Win = h.Result == 'W',
+            Loss = h.Result == 'L',
+            Commentary = h.Commentary?.ToList() ?? (IReadOnlyList<string>)Array.Empty<string>(),
+            Totals = totals,
+            Rounds = rounds.Select(r => new FightRoundRow(
+                $"R{r.Round}",
+                $"{r.ScoreFor}–{r.ScoreAgainst}",
+                $"{r.LandedFor} / {r.LandedAgainst}",
+                r.KdFor + r.KdAgainst > 0 ? $"{r.KdFor}–{r.KdAgainst}" : "",
+                r.ScoreFor > r.ScoreAgainst,
+                r.KdFor + r.KdAgainst > 0,
+                r.LandedFor + r.LandedAgainst > 0 ? (double)r.LandedFor / (r.LandedFor + r.LandedAgainst) : 0.5))
+                .ToList()
+        };
     }
 
     // ---- the last bout ----
@@ -805,6 +896,35 @@ public sealed class CareerViewModel : Observable
         Stats.Add(new StatRow("Days as champion", Game.DaysAsChampion.ToString("N0"),
                               Game.DaysAsChampion > 365 ? $"{Game.DaysAsChampion / 365} years" : ""));
         Stats.Add(new StatRow("Current rating", $"{p.Overall} OVR", $"class {p.Class}"));
+
+        // Everything below is aggregated from the per-round cards stored on each bout — the same data the
+        // fight detail view shows one fight at a time.
+        var scored = p.History.Where(h => h.Rounds is { Count: > 0 }).ToList();
+        if (scored.Count > 0)
+        {
+            var rounds = scored.SelectMany(h => h.Rounds!).ToList();
+            int lf = rounds.Sum(r => r.LandedFor), la = rounds.Sum(r => r.LandedAgainst);
+            int kf = rounds.Sum(r => r.KdFor), ka = rounds.Sum(r => r.KdAgainst);
+            int roundsWon = rounds.Count(r => r.ScoreFor > r.ScoreAgainst);
+
+            Stats.Add(new StatRow("Rounds boxed", rounds.Count.ToString(),
+                                  $"{roundsWon} won ({100.0 * roundsWon / rounds.Count:0}%)"));
+            Stats.Add(new StatRow("Punches landed", lf.ToString("N0"),
+                                  $"{(double)lf / rounds.Count:0.0} a round"));
+            Stats.Add(new StatRow("Punches absorbed", la.ToString("N0"),
+                                  $"{(double)la / rounds.Count:0.0} a round"));
+            Stats.Add(new StatRow("Punch differential", (lf - la >= 0 ? "+" : "") + (lf - la).ToString("N0"),
+                                  lf >= la ? "outlanding them" : "being outlanded"));
+            Stats.Add(new StatRow("Knockdowns", $"{kf}–{ka}",
+                                  $"{kf} scored, {ka} suffered"));
+        }
+
+        int koWins = p.History.Count(h => h.Result == 'W' && h.Method is "KO" or "TKO");
+        int decWins = p.Record.Wins - koWins;
+        int koLosses = p.History.Count(h => h.Result == 'L' && h.Method is "KO" or "TKO");
+        Stats.Add(new StatRow("Wins by stoppage", $"{koWins}", $"{decWins} on the cards"));
+        Stats.Add(new StatRow("Times stopped", $"{koLosses}",
+                              koLosses == 0 && p.Record.Losses > 0 ? "never stopped" : ""));
         Stats.Add(new StatRow("Peak potential", $"{p.Potential}", ""));
         if (bestWin is not null)
             Stats.Add(new StatRow("Latest title win", bestWin.Opponent, $"{bestWin.Note} · {bestWin.Date:d MMM yyyy}"));
