@@ -1,4 +1,4 @@
-namespace BoxingSim.App;
+namespace BoxingSim.Core.Generation;
 
 /// <summary>Generates a plausible fighter name for a given country.</summary>
 public static class NameGen
