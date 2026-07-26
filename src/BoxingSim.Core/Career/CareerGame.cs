@@ -179,27 +179,44 @@ public sealed class CareerGame
                .OrderByDescending(P4PScore)
                .Take(take).ToList();
 
-    /// <summary>P4P standing. Ability is the spine of the board — a class-6 titlist does not belong above a
-    /// class-11 fighter, which a flat "is champion" bonus produced. On top of ability sits ACHIEVEMENT, scaled to
-    /// what a man has actually won: how many belts he holds, how often he's defended, and whether he's the lineal
-    /// champion. Losses cost him through the win rate, so they aren't charged twice.</summary>
+    /// <summary>P4P standing is an ACHIEVEMENT board, not a ratings list: what a man has actually won, not how
+    /// good he might become. A long reign is the strongest credential there is, then belts held, the lineal title,
+    /// titles in more than one division, and world title bouts won. Ability enters only as a tiebreaker between
+    /// men with comparable résumés — so a high-rated prospect with a regional strap can't sit above a champion.</summary>
     private double P4PScore(Boxer b)
     {
-        int fights = b.Record.Wins + b.Record.Losses + b.Record.Draws;
-        double winRate = fights > 0 ? (b.Record.Wins + 0.5 * b.Record.Draws) / fights : 0;
-        double score = b.Overall * (0.75 + 0.35 * winRate);
+        double score = 0;
 
+        // What he holds right now. A regional strap is not a P4P credential.
         int belts = 0, bestDef = 0;
+        bool lineal = false;
         foreach (var (belt, def) in BeltsHeld(b))
         {
-            if (belt is "Ring" or "Lineal") { score += 4; continue; }   // the man who beat the man
-            if (RegionalBelts.Contains(belt)) continue;                 // a regional strap is not a P4P credential
+            if (belt is "Ring" or "Lineal") { lineal = true; continue; }
+            if (RegionalBelts.Contains(belt)) continue;
             belts++;
             bestDef = Math.Max(bestDef, def);
         }
-        if (belts > 0) score += 5 + belts * 3 + Math.Min(bestDef, 10) * 0.8;
-        return score;
+        if (belts > 0) score += 30 + belts * 10;          // a reigning world champion, more for holding several
+        if (lineal) score += 15;                          // the man who beat the man
+        score += Math.Min(bestDef, 15) * 4;               // the length of the reign matters most of all
+
+        // Achievement that outlasts the current belt: title bouts won, and belts won in more than one division.
+        score += WorldTitleWins(b) * 3;
+        int divs = _titleDivisions.TryGetValue(b.Id, out var td) ? td.Count : 0;
+        score += Math.Max(0, divs - 1) * 18;              // a two- or three-weight champion
+
+        // Form: staying unbeaten is itself an achievement; defeats undo one.
+        int fights = b.Record.Wins + b.Record.Losses + b.Record.Draws;
+        double winRate = fights > 0 ? (b.Record.Wins + 0.5 * b.Record.Draws) / fights : 0;
+        score += winRate * 20 - b.Record.Losses;
+
+        return score + b.Overall * 0.15;                  // ability breaks ties, nothing more
     }
+
+    /// <summary>World title bouts a fighter has WON, from his ledger — the hard record of what he's achieved.</summary>
+    private static int WorldTitleWins(Boxer b) =>
+        b.History.Count(h => h.Result == 'W' && IsWorldTitleNote(h.Note));
 
     /// <summary>The brightest prospects in a division — promising young fighters not yet world-ranked.</summary>
     public IReadOnlyList<Boxer> ProspectsOf(WeightClass wc, int take = 12) =>
