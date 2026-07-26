@@ -752,7 +752,12 @@ else
         IEnumerable<CareerEvent> src = g.Log;
         if (_newsFilter == "") src = src.Where(e => e.Div == g.Division || e.PlayerBout || e.Kind is "award" or "hof");
         else if (_newsFilter != "all") src = src.Where(e => e.Div?.ToString() == _newsFilter);
-        return src.Reverse().Take(40);
+        // Sort by DATE, newest first — not by insertion order. The world resolves a whole division at a time, so
+        // the order events are logged in is not the order they happened in, and a plain Reverse() left the feed
+        // jumping between January and November. Same-day events keep the order they were logged.
+        return src.Select((e, i) => (e, i))
+                  .OrderByDescending(x => x.e.On).ThenByDescending(x => x.i)
+                  .Take(40).Select(x => x.e);
     }
     private string _country = "USA";
     private string _name = NameGen.Generate("USA", Random.Shared);

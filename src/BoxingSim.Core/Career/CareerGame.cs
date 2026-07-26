@@ -688,10 +688,9 @@ public sealed class CareerGame
             {
                 _champions[wc] = null;
                 var winner = ContestVacantTitle(wc, PrimaryBelt, WbcOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
-                if (winner is not null)
+                if (winner is not null)   // announced by ContestVacantTitle, dated to fight night
                 {
-                    _champions[wc] = winner; winner.IsChampion = true; _everChampion.Add(winner.Id);
-                    LogEvent($"{winner.Name} wins the vacant {PrimaryBelt} title.", winner.Id == Player.Id, kind: "title", div: wc);
+                    _champions[wc] = winner; winner.IsChampion = true;
                 }
             }
         }
@@ -720,10 +719,15 @@ public sealed class CareerGame
 
         var (savedDate, savedCursor) = (Date, _cursor);
         _cursor = wc;
-        Date = SpreadDate(Date.Year);
+        Date = SpreadDateFrom(Date);
         var res = FastBout(field[0], field[1], 12);
         ApplyOutcome(res, field[0], field[1], $"{belt} title");
         var winner = res.IsDraw ? field[0] : res.Winner!;   // a draw leaves the belt with the higher-ranked man
+        // Announce it HERE, while the clock still reads fight night. Reporting it after the restore below stamped
+        // the headline with the caller's date — so "wins the vacant title" could appear months before the bout
+        // that decided it, which is the same broken ordering read as a bug in the news feed.
+        _everChampion.Add(winner.Id);
+        LogEvent($"{winner.Name} wins the vacant {belt} title.", winner.Id == Player.Id, kind: "title", div: wc);
         (Date, _cursor) = (savedDate, savedCursor);          // don't disturb the caller's clock/cursor
         return winner;
     }
@@ -1344,6 +1348,16 @@ public sealed class CareerGame
     /// <summary>A random calendar date within a year — spreads warmup bouts off 1 January.</summary>
     private DateOnly SpreadDate(int yr) => new(yr, 1 + _rng.Next(12), 1 + _rng.Next(28));
 
+    /// <summary>A date somewhere later in the same year, never earlier than <paramref name="from"/>. A bout the
+    /// world resolves mid-season must not be stamped with a day that has already gone by: doing so put a
+    /// "relinquishes his title" line months BEFORE the fight that caused it, and left the news feed telling a
+    /// story out of order.</summary>
+    private DateOnly SpreadDateFrom(DateOnly from)
+    {
+        int last = new DateOnly(from.Year, 12, 28).DayNumber;
+        return from.DayNumber >= last ? from : DateOnly.FromDayNumber(from.DayNumber + _rng.Next(last - from.DayNumber + 1));
+    }
+
     /// <summary>Date bout <paramref name="index"/> of <paramref name="count"/> within its own slice of the year,
     /// so a fighter's bouts in a season land a couple of months apart instead of clustering days apart.</summary>
     private DateOnly SpreadDate(int yr, int index, int count)
@@ -1870,14 +1884,14 @@ public sealed class CareerGame
         if (WbcActive && WbcOf(wc) is null)
         {
             var winner = ContestVacantTitle(wc, "WBC", ChampOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
-            if (winner is not null) { _wbc[wc] = winner; _everChampion.Add(winner.Id); LogEvent($"{winner.Name} wins the vacant WBC title.", winner.Id == Player.Id, kind: "title", div: wc); }
+            if (winner is not null) _wbc[wc] = winner;   // announced by ContestVacantTitle, dated to fight night
         }
         // The IBF is established in 1983; fill it from the leading contender who isn't already a world champ.
         if (IbfOf(wc) is Boxer iw && iw.Retired) _ibf[wc] = null;
         if (IbfActive && IbfOf(wc) is null)
         {
             var winner = ContestVacantTitle(wc, "IBF", ChampOf(wc)?.Id ?? 0, WbcOf(wc)?.Id ?? 0);
-            if (winner is not null) { _ibf[wc] = winner; _everChampion.Add(winner.Id); LogEvent($"{winner.Name} wins the vacant IBF title.", winner.Id == Player.Id, kind: "title", div: wc); }
+            if (winner is not null) _ibf[wc] = winner;   // announced by ContestVacantTitle, dated to fight night
         }
 
         // A line that has ended (its holder retired or moved) is cleared, and a man who now holds every belt
@@ -1896,7 +1910,13 @@ public sealed class CareerGame
                 var pick = ActiveIn(wc).Where(b => b.Id != Player.Id && RegionOf(b) == region
                                           && b.Id != champ?.Id && b.Id != wbc?.Id && b.Id != ibf?.Id && WorldRanked(b))
                                  .OrderByDescending(RankScore).FirstOrDefault();
-                if (pick is not null) _regional[(wc, region)] = pick;
+                if (pick is not null)
+                {
+                    _regional[(wc, region)] = pick;
+                    // Say so. A vacant regional belt used to change hands in silence, so the next holder's
+                    // "relinquishes the title" line arrived with no explanation of how he came to have it.
+                    LogEvent($"{pick.Name} takes the vacant {region} title.", kind: "title", div: wc);
+                }
             }
         }
     }
