@@ -64,6 +64,10 @@ public sealed class FighterCard
     public IReadOnlyList<CardStat> Ratings { get; init; } = Array.Empty<CardStat>();
     public IReadOnlyList<LedgerRow> Recent { get; init; } = Array.Empty<LedgerRow>();
     public bool HasRatings => Ratings.Count > 0;
+    /// <summary>The division to jump to from the card, so you can follow a fighter to his rankings.</summary>
+    public WeightClass? Division { get; init; }
+    public string DivisionLink => Division is WeightClass w ? $"See the {w.DisplayName()} rankings" : "";
+    public bool HasDivisionLink => Division is not null;
 }
 
 /// <summary>Everything the window binds to. Owns the career service and rebuilds its display collections after
@@ -87,6 +91,16 @@ public sealed class CareerViewModel : Observable
         ShowFighter = new Cmd(OnShowFighter);
         CloseCard = new Cmd(() => { SelectedCard = null; });
         FinishPlayback = new Cmd(EndPlayback);
+        GoBack = new Cmd(DoGoBack, () => CanGoBack);
+        Navigate = new Cmd(DoNavigate);
+        ViewDivisionCmd = new Cmd(DoViewDivision);
+        // Escape backs out of whatever is on top: the fighter card, the playback, then the page you came from.
+        Dismiss = new Cmd(() =>
+        {
+            if (SelectedCard is not null) SelectedCard = null;
+            else if (IsPlayingBack) EndPlayback();
+            else if (CanGoBack) DoGoBack();
+        });
 
         _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(420) };
         _playbackTimer.Tick += (_, _) => RevealNextRound();
@@ -132,9 +146,102 @@ public sealed class CareerViewModel : Observable
     public NavItem? SelectedNav
     {
         get => _selectedNav ??= Nav[0];
-        set { _selectedNav = value; Raise(); Raise(nameof(CurrentPage)); }
+        set
+        {
+            if (_selectedNav is NavItem prev && value is not null && prev.Page != value.Page)
+                PushHistory(prev.Page);
+            _selectedNav = value;
+            Raise();
+            Raise(nameof(CurrentPage));
+        }
     }
     public Page CurrentPage => SelectedNav?.Page ?? Page.Career;
+
+    // ---- going back ----
+    // A shell you can only move through by aiming at the sidebar is tiring. Every jump is remembered, so Back
+    // (Alt+Left, or the mouse's back button) returns you where you were — including the division you were
+    // looking at, which is the thing you lose most often when following a fighter across the boards.
+    private readonly Stack<(Page Page, WeightClass Division)> _back = new();
+    private bool _restoring;
+
+    private void PushHistory(Page from)
+    {
+        if (_restoring) return;
+        _back.Push((from, ViewDivision));
+        if (_back.Count > 40) { var keep = _back.Take(40).Reverse().ToList(); _back.Clear(); foreach (var h in keep) _back.Push(h); }
+        Raise(nameof(CanGoBack));
+        GoBack.Refresh();
+    }
+
+    public bool CanGoBack => _back.Count > 0;
+
+    private void DoGoBack()
+    {
+        if (_back.Count == 0) return;
+        var (page, division) = _back.Pop();
+        _restoring = true;
+        try
+        {
+            _viewDivision = division;
+            Raise(nameof(ViewDivision));
+            SelectedNav = Nav.First(n => n.Page == page);
+            BuildRankings();
+            Raise(nameof(RankingsSubtitle));
+        }
+        finally { _restoring = false; }
+        Raise(nameof(CanGoBack));
+        GoBack.Refresh();
+    }
+
+    /// <summary>Jump straight to a page, remembering where we came from.</summary>
+    private void DoNavigate(object? param)
+    {
+        var page = param switch
+        {
+            Page p => p,
+            string s when Enum.TryParse<Page>(s, out var p) => p,
+            _ => Page.Career
+        };
+        SelectedNav = Nav.First(n => n.Page == page);
+    }
+
+    /// <summary>Show a given division's rankings — the cross-link from the champions board and a fighter's card,
+    /// so following someone to his division doesn't mean hunting through the sidebar.</summary>
+    private void DoViewDivision(object? param)
+    {
+        var wc = param switch
+        {
+            WeightClass w => w,
+            DivisionRow d when Game is not null =>
+                Game.LiveDivisions.FirstOrDefault(x => x.DisplayName() == d.Division, Game.Player.WeightClass),
+            _ => (WeightClass?)null
+        } ?? ViewDivision;
+        ViewDivision = wc;
+        SelectedCard = null;
+        SelectedNav = Nav.First(n => n.Page == Page.Rankings);
+    }
+
+    private WeightClass _viewDivision;
+    /// <summary>Which division the rankings page is showing. Defaults to the player's, but any can be inspected.</summary>
+    public WeightClass ViewDivision
+    {
+        get => _viewDivision;
+        set
+        {
+            if (_viewDivision == value) return;
+            _viewDivision = value;
+            Raise();
+            Raise(nameof(RankingsSubtitle));
+            BuildRankings();
+        }
+    }
+
+    public IReadOnlyList<WeightClass> RankingDivisions => Game?.LiveDivisions ?? Array.Empty<WeightClass>();
+
+    public string RankingsSubtitle =>
+        Game is not null && ViewDivision == Game.Player.WeightClass
+            ? $"{ViewDivision.DisplayName()} · your division"
+            : ViewDivision.DisplayName();
 
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
@@ -178,6 +285,10 @@ public sealed class CareerViewModel : Observable
     public Cmd ShowFighter { get; }
     public Cmd CloseCard { get; }
     public Cmd FinishPlayback { get; }
+    public Cmd GoBack { get; }
+    public Cmd Navigate { get; }
+    public Cmd ViewDivisionCmd { get; }
+    public Cmd Dismiss { get; }
 
     // ---- collections ----
     public ObservableCollection<RankRow> Rankings { get; } = new();
@@ -217,6 +328,7 @@ public sealed class CareerViewModel : Observable
                            .OrderByDescending(d => (int)d)
                            .DefaultIfEmpty(WeightClass.Heavyweight).First();
             _svc.Start(name, Country, SetupYear, potential, div, FullHistory);
+            _viewDivision = div;
         }
         finally { Busy = false; }
         SelectedNav = Nav[0];
@@ -225,7 +337,7 @@ public sealed class CareerViewModel : Observable
 
     private void Continue()
     {
-        if (_svc.Load()) { SelectedNav = Nav[0]; RefreshAll(); }
+        if (_svc.Load()) { _viewDivision = _svc.Game!.Player.WeightClass; SelectedNav = Nav[0]; RefreshAll(); }
         else { ContinueCareer.Refresh(); Raise(nameof(HasSave)); }
     }
 
@@ -362,7 +474,8 @@ public sealed class CareerViewModel : Observable
             }),
             Belts = string.Join("  ·  ", belts),
             Ratings = AttributeBars(b.Ratings),
-            Recent = b.History.OrderByDescending(h => h.Date).Take(12).Select(ToLedger).ToList()
+            Recent = b.History.OrderByDescending(h => h.Date).Take(12).Select(ToLedger).ToList(),
+            Division = b.WeightClass
         };
     }
 
@@ -378,7 +491,8 @@ public sealed class CareerViewModel : Observable
         }),
         Belts = (m.WeightTitles >= 2 ? $"{m.WeightTitles}-weight champion" : m.WasChampion ? "World champion" : "")
                 + (m.Defenses > 0 ? $"  ·  {m.Defenses} defences" : ""),
-        Recent = m.History.OrderByDescending(h => h.Date).Take(12).Select(ToLedger).ToList()
+        Recent = m.History.OrderByDescending(h => h.Date).Take(12).Select(ToLedger).ToList(),
+        Division = m.Division
     };
 
     private static IReadOnlyList<CardStat> AttributeBars(Ratings r) => new[]
@@ -511,7 +625,8 @@ public sealed class CareerViewModel : Observable
             nameof(OfferRounds), nameof(OfferContext), nameof(OfferIsTitle),
             nameof(MoveUpLabel), nameof(HasResult), nameof(ResultHeadline), nameof(LastBoutWon),
             nameof(LastBoutLost), nameof(PlayerRetired), nameof(HasSave), nameof(SaveError),
-            nameof(ShowResultBanner), nameof(HasLedger)
+            nameof(ShowResultBanner), nameof(HasLedger), nameof(RankingDivisions),
+            nameof(ViewDivision), nameof(RankingsSubtitle), nameof(CanGoBack)
         }) Raise(n);
         RefreshCommands();
     }
@@ -527,7 +642,7 @@ public sealed class CareerViewModel : Observable
         Rankings.Clear();
         if (Game is null) return;
         int r = 1;
-        foreach (var b in Game.RankingOf(Game.Player.WeightClass, 15))
+        foreach (var b in Game.RankingOf(ViewDivision, 15))
         {
             var belts = Game.BeltsHeld(b).Select(x => x.Belt).ToList();
             Rankings.Add(new RankRow(Game.IsWorldChampion(b) ? "C" : r.ToString(), b.Class, b.Name,

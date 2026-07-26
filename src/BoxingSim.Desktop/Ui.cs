@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
+using BoxingSim.Core.Model;
 
 namespace BoxingSim.Desktop;
 
@@ -58,6 +59,14 @@ public sealed class BoolToVisibilityConverter : IValueConverter
         if (p as string == "invert") v = !v;
         return v ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
     }
+    public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
+/// <summary>A weight class's display name ("Light Heavyweight"), not the raw enum name ("LightHeavyweight").</summary>
+public sealed class WeightClassNameConverter : IValueConverter
+{
+    public object Convert(object? value, Type t, object? p, CultureInfo c) =>
+        value is WeightClass w ? w.DisplayName() : value?.ToString() ?? "";
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
 }
 
