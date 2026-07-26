@@ -12,7 +12,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = _vm;
-        // Pick up an existing save on launch so the app opens where the player left off.
+        Loaded += OnLoaded;
+    }
+
+    /// <summary>Show the window first, then load. Parsing the roster before the window appeared made a cold
+    /// start look like a hang; this way the setup card is on screen while the fighters are read in the
+    /// background, and an existing save is picked up as soon as it can be.</summary>
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        await _vm.WarmupAsync();
         if (DesktopCareerService.HasSave) _vm.ContinueCareer.Execute(null);
     }
 

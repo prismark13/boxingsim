@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:BoxingSim.Desktop">
 
     <!-- The web build's palette, so the desktop app is recognisably the same product. -->
     <Color x:Key="BgColor">#080A0D</Color>
@@ -247,6 +248,89 @@
                             <Setter TargetName="b" Property="Background" Value="{StaticResource Panel2}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Sidebar navigation. A ListBox gives selection state for free; this just makes it look like nav. -->
+    <Style x:Key="NavItemStyle" TargetType="ListBoxItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+        <!-- Without this the item's accessible name is the record's ToString(), which is unusable to a screen
+             reader (and to UI automation). -->
+        <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Grid Margin="0,1">
+                        <Border x:Name="b" Background="Transparent" CornerRadius="9" Padding="14,10" />
+                        <Border x:Name="bar" Width="3" Height="18" CornerRadius="2" HorizontalAlignment="Left"
+                                Background="Transparent" Margin="1,0,0,0" />
+                        <TextBlock x:Name="t" Text="{Binding Label}" FontSize="13" Margin="14,10"
+                                   Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="#141A23" />
+                            <Setter TargetName="t" Property="Foreground" Value="{StaticResource Text}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource AccentSoft}" />
+                            <Setter TargetName="bar" Property="Background" Value="{StaticResource Accent}" />
+                            <Setter TargetName="t" Property="Foreground" Value="{StaticResource Text}" />
+                            <Setter TargetName="t" Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A whole list row that behaves as a button, so clicking anywhere on a fighter opens his card. -->
+    <Style x:Key="RowButton" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="b" Background="Transparent" BorderBrush="{StaticResource Line}"
+                            BorderThickness="0,0,0,1">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource Panel2}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Every content page: heading, context line, scrolling body in a card. -->
+    <Style TargetType="{x:Type local:PageHost}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:PageHost}">
+                    <Grid Margin="28,26,28,28">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Margin="2,0,0,16">
+                            <TextBlock Text="{TemplateBinding Title}" FontSize="19" FontWeight="Light"
+                                       Foreground="{StaticResource Text}" />
+                            <TextBlock Text="{TemplateBinding Subtitle}" FontSize="12" Foreground="{StaticResource Muted}"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Border Grid.Row="1" Style="{StaticResource Card}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                          Padding="0,4,0,8">
+                                <ContentPresenter />
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

@@ -15,8 +15,10 @@
     <ProjectReference Include="..\BoxingSim.Core\BoxingSim.Core.csproj" />
   </ItemGroup>
 
-  <!-- The roster ships beside the .exe: a desktop build reads it from disk rather than over HTTP. -->
+  <!-- The roster is BOTH embedded and copied beside the .exe. Embedding keeps a single-file publish genuinely
+       standalone; the loose copy lets the data be swapped without a rebuild, and wins when present. -->
   <ItemGroup>
+    <EmbeddedResource Include="..\BoxingSim.App\wwwroot\data\fighters.json" LogicalName="fighters.json" />
     <None Include="..\BoxingSim.App\wwwroot\data\fighters.json" Link="data\fighters.json"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

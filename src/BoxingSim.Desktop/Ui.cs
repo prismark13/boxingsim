@@ -61,6 +61,29 @@ public sealed class BoolToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
 }
 
+/// <summary>Shows an element only when the bound enum equals the ConverterParameter — how the shell swaps pages
+/// and how the sidebar highlights the current one.</summary>
+public sealed class EnumToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type t, object? p, CultureInfo c) =>
+        string.Equals(value?.ToString(), p as string, StringComparison.Ordinal)
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
+    public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
+/// <summary>A 0–1 fraction and the available width → an actual pixel width, for the tale-of-the-tape bars.</summary>
+public sealed class FractionWidthConverter : IMultiValueConverter
+{
+    public object Convert(object?[] values, Type t, object? p, CultureInfo c)
+    {
+        if (values.Length < 2 || values[0] is not double fraction || values[1] is not double available) return 0d;
+        if (double.IsNaN(available) || double.IsInfinity(available) || available <= 0) return 0d;
+        return Math.Max(0, Math.Min(1, fraction)) * available;
+    }
+    public object[] ConvertBack(object? value, Type[] t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
 /// <summary>Empty or null string → Collapsed. Keeps optional detail lines from leaving a gap.</summary>
 public sealed class EmptyToVisibilityConverter : IValueConverter
 {

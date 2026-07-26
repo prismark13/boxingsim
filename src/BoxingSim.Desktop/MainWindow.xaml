@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:BoxingSim.Desktop"
-        Title="BoxingSim" Height="900" Width="1450" MinHeight="640" MinWidth="1080"
+        Title="BoxingSim" Height="920" Width="1500" MinHeight="660" MinWidth="1120"
         Background="{StaticResource Bg}" TextOptions.TextFormattingMode="Ideal"
         FontFamily="Segoe UI" UseLayoutRounding="True">
 
@@ -10,8 +10,9 @@
         <local:ClassColourConverter x:Key="ClassColour" />
         <local:BoolToVisibilityConverter x:Key="BoolVis" />
         <local:EmptyToVisibilityConverter x:Key="EmptyVis" />
+        <local:EnumToVisibilityConverter x:Key="PageVis" />
+        <local:FractionWidthConverter x:Key="BarWidth" />
 
-        <!-- A rating pill: the 1-15 class, coloured by tier. -->
         <DataTemplate x:Key="ClassPill">
             <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}" BorderThickness="1"
                     CornerRadius="8" Width="44" Height="32">
@@ -21,43 +22,78 @@
             </Border>
         </DataTemplate>
 
-        <!-- One fighter in a ranking list. -->
+        <!-- A fighter row. Clicking anywhere on it opens his card. -->
         <DataTemplate x:Key="RankRowTemplate">
-            <Grid Margin="16,10">
+            <Button Style="{StaticResource RowButton}" AutomationProperties.Name="{Binding Name}"
+                    Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}"
+                    CommandParameter="{Binding}">
+                <Grid Margin="18,11">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="30" />
+                        <ColumnDefinition Width="54" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding Rank}" Foreground="{StaticResource Faint}" FontWeight="SemiBold"
+                               FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                    <ContentPresenter Grid.Column="1" Content="{Binding}" ContentTemplate="{StaticResource ClassPill}"
+                                      HorizontalAlignment="Left" />
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text}" FontWeight="SemiBold"
+                                   FontSize="14.5" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Detail}" Foreground="{StaticResource Muted}" FontSize="11.5"
+                                   Margin="0,3,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding Detail, Converter={StaticResource EmptyVis}}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="3" Text="{Binding Record}" Foreground="{StaticResource Muted}"
+                               FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </Grid>
+            </Button>
+        </DataTemplate>
+
+        <DataTemplate x:Key="LedgerRowTemplate">
+            <Grid Margin="18,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="30" />
-                    <ColumnDefinition Width="52" />
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="26" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Rank}" Foreground="{StaticResource Faint}" FontWeight="SemiBold"
-                           FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                <ContentPresenter Grid.Column="1" Content="{Binding}" ContentTemplate="{StaticResource ClassPill}"
-                                  HorizontalAlignment="Left" />
-                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text}" FontWeight="SemiBold"
-                               FontSize="14" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Detail}" Foreground="{StaticResource Muted}" FontSize="11.5"
-                               Margin="0,3,0,0" TextWrapping="Wrap"
-                               Visibility="{Binding Detail, Converter={StaticResource EmptyVis}}" />
+                <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}"
+                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Result}" FontWeight="Bold" FontSize="12"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Win}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Loss}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource Loss}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="{Binding Opponent}" FontSize="13" Foreground="{StaticResource Text}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource Muted}"
+                               TextWrapping="Wrap" />
                 </StackPanel>
-                <TextBlock Grid.Column="3" Text="{Binding Record}" Foreground="{StaticResource Muted}"
-                           FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0" />
             </Grid>
         </DataTemplate>
     </Window.Resources>
 
     <Grid>
         <!-- ============================ SETUP ============================ -->
-        <!-- HorizontalScrollBarVisibility must be Disabled or the ScrollViewer measures its content with infinite
-             width, and HorizontalAlignment="Center" then centres against the extent instead of the viewport. -->
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       Visibility="{Binding InCareer, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
-            <Border Style="{StaticResource Card}" Width="560" Padding="34" Margin="0,48,0,48"
+            <Border Style="{StaticResource Card}" Width="560" Padding="34" Margin="0,48"
                     VerticalAlignment="Top" HorizontalAlignment="Center">
                 <StackPanel>
-                    <TextBlock Text="BOXINGSIM" FontSize="26" FontWeight="Light" Foreground="{StaticResource Text}"
-                               />
+                    <TextBlock Text="BOXINGSIM" FontSize="26" FontWeight="Light" Foreground="{StaticResource Text}" />
                     <TextBlock Text="Take a fighter from his debut to the Hall of Fame" FontSize="13"
                                Foreground="{StaticResource Muted}" Margin="0,8,0,26" />
 
@@ -101,6 +137,9 @@
                             Style="{StaticResource PrimaryButton}" Margin="0,26,0,0" />
                     <Button Content="Continue saved career" Command="{Binding ContinueCareer}" Margin="0,10,0,0" />
 
+                    <TextBlock Text="Reading the fighter roster…" FontSize="12"
+                               Foreground="{StaticResource Accent}" Margin="0,14,0,0" HorizontalAlignment="Center"
+                               Visibility="{Binding Loading, Converter={StaticResource BoolVis}}" />
                     <TextBlock Text="Simulating the world — this can take a moment." FontSize="12"
                                Foreground="{StaticResource Accent}" Margin="0,14,0,0" HorizontalAlignment="Center"
                                Visibility="{Binding Busy, Converter={StaticResource BoolVis}}" />
@@ -110,172 +149,485 @@
             </Border>
         </ScrollViewer>
 
-        <!-- ============================ CAREER ============================ -->
-        <Grid Visibility="{Binding InCareer, Converter={StaticResource BoolVis}}" Margin="18">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <!-- ============================ APP SHELL ============================ -->
+        <Grid Visibility="{Binding InCareer, Converter={StaticResource BoolVis}}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.15*" MinWidth="420" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="*" MinWidth="420" />
+                <ColumnDefinition Width="252" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Header -->
-            <Border Grid.ColumnSpan="3" Style="{StaticResource Card}" Padding="20,16" Margin="0,0,0,16">
+            <!-- ============ SIDEBAR ============ -->
+            <Border Background="#0B0F15" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
-                            BorderThickness="1" CornerRadius="12" Width="70" Height="54" Margin="0,0,16,0">
-                        <TextBlock Text="{Binding PlayerClass}" FontSize="26" FontWeight="Light"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   Foreground="{Binding PlayerClass, Converter={StaticResource ClassColour}}" />
-                    </Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding PlayerHeadline}" FontSize="21" FontWeight="Light"
-                                   Foreground="{StaticResource Text}" />
-                        <TextBlock Text="{Binding PlayerMeta}" FontSize="12.5" Foreground="{StaticResource Muted}"
-                                   Margin="0,4,0,0" TextWrapping="Wrap" />
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Who you are -->
+                    <StackPanel Margin="22,26,22,20">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                    BorderThickness="1" CornerRadius="10" Width="52" Height="42">
+                                <TextBlock Text="{Binding PlayerClass}" FontSize="21" FontWeight="Light"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{Binding PlayerClass, Converter={StaticResource ClassColour}}" />
+                            </Border>
+                            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding PlayerRecord}" FontSize="15" Foreground="{StaticResource Text}" />
+                                <TextBlock Text="{Binding PlayerStanding}" FontSize="10.5" FontWeight="SemiBold"
+                                           Margin="0,2,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PlayerIsChampion}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Text="{Binding PlayerHeadline}" FontSize="20" FontWeight="Light"
+                                   Foreground="{StaticResource Text}" Margin="0,14,0,0" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding PlayerIdentity}" FontSize="11.5" Foreground="{StaticResource Faint}"
+                                   Margin="0,3,0,0" TextWrapping="Wrap" />
                     </StackPanel>
-                    <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
-                        <TextBlock Text="{Binding DateLabel}" FontSize="13" Foreground="{StaticResource Text}"
-                                   HorizontalAlignment="Right" />
-                        <Button Content="Abandon career" Command="{Binding AbandonCareer}" Margin="0,8,0,0"
-                                Padding="12,6" FontSize="11" />
+
+                    <!-- Where you're going -->
+                    <ListBox Grid.Row="1" ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}"
+                             ItemContainerStyle="{StaticResource NavItemStyle}" Margin="12,0" />
+
+                    <StackPanel Grid.Row="2" Margin="22,0,22,20">
+                        <Border Height="1" Background="{StaticResource Line}" Margin="0,0,0,14" />
+                        <TextBlock Text="{Binding DateLabel}" FontSize="12.5" Foreground="{StaticResource Text}" />
+                        <Button Content="Abandon career" Command="{Binding AbandonCareer}" Margin="0,12,0,0"
+                                Padding="10,7" FontSize="11" HorizontalAlignment="Stretch" />
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- LEFT: fight night, result, ledger, news -->
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <!-- Result banner -->
-                    <Border Style="{StaticResource Card}" Padding="18,14" Margin="0,0,0,14"
-                            Visibility="{Binding HasResult, Converter={StaticResource BoolVis}}">
-                        <TextBlock Text="{Binding ResultHeadline}" FontSize="15" TextWrapping="Wrap"
-                                   Foreground="{StaticResource Text}" />
-                    </Border>
+            <!-- ============ CONTENT ============ -->
+            <Grid Grid.Column="1">
 
-                    <!-- The offer -->
-                    <Border Style="{StaticResource Card}" Padding="20" Margin="0,0,0,14"
-                            Visibility="{Binding HasOffer, Converter={StaticResource BoolVis}}">
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource Label}">
-                                <Run Text="FIGHT NIGHT · " /><Run Text="{Binding OfferDateLabel, Mode=OneWay}" />
-                                <Run Text=" · " /><Run Text="{Binding OfferContext, Mode=OneWay}" />
+                <!-- ============ FIGHT NIGHT ============ -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Career}">
+                    <StackPanel Margin="28,26,28,28" MaxWidth="1000" HorizontalAlignment="Stretch">
+
+                        <!-- Hidden while the playback overlay is up: showing the verdict behind it gives the
+                             result away before the rounds have been watched. -->
+                        <Border Style="{StaticResource Card}" Padding="20,15" Margin="0,0,0,16"
+                                Visibility="{Binding ShowResultBanner, Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="{Binding ResultHeadline}" FontSize="15.5" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding LastBoutWon}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding LastBoutLost}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Loss}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
                             </TextBlock>
-                            <Grid Margin="0,14,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
-                                        BorderThickness="1" CornerRadius="8" Width="48" Height="36" Margin="0,0,14,0">
-                                    <TextBlock Text="{Binding OfferOpponentClass}" FontWeight="Bold" FontSize="16"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               Foreground="{Binding OfferOpponentClass, Converter={StaticResource ClassColour}}" />
+                        </Border>
+
+                        <!-- The fight, as a poster -->
+                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,16"
+                                Visibility="{Binding HasOffer, Converter={StaticResource BoolVis}}">
+                            <StackPanel>
+                                <Border Background="#0F141C" CornerRadius="14,14,0,0" Padding="24,16">
+                                    <TextBlock Style="{StaticResource Label}">
+                                        <Run Text="FIGHT NIGHT · " /><Run Text="{Binding OfferDateLabel, Mode=OneWay}" />
+                                        <Run Text=" · " /><Run Text="{Binding OfferContext, Mode=OneWay}" />
+                                    </TextBlock>
                                 </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding OfferOpponent}" FontSize="18"
-                                               Foreground="{StaticResource Text}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding OfferDetail}" FontSize="12"
-                                               Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+
+                                <Grid Margin="24,22,24,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding PlayerHeadline}" FontSize="21" FontWeight="Light"
+                                                   Foreground="{StaticResource Text}" HorizontalAlignment="Center"
+                                                   TextWrapping="Wrap" TextAlignment="Center" />
+                                        <TextBlock Text="{Binding PlayerRecord}" FontSize="13"
+                                                   Foreground="{StaticResource Muted}" HorizontalAlignment="Center"
+                                                   Margin="0,5,0,0" />
+                                        <TextBlock Text="{Binding PlayerIdentity}" FontSize="11"
+                                                   Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="vs" FontSize="15" Foreground="{StaticResource Faint}"
+                                               VerticalAlignment="Center" Margin="24,0" />
+                                    <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding OfferOpponent}" FontSize="21" FontWeight="Light"
+                                                   Foreground="{StaticResource Text}" HorizontalAlignment="Center"
+                                                   TextWrapping="Wrap" TextAlignment="Center" />
+                                        <TextBlock Text="{Binding OfferOpponentRecord}" FontSize="13"
+                                                   Foreground="{StaticResource Muted}" HorizontalAlignment="Center"
+                                                   Margin="0,5,0,0" />
+                                        <TextBlock Text="{Binding OfferOpponentMeta}" FontSize="11"
+                                                   Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="{Binding OfferRounds}" FontSize="11.5" Foreground="{StaticResource Faint}"
+                                           HorizontalAlignment="Center" Margin="0,10,0,0" />
+
+                                <!-- Tale of the tape -->
+                                <TextBlock Text="TALE OF THE TAPE" Style="{StaticResource Label}"
+                                           Margin="24,20,24,10" HorizontalAlignment="Center" />
+                                <ItemsControl ItemsSource="{Binding Tape}" Margin="24,0,24,4">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="128" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <!-- mine, growing right-to-left -->
+                                                <Grid x:Name="MineTrack" Grid.Column="0" Height="16">
+                                                    <Border HorizontalAlignment="Right" CornerRadius="3"
+                                                            Background="{StaticResource Accent}">
+                                                        <Border.Width>
+                                                            <MultiBinding Converter="{StaticResource BarWidth}">
+                                                                <Binding Path="MineWidth" />
+                                                                <Binding Path="ActualWidth" ElementName="MineTrack" />
+                                                            </MultiBinding>
+                                                        </Border.Width>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Mine}" FontSize="10.5" Margin="0,0,7,0"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                               Foreground="#04121F" FontWeight="Bold" />
+                                                </Grid>
+                                                <TextBlock Grid.Column="1" Text="{Binding Attribute}" FontSize="10.5"
+                                                           FontWeight="SemiBold" Foreground="{StaticResource Muted}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                <Grid x:Name="TheirsTrack" Grid.Column="2" Height="16">
+                                                    <Border HorizontalAlignment="Left" CornerRadius="3"
+                                                            Background="{StaticResource Line2}">
+                                                        <Border.Width>
+                                                            <MultiBinding Converter="{StaticResource BarWidth}">
+                                                                <Binding Path="TheirsWidth" />
+                                                                <Binding Path="ActualWidth" ElementName="TheirsTrack" />
+                                                            </MultiBinding>
+                                                        </Border.Width>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Theirs}" FontSize="10.5" Margin="7,0,0,0"
+                                                               HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource Text}" FontWeight="Bold" />
+                                                </Grid>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <Grid Margin="24,20,24,22">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Content="Take the fight" Command="{Binding TakeFight}"
+                                            Style="{StaticResource PrimaryButton}" />
+                                    <Button Grid.Column="2" Content="Hold out" Command="{Binding HoldOut}" />
+                                </Grid>
+                                <Button Content="{Binding MoveUpLabel}" Command="{Binding MoveUp}"
+                                        Margin="24,0,24,22" Padding="12,8" FontSize="12"
+                                        Visibility="{Binding MoveUpLabel, Converter={StaticResource EmptyVis}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Padding="22" Margin="0,0,0,16"
+                                Visibility="{Binding PlayerRetired, Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="This career is over. Start a new one to fight again."
+                                       Foreground="{StaticResource Muted}" FontSize="13" />
+                        </Border>
+
+                        <Border Style="{StaticResource Card}"
+                                Visibility="{Binding HasLedger, Converter={StaticResource BoolVis}}">
+                            <StackPanel>
+                                <TextBlock Text="FIGHT RECORD" Style="{StaticResource PanelHeader}" />
+                                <ItemsControl ItemsSource="{Binding Ledger}" ItemTemplate="{StaticResource LedgerRowTemplate}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ============ LIST PAGES ============ -->
+                <local:PageHost Title="RANKINGS" Subtitle="The player's division"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Rankings}">
+                    <ItemsControl ItemsSource="{Binding Rankings}" ItemTemplate="{StaticResource RankRowTemplate}" />
+                </local:PageHost>
+
+                <local:PageHost Title="POUND-FOR-POUND" Subtitle="Ranked on what they have won, across every division"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=P4P}">
+                    <ItemsControl ItemsSource="{Binding PoundForPound}" ItemTemplate="{StaticResource RankRowTemplate}" />
+                </local:PageHost>
+
+                <local:PageHost Title="HALL OF FAME" Subtitle="The retired greats of this world"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Hall}">
+                    <ItemsControl ItemsSource="{Binding HallOfFame}" ItemTemplate="{StaticResource RankRowTemplate}" />
+                </local:PageHost>
+
+                <!-- ============ CHAMPIONS ============ -->
+                <local:PageHost Title="CHAMPIONS" Subtitle="Every belt in every division"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Champions}">
+                    <ItemsControl ItemsSource="{Binding Champions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,8">
+                                    <StackPanel Orientation="Horizontal" Margin="18,16,18,8">
+                                        <TextBlock Text="{Binding Division}" Style="{StaticResource Label}"
+                                                   Foreground="{StaticResource Text}" />
+                                        <Border Style="{StaticResource Tag}" BorderBrush="{StaticResource GoldLine}"
+                                                Margin="10,0,0,0"
+                                                Visibility="{Binding Undisputed, Converter={StaticResource EmptyVis}}">
+                                            <TextBlock Text="{Binding Undisputed}" Style="{StaticResource TagText}"
+                                                       Foreground="{StaticResource Gold}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <ItemsControl ItemsSource="{Binding Belts}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Style="{StaticResource RowButton}"
+                                                        AutomationProperties.Name="{Binding Holder}"
+                                                        Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}">
+                                                    <Border Margin="12,2" CornerRadius="8" Padding="8,6">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Lineal}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource GoldSoft}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="60" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Text="{Binding Belt}" FontSize="9"
+                                                                       FontWeight="Bold" VerticalAlignment="Center">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Faint}" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Lineal}" Value="True">
+                                                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Holder}"
+                                                                       FontSize="13.5" VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Vacant}" Value="True">
+                                                                                <Setter Property="Foreground" Value="{StaticResource Faint}" />
+                                                                                <Setter Property="FontWeight" Value="Normal" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBlock Grid.Column="2" Text="{Binding Detail}"
+                                                                       FontSize="11.5" Foreground="{StaticResource Muted}"
+                                                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                                                        </Grid>
+                                                    </Border>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Border Height="1" Background="{StaticResource Line}" Margin="0,10,0,0" />
                                 </StackPanel>
-                            </Grid>
-                            <Grid Margin="0,18,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="10" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Button Content="Take the fight" Command="{Binding TakeFight}"
-                                        Style="{StaticResource PrimaryButton}" />
-                                <Button Grid.Column="2" Content="Hold out" Command="{Binding HoldOut}" />
-                            </Grid>
-                            <Button Content="{Binding MoveUpLabel}" Command="{Binding MoveUp}" Margin="0,10,0,0"
-                                    Padding="12,7" FontSize="12"
-                                    Visibility="{Binding MoveUpLabel, Converter={StaticResource EmptyVis}}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </local:PageHost>
+
+                <!-- ============ AWARDS ============ -->
+                <local:PageHost Title="AWARDS" Subtitle="End-of-year honours"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Awards}">
+                    <ItemsControl ItemsSource="{Binding Awards}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="18,16,18,4">
+                                    <TextBlock Style="{StaticResource Label}">
+                                        <Run Text="{Binding Year, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Category, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <ItemsControl ItemsSource="{Binding Places}" Margin="0,9,0,0">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border CornerRadius="10" Padding="13" Margin="0,0,9,9" BorderThickness="1">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="{StaticResource Panel2}" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Winner}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource GoldSoft}" />
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource GoldLine}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Position}" FontSize="9" FontWeight="Bold">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Faint}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Winner}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5"
+                                                                   Foreground="{StaticResource Text}" TextWrapping="Wrap"
+                                                                   Margin="0,5,0,0" />
+                                                        <TextBlock Text="{Binding Division}" FontSize="9" FontWeight="Bold"
+                                                                   Foreground="{StaticResource Faint}" Margin="0,4,0,0" />
+                                                        <TextBlock Text="{Binding Detail}" FontSize="11.5"
+                                                                   Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                                                                   Margin="0,5,0,0" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </local:PageHost>
+
+                <!-- ============ NEWS ============ -->
+                <local:PageHost Title="NEWS" Subtitle="Across the whole sport, most recent first"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=News}">
+                    <ItemsControl ItemsSource="{Binding News}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="18,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="96" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PlayerBout}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </local:PageHost>
+
+                <!-- ============ CAREER STATS ============ -->
+                <local:PageHost Title="CAREER" Subtitle="What this fighter has done so far"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Stats}">
+                    <ItemsControl ItemsSource="{Binding Stats}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                        BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="9">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Label}" Style="{StaticResource Label}" />
+                                        <TextBlock Text="{Binding Value}" FontSize="23" FontWeight="Light"
+                                                   Foreground="{StaticResource Text}" Margin="0,7,0,0" />
+                                        <TextBlock Text="{Binding Note}" FontSize="11.5" Foreground="{StaticResource Muted}"
+                                                   Margin="0,3,0,0" TextWrapping="Wrap"
+                                                   Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </local:PageHost>
+            </Grid>
+
+            <!-- ============ ROUND-BY-ROUND PLAYBACK (overlay) ============ -->
+            <Border Grid.ColumnSpan="2" Background="#D8060A10"
+                    Visibility="{Binding IsPlayingBack, Converter={StaticResource BoolVis}}">
+                <Border Style="{StaticResource Card}" Width="620" MaxHeight="720" Padding="0"
+                        VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Margin="24,20,24,14">
+                            <TextBlock Text="{Binding PlaybackTitle}" FontSize="17" FontWeight="Light"
+                                       Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                            <TextBlock Text="ROUND BY ROUND" Style="{StaticResource Label}" Margin="0,6,0,0" />
                         </StackPanel>
-                    </Border>
-
-                    <!-- Retired -->
-                    <Border Style="{StaticResource Card}" Padding="20" Margin="0,0,0,14"
-                            Visibility="{Binding PlayerRetired, Converter={StaticResource BoolVis}}">
-                        <TextBlock Text="This career is over. Start a new one to fight again."
-                                   Foreground="{StaticResource Muted}" FontSize="13" />
-                    </Border>
-
-                    <!-- Ledger -->
-                    <Border Style="{StaticResource Card}" Margin="0,0,0,14">
-                        <StackPanel>
-                            <TextBlock Text="FIGHT RECORD" Style="{StaticResource PanelHeader}" />
-                            <ItemsControl ItemsSource="{Binding Ledger}">
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8">
+                            <ItemsControl ItemsSource="{Binding Playback}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="16,8" >
+                                        <Grid Margin="24,5">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="86" />
-                                                <ColumnDefinition Width="26" />
+                                                <ColumnDefinition Width="52" />
+                                                <ColumnDefinition Width="66" />
+                                                <ColumnDefinition Width="82" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Date}" FontSize="11"
+                                            <TextBlock Text="{Binding Round, StringFormat=R{0}}" FontSize="11.5"
                                                        Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Result}" FontWeight="Bold"
-                                                       FontSize="12" VerticalAlignment="Center">
+                                            <TextBlock Grid.Column="1" Text="{Binding Score}" FontSize="14"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource Text}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Landed}" FontSize="11.5"
+                                                       Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Text="{Binding Note}" FontSize="12"
+                                                       TextWrapping="Wrap" VerticalAlignment="Center">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Foreground" Value="{StaticResource Muted}" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Win}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Win}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Loss}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Loss}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <StackPanel Grid.Column="2">
-                                                <TextBlock Text="{Binding Opponent}" FontSize="13"
-                                                           Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Text="{Binding Detail}" FontSize="11"
-                                                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- News -->
-                    <Border Style="{StaticResource Card}">
-                        <StackPanel>
-                            <TextBlock Text="NEWS" Style="{StaticResource PanelHeader}" />
-                            <ItemsControl ItemsSource="{Binding News}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="16,7">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="86" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Date}" FontSize="11"
-                                                       Foreground="{StaticResource Faint}" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12.5"
-                                                       TextWrapping="Wrap">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PlayerBout}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                            <DataTrigger Binding="{Binding Knockdown}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
                                                                 <Setter Property="FontWeight" Value="SemiBold" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
@@ -286,211 +638,107 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                        </ScrollViewer>
+                        <StackPanel Grid.Row="2" Margin="24,10,24,22">
+                            <Border Height="1" Background="{StaticResource Line}" Margin="0,0,0,14" />
+                            <TextBlock Text="{Binding PlaybackVerdict}" FontSize="15" TextWrapping="Wrap"
+                                       Foreground="{StaticResource Text}" Margin="0,0,0,14"
+                                       Visibility="{Binding PlaybackFinished, Converter={StaticResource BoolVis}}" />
+                            <!-- Content and AutomationProperties.Name are set together: a Button whose content is
+                                 a styled TextBlock exposes no name to accessibility tools or UI automation. -->
+                            <Button Command="{Binding FinishPlayback}" Style="{StaticResource PrimaryButton}"
+                                    Content="{Binding PlaybackButtonLabel}"
+                                    AutomationProperties.Name="{Binding PlaybackButtonLabel}" />
                         </StackPanel>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Border>
 
-            <!-- RIGHT: the boards -->
-            <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Card}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+            <!-- ============ FIGHTER CARD (overlay) ============ -->
+            <Border Grid.ColumnSpan="2" Background="#D8060A10"
+                    Visibility="{Binding HasCard, Converter={StaticResource BoolVis}}">
+                <Border Style="{StaticResource Card}" Width="620" MaxHeight="760" Padding="0"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        DataContext="{Binding SelectedCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                    <WrapPanel x:Name="Tabs" Margin="14,14,14,10">
-                        <RadioButton x:Name="TabRankings" Style="{StaticResource TabButton}" Content="Rankings" IsChecked="True" />
-                        <RadioButton x:Name="TabP4P" Style="{StaticResource TabButton}" Content="Pound-for-pound" />
-                        <RadioButton x:Name="TabDivisions" Style="{StaticResource TabButton}" Content="Champions" />
-                        <RadioButton x:Name="TabHof" Style="{StaticResource TabButton}" Content="Hall of Fame" />
-                        <RadioButton x:Name="TabAwards" Style="{StaticResource TabButton}" Content="Awards" />
-                    </WrapPanel>
-
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <Grid>
-                            <ItemsControl ItemsSource="{Binding Rankings}" ItemTemplate="{StaticResource RankRowTemplate}"
-                                          Visibility="{Binding IsChecked, ElementName=TabRankings, Converter={StaticResource BoolVis}}" />
-
-                            <ItemsControl ItemsSource="{Binding PoundForPound}" ItemTemplate="{StaticResource RankRowTemplate}"
-                                          Visibility="{Binding IsChecked, ElementName=TabP4P, Converter={StaticResource BoolVis}}" />
-
-                            <ItemsControl ItemsSource="{Binding HallOfFame}"
-                                          Visibility="{Binding IsChecked, ElementName=TabHof, Converter={StaticResource BoolVis}}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="16,10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="30" />
-                                                <ColumnDefinition Width="52" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Rank}" Foreground="{StaticResource Faint}"
-                                                       FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            <ContentPresenter Grid.Column="1" Content="{Binding}"
-                                                              ContentTemplate="{StaticResource ClassPill}" HorizontalAlignment="Left" />
-                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14"
-                                                           Foreground="{StaticResource Text}" />
-                                                <TextBlock Text="{Binding Detail}" FontSize="11.5"
-                                                           Foreground="{StaticResource Muted}" Margin="0,3,0,0"
-                                                           TextWrapping="Wrap" />
-                                            </StackPanel>
-                                            <TextBlock Grid.Column="3" Text="{Binding Record}" FontSize="12"
-                                                       Foreground="{StaticResource Muted}" VerticalAlignment="Center"
-                                                       Margin="12,0,0,0" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- Champions board: a block per division, the lineal/Ring line picked out in gold. -->
-                            <ItemsControl ItemsSource="{Binding Champions}"
-                                          Visibility="{Binding IsChecked, ElementName=TabDivisions, Converter={StaticResource BoolVis}}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="0,0,0,6">
-                                            <StackPanel Orientation="Horizontal" Margin="16,14,16,8">
-                                                <TextBlock Text="{Binding Division}" Style="{StaticResource Label}"
-                                                           Foreground="{StaticResource Text}" />
-                                                <Border Style="{StaticResource Tag}" BorderBrush="{StaticResource GoldLine}"
-                                                        Margin="9,0,0,0"
-                                                        Visibility="{Binding Undisputed, Converter={StaticResource EmptyVis}}">
-                                                    <TextBlock Text="{Binding Undisputed}" Style="{StaticResource TagText}"
-                                                               Foreground="{StaticResource Gold}" />
-                                                </Border>
-                                            </StackPanel>
-                                            <ItemsControl ItemsSource="{Binding Belts}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Border Margin="12,2" CornerRadius="8" Padding="6,5">
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="Transparent" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding Lineal}" Value="True">
-                                                                            <Setter Property="Background" Value="{StaticResource GoldSoft}" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                            <Grid>
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="58" />
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <TextBlock Text="{Binding Belt}" FontSize="9"
-                                                                           FontWeight="Bold" VerticalAlignment="Center"
-                                                                          >
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Foreground" Value="{StaticResource Faint}" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Lineal}" Value="True">
-                                                                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <TextBlock Grid.Column="1" Text="{Binding Holder}"
-                                                                           FontSize="13" VerticalAlignment="Center"
-                                                                           TextTrimming="CharacterEllipsis">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Foreground" Value="{StaticResource Text}" />
-                                                                            <Setter Property="FontWeight" Value="SemiBold" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Vacant}" Value="True">
-                                                                                    <Setter Property="Foreground" Value="{StaticResource Faint}" />
-                                                                                    <Setter Property="FontWeight" Value="Normal" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <TextBlock Grid.Column="2" Text="{Binding Detail}"
-                                                                           FontSize="11.5" Foreground="{StaticResource Muted}"
-                                                                           VerticalAlignment="Center" Margin="10,0,0,0" />
-                                                            </Grid>
-                                                        </Border>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                            <Border Height="1" Background="{StaticResource Line}" Margin="0,10,0,0" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- Awards: the top three across, winner picked out. -->
-                            <ItemsControl ItemsSource="{Binding Awards}"
-                                          Visibility="{Binding IsChecked, ElementName=TabAwards, Converter={StaticResource BoolVis}}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="16,14,16,4">
-                                            <TextBlock Style="{StaticResource Label}">
-                                                <Run Text="{Binding Year, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Category, Mode=OneWay}" />
-                                            </TextBlock>
-                                            <ItemsControl ItemsSource="{Binding Places}" Margin="0,8,0,0">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <UniformGrid Columns="3" />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Border CornerRadius="10" Padding="12" Margin="0,0,8,8"
-                                                                BorderThickness="1">
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="{StaticResource Panel2}" />
-                                                                    <Setter Property="BorderBrush" Value="{StaticResource Line}" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding Winner}" Value="True">
-                                                                            <Setter Property="Background" Value="{StaticResource GoldSoft}" />
-                                                                            <Setter Property="BorderBrush" Value="{StaticResource GoldLine}" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                            <StackPanel>
-                                                                <TextBlock Text="{Binding Position}" FontSize="9"
-                                                                           FontWeight="Bold">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Foreground" Value="{StaticResource Faint}" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Winner}" Value="True">
-                                                                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                                                                           FontSize="13.5" Foreground="{StaticResource Text}"
-                                                                           TextWrapping="Wrap" Margin="0,5,0,0" />
-                                                                <TextBlock Text="{Binding Division}" FontSize="9"
-                                                                           FontWeight="Bold" Foreground="{StaticResource Faint}"
-                                                                           Margin="0,4,0,0" />
-                                                                <TextBlock Text="{Binding Detail}" FontSize="11.5"
-                                                                           Foreground="{StaticResource Muted}"
-                                                                           TextWrapping="Wrap" Margin="0,5,0,0" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                        <Grid Margin="24,22,24,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                    BorderThickness="1" CornerRadius="12" Width="62" Height="48" Margin="0,0,16,0">
+                                <TextBlock Text="{Binding Class}" FontSize="24" FontWeight="Light"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{Binding Class, Converter={StaticResource ClassColour}}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="21" FontWeight="Light"
+                                           Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Record}" FontSize="13" Foreground="{StaticResource Muted}"
+                                           Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding Meta}" FontSize="11.5" Foreground="{StaticResource Faint}"
+                                           Margin="0,3,0,0" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Belts}" FontSize="11.5" Foreground="{StaticResource Gold}"
+                                           Margin="0,5,0,0" TextWrapping="Wrap"
+                                           Visibility="{Binding Belts, Converter={StaticResource EmptyVis}}" />
+                            </StackPanel>
                         </Grid>
-                    </ScrollViewer>
-                </Grid>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="ATTRIBUTES" Style="{StaticResource PanelHeader}" Margin="24,4,24,8"
+                                           Visibility="{Binding HasRatings, Converter={StaticResource BoolVis}}" />
+                                <ItemsControl ItemsSource="{Binding Ratings}" Margin="24,0,24,8">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,4,14,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="98" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="30" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource Muted}" />
+                                                <Grid x:Name="Track" Grid.Column="1" Height="7" VerticalAlignment="Center">
+                                                    <Border Background="{StaticResource Line}" CornerRadius="3.5" />
+                                                    <Border HorizontalAlignment="Left" CornerRadius="3.5"
+                                                            Background="{StaticResource Accent}">
+                                                        <Border.Width>
+                                                            <MultiBinding Converter="{StaticResource BarWidth}">
+                                                                <Binding Path="Width" />
+                                                                <Binding Path="ActualWidth" ElementName="Track" />
+                                                            </MultiBinding>
+                                                        </Border.Width>
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Grid.Column="2" Text="{Binding Value}" FontSize="11"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource Text}" FontWeight="SemiBold" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="RECENT BOUTS" Style="{StaticResource PanelHeader}" Margin="24,10,24,4" />
+                                <ItemsControl ItemsSource="{Binding Recent}" ItemTemplate="{StaticResource LedgerRowTemplate}"
+                                              Margin="6,0,6,8" />
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <Button Grid.Row="2" Content="Close" Margin="24,12,24,22"
+                                Command="{Binding DataContext.CloseCard, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    </Grid>
+                </Border>
             </Border>
         </Grid>
     </Grid>

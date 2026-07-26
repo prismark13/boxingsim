@@ -35,13 +35,25 @@ public sealed class DesktopCareerService
     /// <summary>The real roster, read from the file shipped beside the executable.</summary>
     public IReadOnlyList<Boxer> Roster => _roster ??= LoadRoster();
 
+    /// <summary>A loose data\fighters.json beside the executable wins, so the roster can be edited without a
+    /// rebuild. Falling back to the copy embedded in the assembly is what lets a single-file publish be one
+    /// genuinely standalone .exe.</summary>
     private static IReadOnlyList<Boxer> LoadRoster()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "data", "fighters.json");
-        if (!File.Exists(path))
-            throw new FileNotFoundException(
-                $"The fighter roster is missing. Expected it at:\n{path}", path);
-        var defs = JsonSerializer.Deserialize<List<FighterDefinition>>(File.ReadAllText(path), Opts)
+        string json;
+        if (File.Exists(path))
+        {
+            json = File.ReadAllText(path);
+        }
+        else
+        {
+            using var s = typeof(DesktopCareerService).Assembly.GetManifestResourceStream("fighters.json")
+                ?? throw new FileNotFoundException($"The fighter roster is missing — no file at {path} and none embedded.");
+            using var r = new StreamReader(s);
+            json = r.ReadToEnd();
+        }
+        var defs = JsonSerializer.Deserialize<List<FighterDefinition>>(json, Opts)
                    ?? throw new InvalidDataException("The fighter roster could not be read.");
         return RosterIo.DedupePeople(RosterIo.ToBoxers(defs));
     }
