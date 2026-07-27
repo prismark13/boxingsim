@@ -1,4 +1,3 @@
-using System.Text;
 using BoxingSim.Core.Engine;
 using BoxingSim.Core.Model;
 
@@ -19,10 +18,13 @@ public sealed record CallLine(string Clock, string Text, CallKind Kind)
 
 /// <summary>Turns the engine's 15-second ticks into a blow-by-blow call.
 ///
-/// The engine already records what actually happened in each segment — the punch thrown, whether it was a
-/// combination, whether it was a counter, whether a man was hurt or wobbled or cut. All of that was being
-/// thrown away and reduced to "his round (18-4 landed)". This reads it back out as commentary, so a fight
-/// plays as an event rather than a table.</summary>
+/// The engine records what actually happened in each segment — the punch thrown, whether it was a combination
+/// or a counter, whether a man was hurt or wobbled or cut. This reads it back out as commentary.
+///
+/// Two things keep it from reading like a machine. Phrasing rotates, so the same event is never described the
+/// same way twice running. And repetition is treated as the STORY rather than a defect: a fighter who keeps
+/// landing the same punch gets called for it — "he's found a home for the right hand" — which is exactly what
+/// a commentator would notice.</summary>
 public static class FightCall
 {
     public static IReadOnlyList<CallLine> Build(FightResult res, Boxer me)
@@ -30,11 +32,13 @@ public static class FightCall
         bool iAmA = res.A.Id == me.Id;
         string my = me.Name;
         string his = (iAmA ? res.B : res.A).Name;
+        var caller = new Caller();
         var lines = new List<CallLine>();
 
         foreach (var rd in res.Rounds)
         {
             lines.Add(new CallLine("", $"ROUND {rd.Round}", CallKind.Round));
+            caller.NewRound();
 
             int prevKdMine = 0, prevKdHis = 0;
             bool cutMine = false, cutHis = false, hurtCalled = false, staggerCalled = false;
@@ -53,7 +57,7 @@ public static class FightCall
                 int comboHis = iAmA ? t.ComboB : t.ComboA;
                 bool counterMine = iAmA ? t.CounterA : t.CounterB;
                 bool counterHis = iAmA ? t.CounterB : t.CounterA;
-                int rockMine = iAmA ? t.RockA : t.RockB;      // how hurt I am
+                int rockMine = iAmA ? t.RockA : t.RockB;
                 int rockHis = iAmA ? t.RockB : t.RockA;
                 bool staggerMine = iAmA ? t.StaggerA : t.StaggerB;
                 bool staggerHis = iAmA ? t.StaggerB : t.StaggerA;
@@ -61,46 +65,42 @@ public static class FightCall
                 double cutH = iAmA ? t.CutB : t.CutA;
                 bool handMine = iAmA ? t.HandA : t.HandB;
                 bool handHis = iAmA ? t.HandB : t.HandA;
+                bool downBodyHis = iAmA ? t.DownBodyB : t.DownBodyA;
+                bool downBodyMine = iAmA ? t.DownBodyA : t.DownBodyB;
 
                 if (bigMine && punchMine is not null)
-                    lines.Add(new CallLine(t.Clock, Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big));
+                    lines.Add(new CallLine(t.Clock, caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big));
                 if (bigHis && punchHis is not null)
-                    lines.Add(new CallLine(t.Clock, Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big));
+                    lines.Add(new CallLine(t.Clock, caller.Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big));
 
                 if (!hurtCalled && rockHis >= 2)
-                { lines.Add(new CallLine(t.Clock, $"{his} is badly hurt — he's on unsteady legs!", CallKind.Drama)); hurtCalled = true; }
+                { lines.Add(new CallLine(t.Clock, caller.Hurt(my, his), CallKind.Drama)); hurtCalled = true; }
                 else if (!hurtCalled && rockMine >= 2)
-                { lines.Add(new CallLine(t.Clock, $"{my} is in trouble here!", CallKind.Drama)); hurtCalled = true; }
+                { lines.Add(new CallLine(t.Clock, caller.Hurt(his, my), CallKind.Drama)); hurtCalled = true; }
 
                 // Once a round: the engine flags a stagger on every tick a man stays wobbled, and calling it
                 // each time turned the drama into a stuck record.
                 if (!staggerCalled && staggerHis)
-                { lines.Add(new CallLine(t.Clock, $"{my} is all over him, teeing off!", CallKind.Drama)); staggerCalled = true; }
+                { lines.Add(new CallLine(t.Clock, caller.Stagger(my, his), CallKind.Drama)); staggerCalled = true; }
                 else if (!staggerCalled && staggerMine)
-                { lines.Add(new CallLine(t.Clock, $"{his} smells blood and piles in!", CallKind.Drama)); staggerCalled = true; }
+                { lines.Add(new CallLine(t.Clock, caller.Stagger(his, my), CallKind.Drama)); staggerCalled = true; }
 
-                // Whose knockdown was to the body depends on which corner the player is in.
-                bool downBodyHis = iAmA ? t.DownBodyB : t.DownBodyA;
-                bool downBodyMine = iAmA ? t.DownBodyA : t.DownBodyB;
                 if (kdAgainstHim > prevKdHis)
                 {
                     prevKdHis = kdAgainstHim;
-                    lines.Add(new CallLine(t.Clock,
-                        downBodyHis ? $"{his} IS DOWN — and it was to the body!" : $"{his} IS DOWN!",
-                        CallKind.Drama));
+                    lines.Add(new CallLine(t.Clock, caller.Down(my, his, downBodyHis, kdAgainstHim), CallKind.Drama));
                 }
                 if (kdAgainstMe > prevKdMine)
                 {
                     prevKdMine = kdAgainstMe;
-                    lines.Add(new CallLine(t.Clock,
-                        downBodyMine ? $"{my} IS DOWN to a body shot!" : $"{my} IS DOWN!", CallKind.Drama));
+                    lines.Add(new CallLine(t.Clock, caller.Down(his, my, downBodyMine, kdAgainstMe), CallKind.Drama));
                 }
 
-                if (!cutHis && cutH >= 0.4) { cutHis = true; lines.Add(new CallLine(t.Clock, $"{his} has been opened up — there's blood.", CallKind.Drama)); }
-                if (!cutMine && cutM >= 0.4) { cutMine = true; lines.Add(new CallLine(t.Clock, $"{my} is cut.", CallKind.Drama)); }
+                if (!cutHis && cutH >= 0.4) { cutHis = true; lines.Add(new CallLine(t.Clock, caller.Cut(his), CallKind.Drama)); }
+                if (!cutMine && cutM >= 0.4) { cutMine = true; lines.Add(new CallLine(t.Clock, caller.Cut(my), CallKind.Drama)); }
 
-                if (handMine) lines.Add(new CallLine(t.Clock, $"{my} shakes his hand out — that looked painful.", CallKind.Action));
-                if (handHis) lines.Add(new CallLine(t.Clock, $"{his} is favouring his hand.", CallKind.Action));
+                if (handMine) lines.Add(new CallLine(t.Clock, caller.Hand(my), CallKind.Action));
+                if (handHis) lines.Add(new CallLine(t.Clock, caller.Hand(his), CallKind.Action));
 
                 if (t.Foul is FoulEvent f)
                 {
@@ -108,20 +108,15 @@ public static class FightCall
                     lines.Add(new CallLine(t.Clock,
                         f.Dq ? $"{who} is DISQUALIFIED for {f.Type}."
                         : f.Deduct ? $"A point comes off {who} for {f.Type}."
-                        : $"{who} is warned for {f.Type}.", f.Deduct || f.Dq ? CallKind.Drama : CallKind.Action));
+                        : caller.Warned(who, f.Type),
+                        f.Deduct || f.Dq ? CallKind.Drama : CallKind.Action));
                 }
 
                 if (t.Fin is StopInfo fin)
                 {
                     string w = (fin.Winner == 0) == iAmA ? my : his;
                     string l = w == my ? his : my;
-                    lines.Add(new CallLine(t.Clock, fin.Method switch
-                    {
-                        "KO" => $"{w} KNOCKS OUT {l}!",
-                        "DQ" => $"{l} is disqualified — it's over.",
-                        "cut" => $"It's waved off — {l} can't continue with that cut.",
-                        _ => fin.Body ? $"{w} STOPS {l} to the body!" : $"{w} STOPS {l}!"
-                    }, CallKind.Verdict));
+                    lines.Add(new CallLine(t.Clock, caller.Finish(w, l, fin), CallKind.Verdict));
                 }
             }
 
@@ -129,35 +124,159 @@ public static class FightCall
             int hisLanded = iAmA ? rd.LandedB : rd.LandedA;
             int myScore = iAmA ? rd.ScoreA : rd.ScoreB;
             int hisScore = iAmA ? rd.ScoreB : rd.ScoreA;
-            string verdict = myLanded > hisLanded + 2 ? $"{my} takes it"
-                           : hisLanded > myLanded + 2 ? $"{his} takes it"
-                           : "hard round to split";
-            lines.Add(new CallLine("", $"End of {rd.Round} — {verdict}. {myScore}–{hisScore}, {myLanded}–{hisLanded} landed.",
+            lines.Add(new CallLine("", caller.Recap(rd.Round, my, his, myLanded, hisLanded, myScore, hisScore),
                                    CallKind.Score));
         }
         return lines;
     }
 
-    /// <summary>Describe a power shot the way it would be called, using the punch the engine actually threw.
-    /// The engine's punch names already carry their own article ("a left hook", "an uppercut inside"), so
-    /// nothing here may add one — that produced "lands a an uppercut".</summary>
-    private static string Power(string attacker, string target, string punch, bool body, int combo, bool counter)
+    /// <summary>Holds the state a commentator would carry in his head: how he last phrased something, and how
+    /// often each man has landed each punch.</summary>
+    private sealed class Caller
     {
-        string shot = punch.ToLowerInvariant();
-        var sb = new StringBuilder(attacker);
-        if (counter) sb.Append(" times him with ");
-        else if (combo > 1) sb.Append(" opens up — a combination finished with ");
-        else sb.Append(" lands ");
-        sb.Append(shot);
-        // Only say "to the body" when the punch name hasn't already named the target — the engine throws
-        // "a right to the ribs" and "a right under the heart", which don't need it spelling out again.
-        if (body && !NamesTheBody(shot)) sb.Append(" to the body");
-        sb.Append(counter ? "." : "!");
-        return sb.ToString();
+        private readonly Dictionary<string, int> _cursor = new();
+        private readonly Dictionary<string, int> _landed = new();   // "fighter|punch" -> times landed this fight
+        private readonly Dictionary<string, int> _roundLanded = new();
+
+        public void NewRound() => _roundLanded.Clear();
+
+        /// <summary>Walk through a family's variants so the same wording never lands twice in a row.</summary>
+        private string Rotate(string family, params string[] variants)
+        {
+            int i = _cursor.GetValueOrDefault(family);
+            _cursor[family] = (i + 1) % variants.Length;
+            return variants[i % variants.Length];
+        }
+
+        public string Power(string att, string tgt, string punch, bool body, int combo, bool counter)
+        {
+            string shot = punch.ToLowerInvariant();
+            string bare = Strip(shot);
+            string key = att + "|" + bare;
+            int n = _landed[key] = _landed.GetValueOrDefault(key) + 1;
+            int inRound = _roundLanded[key] = _roundLanded.GetValueOrDefault(key) + 1;
+            string to = body && !NamesTheBody(shot) ? " to the body" : "";
+
+            // Repetition is the story. Once a punch keeps arriving, say so rather than repeating the sentence.
+            if (inRound >= 3 || n >= 5)
+                return Rotate("again3",
+                    $"{att} keeps going back to the {bare} and it keeps arriving.",
+                    $"The {bare} again — {att} can do no wrong with it.",
+                    $"Every time {att} lets the {bare} go, it finds a home.",
+                    $"{tgt} still has no answer to that {bare}.");
+            if (n >= 3)
+                return Rotate("again2",
+                    $"That's the {bare} again — {att} has found a home for it.",
+                    $"{att} goes back to the {bare}, and again it lands{to}.",
+                    $"The {bare} once more from {att}; {tgt} isn't reading it.");
+            if (n == 2)
+                return Rotate("again1",
+                    $"There it is again — the {bare} from {att}.",
+                    $"{att} repeats the {bare}{to}.",
+                    $"Another {bare} from {att}.");
+
+            if (counter)
+                return Rotate("counter",
+                    $"{att} times him beautifully with {shot}.",
+                    $"{att} waits on it and counters with {shot}.",
+                    $"Lovely counter from {att} — {shot}.",
+                    $"{tgt} walks onto {shot}.");
+            if (combo > 1)
+                return Rotate("combo",
+                    $"{att} lets his hands go, finishing with {shot}!",
+                    $"A burst from {att}, capped by {shot}!",
+                    $"{att} strings them together and ends it with {shot}!",
+                    $"Combination from {att} — {shot} on the end of it!");
+
+            return Rotate("power",
+                $"{att} lands {shot}{to}!",
+                $"{att} gets through with {shot}{to}!",
+                $"{att} cracks him with {shot}{to}!",
+                $"Good {bare}{to} from {att}!",   // bare: "Good right cross", never "Good a right cross"
+                $"{att} finds the mark with {shot}{to}!");
+        }
+
+        public string Hurt(string att, string tgt) => Rotate("hurt",
+            $"{tgt} is badly hurt — his legs have gone!",
+            $"{tgt} is in real trouble now!",
+            $"{tgt} is hanging on — {att} has him going!",
+            $"{tgt} is hurt, and {att} knows it!");
+
+        public string Stagger(string att, string tgt) => Rotate("stagger",
+            $"{att} is all over him, teeing off!",
+            $"{att} smells the finish and piles in!",
+            $"{att} has him on the ropes, letting everything go!");
+
+        public string Down(string att, string tgt, bool body, int count)
+        {
+            if (body) return Rotate("downbody",
+                $"{tgt} IS DOWN — and it was to the body!",
+                $"{tgt} goes down clutching his ribs!");
+            if (count >= 2) return Rotate("downagain",
+                $"{tgt} IS DOWN AGAIN!",
+                $"Down again! {tgt} is being taken apart!",
+                $"That's {count} times {tgt} has been on the floor!");
+            return Rotate("down",
+                $"{tgt} IS DOWN!",
+                $"DOWN GOES {tgt.ToUpperInvariant()}!",
+                $"{att} puts him on the canvas!");
+        }
+
+        public string Cut(string who) => Rotate("cut",
+            $"{who} has been opened up — there's blood.",
+            $"A cut on {who}, and it's leaking badly.",
+            $"{who} is marked up now; the doctor will want a look.");
+
+        public string Hand(string who) => Rotate("hand",
+            $"{who} shakes his hand out — that looked painful.",
+            $"{who} is favouring that hand.");
+
+        public string Warned(string who, string type) => Rotate("warn",
+            $"{who} is warned for {type}.",
+            $"The referee steps in — {type} from {who}.");
+
+        public string Finish(string w, string l, StopInfo fin) => fin.Method switch
+        {
+            "KO" => Rotate("ko",
+                $"{w} KNOCKS OUT {l}!",
+                $"IT'S ALL OVER — {w} has knocked him cold!",
+                $"{l} is out! {w} has finished it!"),
+            "DQ" => $"{l} is disqualified — it's over.",
+            "cut" => $"It's waved off — {l} can't continue with that cut.",
+            _ => fin.Body
+                ? Rotate("tkobody", $"{w} STOPS {l} to the body!", $"The body work has done it — {w} STOPS him!")
+                : Rotate("tko",
+                    $"{w} STOPS {l}!",
+                    $"The referee has seen enough — {w} STOPS him!",
+                    $"{l}'s corner has seen enough. {w} wins it!")
+        };
+
+        public string Recap(int round, string my, string his, int mine, int theirs, int myScore, int hisScore)
+        {
+            string card = $"{myScore}–{hisScore}, {mine}–{theirs} landed.";
+            if (mine > theirs + 2)
+                return Rotate("recapMe",
+                    $"End of {round} — {my} takes it. {card}",
+                    $"Round {round} to {my}. {card}",
+                    $"That's {my}'s round. {card}");
+            if (theirs > mine + 2)
+                return Rotate("recapHim",
+                    $"End of {round} — {his} takes it. {card}",
+                    $"Round {round} to {his}. {card}",
+                    $"That one belonged to {his}. {card}");
+            return Rotate("recapClose",
+                $"End of {round} — hard round to split. {card}",
+                $"Nothing between them in {round}. {card}",
+                $"You could score round {round} either way. {card}");
+        }
+
+        /// <summary>Drop the leading article so a punch can be referred to as "the right cross".</summary>
+        private static string Strip(string shot) =>
+            shot.StartsWith("an ") ? shot[3..] : shot.StartsWith("a ") ? shot[2..] : shot;
+
+        private static readonly string[] BodyWords =
+            { "body", "ribs", "liver", "heart", "midsection", "solar plexus", "kidney" };
+
+        private static bool NamesTheBody(string shot) => BodyWords.Any(shot.Contains);
     }
-
-    private static readonly string[] BodyWords =
-        { "body", "ribs", "liver", "heart", "midsection", "solar plexus", "kidney" };
-
-    private static bool NamesTheBody(string shot) => BodyWords.Any(shot.Contains);
 }
