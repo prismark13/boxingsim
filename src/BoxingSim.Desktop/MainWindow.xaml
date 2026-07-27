@@ -941,7 +941,10 @@
             <!-- The fight takes the whole window and is CALLED, line by line, rather than tabulated. -->
             <Grid Grid.ColumnSpan="2" Panel.ZIndex="9"
                   Visibility="{Binding IsPlayingBack, Converter={StaticResource BoolVis}}">
-                <Border Background="#F2050810" />
+                <!-- Opaque, not 95%. A translucent overlay let the whole dashboard - the sidebar, the date,
+                     the news list - ghost through behind the commentary, and reading a fight through a layer
+                     of unrelated text was the single worst thing about the screen. -->
+                <Border Background="#050810" />
                 <Grid Margin="0,26,0,26" MaxWidth="980">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
