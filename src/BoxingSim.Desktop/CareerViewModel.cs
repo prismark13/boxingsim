@@ -30,7 +30,7 @@ public sealed class Cmd : ICommand
     public void Refresh() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
 
-public enum Page { Dashboard, Career, Rankings, P4P, Champions, Hall, Awards, News, Stats }
+public enum Page { Dashboard, Career, Rankings, P4P, Champions, Hall, Awards, News, Stats, About }
 
 /// <summary>A sidebar entry. Group headers are not selectable — they only label the section beneath.</summary>
 public sealed record NavItem(Page Page, string Label, bool IsHeader = false, string Shortcut = "")
@@ -212,6 +212,9 @@ public sealed class CareerViewModel : Observable
         new NavItem(Page.Dashboard, "THE RECORD BOOKS", IsHeader: true),
         new NavItem(Page.Hall, "Hall of Fame", Shortcut: "Ctrl+8"),
         new NavItem(Page.Awards, "Awards", Shortcut: "Ctrl+9"),
+        // Not a feature — the crowd recordings are CC-BY, and that licence obliges the app itself to carry the
+        // credit, not just the repository.
+        new NavItem(Page.About, "About", Shortcut: "Ctrl+0"),
     };
 
     private NavItem? _selectedNav;
