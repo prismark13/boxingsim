@@ -30,9 +30,13 @@ public sealed class Cmd : ICommand
     public void Refresh() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
 
-public enum Page { Career, Rankings, P4P, Champions, Hall, Awards, News, Stats }
+public enum Page { Dashboard, Career, Rankings, P4P, Champions, Hall, Awards, News, Stats }
 
-public sealed record NavItem(Page Page, string Label);
+/// <summary>A sidebar entry. Group headers are not selectable — they only label the section beneath.</summary>
+public sealed record NavItem(Page Page, string Label, bool IsHeader = false, string Shortcut = "")
+{
+    public bool IsPage => !IsHeader;
+}
 
 // ---- row shapes the views bind to ----
 
@@ -123,6 +127,7 @@ public sealed class CareerViewModel : Observable
         GoBack = new Cmd(DoGoBack, () => CanGoBack);
         Navigate = new Cmd(DoNavigate);
         ViewDivisionCmd = new Cmd(DoViewDivision);
+        GoHomeDivision = new Cmd(() => { if (Game is not null) ViewDivision = Game.Player.WeightClass; });
         // Escape backs out of whatever is on top: the fighter card, the playback, then the page you came from.
         Dismiss = new Cmd(() =>
         {
@@ -160,16 +165,22 @@ public sealed class CareerViewModel : Observable
     public bool InCareer => _svc.HasCareer;
 
     // ---- navigation ----
+    // Career mode is the app; the boards are reference you dip into. The sidebar says so — your own two screens
+    // first, then the sport, then the record books — rather than eight peers where "Fight night" and "Career"
+    // sounded like the same thing.
     public IReadOnlyList<NavItem> Nav { get; } = new[]
     {
-        new NavItem(Page.Career, "Fight night"),
-        new NavItem(Page.Rankings, "Rankings"),
-        new NavItem(Page.P4P, "Pound-for-pound"),
-        new NavItem(Page.Champions, "Champions"),
-        new NavItem(Page.Hall, "Hall of Fame"),
-        new NavItem(Page.Awards, "Awards"),
-        new NavItem(Page.News, "News"),
-        new NavItem(Page.Stats, "Career"),
+        new NavItem(Page.Dashboard, "Dashboard", Shortcut: "Ctrl+1"),
+        new NavItem(Page.Career, "Next fight", Shortcut: "Ctrl+2"),
+        new NavItem(Page.Stats, "My record", Shortcut: "Ctrl+3"),
+        new NavItem(Page.Dashboard, "THE SPORT", IsHeader: true),
+        new NavItem(Page.Rankings, "Rankings", Shortcut: "Ctrl+4"),
+        new NavItem(Page.P4P, "Pound-for-pound", Shortcut: "Ctrl+5"),
+        new NavItem(Page.Champions, "Champions", Shortcut: "Ctrl+6"),
+        new NavItem(Page.News, "News", Shortcut: "Ctrl+7"),
+        new NavItem(Page.Dashboard, "THE RECORD BOOKS", IsHeader: true),
+        new NavItem(Page.Hall, "Hall of Fame", Shortcut: "Ctrl+8"),
+        new NavItem(Page.Awards, "Awards", Shortcut: "Ctrl+9"),
     };
 
     private NavItem? _selectedNav;
@@ -214,9 +225,10 @@ public sealed class CareerViewModel : Observable
         {
             _viewDivision = division;
             Raise(nameof(ViewDivision));
-            SelectedNav = Nav.First(n => n.Page == page);
+            SelectedNav = Nav.First(n => n.IsPage && n.Page == page);
             BuildRankings();
             Raise(nameof(RankingsSubtitle));
+            Raise(nameof(IsAwayDivision));
         }
         finally { _restoring = false; }
         Raise(nameof(CanGoBack));
@@ -232,7 +244,7 @@ public sealed class CareerViewModel : Observable
             string s when Enum.TryParse<Page>(s, out var p) => p,
             _ => Page.Career
         };
-        SelectedNav = Nav.First(n => n.Page == page);
+        SelectedNav = Nav.First(n => n.IsPage && n.Page == page);
     }
 
     /// <summary>Show a given division's rankings — the cross-link from the champions board and a fighter's card,
@@ -248,7 +260,7 @@ public sealed class CareerViewModel : Observable
         } ?? ViewDivision;
         ViewDivision = wc;
         SelectedCard = null;
-        SelectedNav = Nav.First(n => n.Page == Page.Rankings);
+        SelectedNav = Nav.First(n => n.IsPage && n.Page == Page.Rankings);
     }
 
     private WeightClass _viewDivision;
@@ -262,6 +274,8 @@ public sealed class CareerViewModel : Observable
             _viewDivision = value;
             Raise();
             Raise(nameof(RankingsSubtitle));
+            Raise(nameof(IsAwayDivision));
+            Raise(nameof(AwayDivisionNote));
             BuildRankings();
         }
     }
@@ -334,7 +348,20 @@ public sealed class CareerViewModel : Observable
     public ObservableCollection<PlaybackRow> Playback { get; } = new();
     public ObservableCollection<StatRow> Stats { get; } = new();
 
+    // ---- the dashboard: career mode's hub ----
+    public ObservableCollection<LedgerRow> RecentForm { get; } = new();
+    public ObservableCollection<RankRow> DivisionTop { get; } = new();
+    public ObservableCollection<NewsRow> HeadlineNews { get; } = new();
+    public ObservableCollection<StatRow> Headlines { get; } = new();
+
     public bool HasLedger => Ledger.Count > 0;
+
+    /// <summary>True when the rankings page is showing somebody else's division, so the shell can say so
+    /// instead of leaving you wondering whose list you're reading.</summary>
+    public bool IsAwayDivision => Game is not null && ViewDivision != Game.Player.WeightClass;
+    public string AwayDivisionNote => $"Viewing {ViewDivision.DisplayName()} — not your division";
+    public string HomeDivisionLabel => Game is not null ? $"Back to {Game.Player.WeightClass.DisplayName()}" : "";
+    public Cmd GoHomeDivision { get; private set; } = null!;
 
     private static (int Lo, int Hi) TalentRange(string t) => t switch
     {
@@ -695,8 +722,45 @@ public sealed class CareerViewModel : Observable
 
     // ---- refresh ----
 
+    /// <summary>The dashboard is a hub, not another list: your form, where you stand in your own division, what
+    /// the sport is saying, and the headline numbers — each a way INTO the fuller screen behind it.</summary>
+    private void BuildDashboard()
+    {
+        RecentForm.Clear(); DivisionTop.Clear(); HeadlineNews.Clear(); Headlines.Clear();
+        if (Game is null) return;
+        var p = Game.Player;
+
+        foreach (var h in p.History.OrderByDescending(h => h.Date).Take(5)) RecentForm.Add(ToLedger(h));
+
+        int r = 1;
+        foreach (var b in Game.RankingOf(p.WeightClass, 5))
+        {
+            var belts = Game.BeltsHeld(b).Select(x => x.Belt).ToList();
+            DivisionTop.Add(new RankRow(Game.IsWorldChampion(b) ? "C" : r.ToString(), b.Class, b.Name,
+                                        belts.Count > 0 ? string.Join(" · ", belts) : "",
+                                        b.Record.ToString(), b.Id == p.Id, Game.IsWorldChampion(b), b));
+            r++;
+        }
+
+        foreach (var (e, _) in Game.Log.Select((e, i) => (e, i))
+                                       .Where(x => x.e.Div == p.WeightClass || x.e.PlayerBout)
+                                       .OrderByDescending(x => x.e.On).ThenByDescending(x => x.i)
+                                       .Take(6))
+            HeadlineNews.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout));
+
+        int rank = PlayerRank;
+        var myBelts = Game.BeltsHeld(p).Select(x => x.Belt).ToList();
+        Headlines.Add(new StatRow("Record", p.Record.ToString(), CareerStages.Label(CareerStages.Of(p))));
+        Headlines.Add(new StatRow("Division rank", rank > 0 ? $"#{rank}" : "unranked",
+                                  p.WeightClass.DisplayName()));
+        Headlines.Add(new StatRow("Titles", myBelts.Count > 0 ? string.Join(" · ", myBelts) : "none",
+                                  Game.TitleDefenses > 0 ? $"{Game.TitleDefenses} defences" : ""));
+        Headlines.Add(new StatRow("Rating", $"{p.Overall} OVR", $"class {p.Class} · age {p.Age}"));
+    }
+
     public void RefreshAll()
     {
+        BuildDashboard();
         BuildRankings();
         BuildP4P();
         BuildChampions();
@@ -717,7 +781,8 @@ public sealed class CareerViewModel : Observable
             nameof(MoveUpLabel), nameof(HasResult), nameof(ResultHeadline), nameof(LastBoutWon),
             nameof(LastBoutLost), nameof(PlayerRetired), nameof(HasSave), nameof(SaveError),
             nameof(ShowResultBanner), nameof(HasLedger), nameof(RankingDivisions),
-            nameof(ViewDivision), nameof(RankingsSubtitle), nameof(CanGoBack)
+            nameof(ViewDivision), nameof(RankingsSubtitle), nameof(CanGoBack),
+            nameof(IsAwayDivision), nameof(AwayDivisionNote), nameof(HomeDivisionLabel)
         }) Raise(n);
         RefreshCommands();
     }

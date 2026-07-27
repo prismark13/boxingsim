@@ -9,14 +9,15 @@
     <!-- Keyboard is the fastest way around a shell like this. Ctrl+1..8 jump straight to a page, Alt+Left goes
          back, Escape backs out of an overlay, Enter takes the fight you're being offered. -->
     <Window.InputBindings>
-        <KeyBinding Key="D1" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Career" />
-        <KeyBinding Key="D2" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Rankings" />
-        <KeyBinding Key="D3" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="P4P" />
-        <KeyBinding Key="D4" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Champions" />
-        <KeyBinding Key="D5" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Hall" />
-        <KeyBinding Key="D6" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Awards" />
+        <KeyBinding Key="D1" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Dashboard" />
+        <KeyBinding Key="D2" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Career" />
+        <KeyBinding Key="D3" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Stats" />
+        <KeyBinding Key="D4" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Rankings" />
+        <KeyBinding Key="D5" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="P4P" />
+        <KeyBinding Key="D6" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Champions" />
         <KeyBinding Key="D7" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="News" />
-        <KeyBinding Key="D8" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Stats" />
+        <KeyBinding Key="D8" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Hall" />
+        <KeyBinding Key="D9" Modifiers="Control" Command="{Binding Navigate}" CommandParameter="Awards" />
         <KeyBinding Key="Left" Modifiers="Alt" Command="{Binding GoBack}" />
         <KeyBinding Key="Back" Modifiers="Alt" Command="{Binding GoBack}" />
         <KeyBinding Key="Escape" Command="{Binding Dismiss}" />
@@ -68,8 +69,11 @@
                                    Margin="0,3,0,0" TextWrapping="Wrap"
                                    Visibility="{Binding Detail, Converter={StaticResource EmptyVis}}" />
                     </StackPanel>
-                    <TextBlock Grid.Column="3" Text="{Binding Record}" Foreground="{StaticResource Muted}"
-                               FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Record}" Foreground="{StaticResource Muted}"
+                                   FontSize="12" Margin="12,0,0,0" />
+                        <TextBlock Text="›" Foreground="{StaticResource Faint}" FontSize="15" Margin="12,-2,0,0" />
+                    </StackPanel>
                 </Grid>
             </Button>
         </DataTemplate>
@@ -85,6 +89,7 @@
                         <ColumnDefinition Width="92" />
                         <ColumnDefinition Width="26" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}"
                                VerticalAlignment="Center" />
@@ -110,6 +115,8 @@
                         <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource Muted}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
+                    <TextBlock Grid.Column="3" Text="›" Foreground="{StaticResource Faint}" FontSize="15"
+                               VerticalAlignment="Center" Margin="10,-2,0,0" />
                 </Grid>
             </Button>
         </DataTemplate>
@@ -248,6 +255,165 @@
 
             <!-- ============ CONTENT ============ -->
             <Grid Grid.Column="1">
+
+                <!-- ============ DASHBOARD: career mode's hub ============ -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Dashboard}">
+                    <StackPanel Margin="28,26,28,28" MaxWidth="1080">
+                        <TextBlock Text="{Binding PlayerHeadline}" FontSize="24" FontWeight="Light"
+                                   Foreground="{StaticResource Text}" />
+                        <TextBlock Text="{Binding DateLabel}" FontSize="12" Foreground="{StaticResource Muted}"
+                                   Margin="0,4,0,18" />
+
+                        <!-- Headline numbers -->
+                        <ItemsControl ItemsSource="{Binding Headlines}" Margin="0,0,0,8">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><UniformGrid Columns="4" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Card}" Padding="16,14" Margin="0,0,10,10">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource Label}" />
+                                            <TextBlock Text="{Binding Value}" FontSize="20" FontWeight="Light"
+                                                       Foreground="{StaticResource Text}" Margin="0,7,0,0"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Note}" FontSize="11" Foreground="{StaticResource Muted}"
+                                                       Margin="0,3,0,0" TextWrapping="Wrap"
+                                                       Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- The next fight, taken from here without going anywhere -->
+                        <Border Style="{StaticResource Card}" Padding="0" Margin="0,6,0,14"
+                                Visibility="{Binding HasOffer, Converter={StaticResource BoolVis}}">
+                            <StackPanel>
+                                <Border Background="#0F141C" CornerRadius="14,14,0,0" Padding="22,14">
+                                    <TextBlock Style="{StaticResource Label}">
+                                        <Run Text="YOUR NEXT FIGHT · " /><Run Text="{Binding OfferDateLabel, Mode=OneWay}" />
+                                        <Run Text=" · " /><Run Text="{Binding OfferContext, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Border>
+                                <Grid Margin="22,18,22,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                            BorderThickness="1" CornerRadius="9" Width="52" Height="40" Margin="0,0,16,0">
+                                        <TextBlock Text="{Binding OfferOpponentClass}" FontWeight="Bold" FontSize="17"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{Binding OfferOpponentClass, Converter={StaticResource ClassColour}}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding OfferOpponent}" FontSize="19"
+                                                   Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                        <TextBlock FontSize="12" Foreground="{StaticResource Muted}" Margin="0,3,0,0">
+                                            <Run Text="{Binding OfferOpponentRecord, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding OfferRounds, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Content="Take the fight" Command="{Binding TakeFight}"
+                                                Style="{StaticResource PrimaryButton}" Padding="22,10" />
+                                        <Button Content="Hold out" Command="{Binding HoldOut}" Margin="10,0,0,0" />
+                                        <Button Content="Tale of the tape ›" Command="{Binding Navigate}"
+                                                CommandParameter="Career" Margin="10,0,0,0" FontSize="12" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Two columns of gateways into the fuller screens -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel>
+                                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <Button Style="{StaticResource RowButton}" Command="{Binding Navigate}"
+                                                CommandParameter="Stats" AutomationProperties.Name="Recent form">
+                                            <Grid Margin="18,14,18,10">
+                                                <TextBlock Text="RECENT FORM" Style="{StaticResource Label}" />
+                                                <TextBlock Text="my record ›" FontSize="11" HorizontalAlignment="Right"
+                                                           Foreground="{StaticResource Accent}" />
+                                            </Grid>
+                                        </Button>
+                                        <ItemsControl ItemsSource="{Binding RecentForm}"
+                                                      ItemTemplate="{StaticResource LedgerRowTemplate}" />
+                                        <TextBlock Text="No fights yet." Foreground="{StaticResource Faint}" FontSize="12"
+                                                   Margin="18,4,18,16"
+                                                   Visibility="{Binding HasLedger, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <Button Style="{StaticResource RowButton}" Command="{Binding Navigate}"
+                                                CommandParameter="Rankings" AutomationProperties.Name="Your division">
+                                            <Grid Margin="18,14,18,10">
+                                                <TextBlock Text="YOUR DIVISION" Style="{StaticResource Label}" />
+                                                <TextBlock Text="full rankings ›" FontSize="11" HorizontalAlignment="Right"
+                                                           Foreground="{StaticResource Accent}" />
+                                            </Grid>
+                                        </Button>
+                                        <ItemsControl ItemsSource="{Binding DivisionTop}"
+                                                      ItemTemplate="{StaticResource RankRowTemplate}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Button Style="{StaticResource RowButton}" Command="{Binding Navigate}"
+                                        CommandParameter="News" AutomationProperties.Name="Latest news">
+                                    <Grid Margin="18,14,18,10">
+                                        <TextBlock Text="AROUND THE SPORT" Style="{StaticResource Label}" />
+                                        <TextBlock Text="all news ›" FontSize="11" HorizontalAlignment="Right"
+                                                   Foreground="{StaticResource Accent}" />
+                                    </Grid>
+                                </Button>
+                                <ItemsControl ItemsSource="{Binding HeadlineNews}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="18,7">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12.5" TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding PlayerBout}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Border Height="8" Background="Transparent" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
                 <!-- ============ FIGHT NIGHT ============ -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
@@ -409,6 +575,7 @@
                       Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Rankings}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid Margin="2,0,0,16">
@@ -426,7 +593,19 @@
                                   ItemsSource="{Binding RankingDivisions}" SelectedItem="{Binding ViewDivision}"
                                   ItemTemplate="{StaticResource DivisionItem}" />
                     </Grid>
-                    <Border Grid.Row="1" Style="{StaticResource Card}">
+                    <!-- Say plainly when you're reading somebody else's division, with the way home. -->
+                    <Border Grid.Row="1" Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
+                            BorderThickness="1" CornerRadius="9" Padding="14,9" Margin="0,0,0,12"
+                            Visibility="{Binding IsAwayDivision, Converter={StaticResource BoolVis}}">
+                        <Grid>
+                            <TextBlock Text="{Binding AwayDivisionNote}" FontSize="12"
+                                       Foreground="#CFE4FF" VerticalAlignment="Center" />
+                            <Button Content="{Binding HomeDivisionLabel}" Command="{Binding GoHomeDivision}"
+                                    AutomationProperties.Name="Back to my division"
+                                    HorizontalAlignment="Right" Padding="12,5" FontSize="11" />
+                        </Grid>
+                    </Border>
+                    <Border Grid.Row="2" Style="{StaticResource Card}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                       Padding="0,4,0,8">
                             <ItemsControl ItemsSource="{Binding Rankings}" ItemTemplate="{StaticResource RankRowTemplate}" />
@@ -658,8 +837,9 @@
             </Grid>
 
             <!-- ============ ROUND-BY-ROUND PLAYBACK (overlay) ============ -->
-            <Border Grid.ColumnSpan="2" Background="#D8060A10"
-                    Visibility="{Binding IsPlayingBack, Converter={StaticResource BoolVis}}">
+            <Grid Grid.ColumnSpan="2"
+                  Visibility="{Binding IsPlayingBack, Converter={StaticResource BoolVis}}">
+                <Border Background="#D8060A10" />
                 <Border Style="{StaticResource Card}" Width="620" MaxHeight="720" Padding="0"
                         VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Grid>
@@ -723,11 +903,13 @@
                         </StackPanel>
                     </Grid>
                 </Border>
-            </Border>
+            </Grid>
 
             <!-- ============ FIGHT DETAIL (overlay) ============ -->
-            <Border Grid.ColumnSpan="2" Background="#E0060A10" Panel.ZIndex="10"
-                    Visibility="{Binding HasFight, Converter={StaticResource BoolVis}}">
+            <Grid Grid.ColumnSpan="2" Panel.ZIndex="10"
+                  Visibility="{Binding HasFight, Converter={StaticResource BoolVis}}">
+                <Button Style="{StaticResource BackdropButton}" Command="{Binding CloseFight}"
+                        AutomationProperties.Name="Close" />
                 <Border Style="{StaticResource Card}" Width="700" MaxHeight="800" Padding="0"
                         VerticalAlignment="Center" HorizontalAlignment="Center"
                         DataContext="{Binding SelectedFight}">
@@ -738,6 +920,10 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
+                        <Button Style="{StaticResource CloseXButton}" HorizontalAlignment="Right"
+                                VerticalAlignment="Top" Margin="0,10,10,0" Panel.ZIndex="3"
+                                AutomationProperties.Name="Close"
+                                Command="{Binding DataContext.CloseFight, RelativeSource={RelativeSource AncestorType=Window}}" />
                         <StackPanel Margin="24,22,24,14">
                             <TextBlock Text="{Binding Opponent}" FontSize="21" FontWeight="Light"
                                        Foreground="{StaticResource Text}" TextWrapping="Wrap" />
@@ -882,15 +1068,17 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <Button Grid.Row="2" Content="Close" Margin="24,12,24,22"
+                        <Button Grid.Row="2" Content="Close  (Esc)" AutomationProperties.Name="Close" Margin="24,12,24,22"
                                 Command="{Binding DataContext.CloseFight, RelativeSource={RelativeSource AncestorType=Window}}" />
                     </Grid>
                 </Border>
-            </Border>
+            </Grid>
 
             <!-- ============ FIGHTER CARD (overlay) ============ -->
-            <Border Grid.ColumnSpan="2" Background="#D8060A10"
-                    Visibility="{Binding HasCard, Converter={StaticResource BoolVis}}">
+            <Grid Grid.ColumnSpan="2"
+                  Visibility="{Binding HasCard, Converter={StaticResource BoolVis}}">
+                <Button Style="{StaticResource BackdropButton}" Command="{Binding CloseCard}"
+                        AutomationProperties.Name="Close" />
                 <Border Style="{StaticResource Card}" Width="620" MaxHeight="760" Padding="0"
                         VerticalAlignment="Center" HorizontalAlignment="Center"
                         DataContext="{Binding SelectedCard}">
@@ -901,6 +1089,10 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
+                        <Button Style="{StaticResource CloseXButton}" HorizontalAlignment="Right"
+                                VerticalAlignment="Top" Margin="0,10,10,0" Panel.ZIndex="3"
+                                AutomationProperties.Name="Close"
+                                Command="{Binding DataContext.CloseCard, RelativeSource={RelativeSource AncestorType=Window}}" />
                         <Grid Margin="24,22,24,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -980,12 +1172,12 @@
                                     Visibility="{Binding HasDivisionLink, Converter={StaticResource BoolVis}}"
                                     Command="{Binding DataContext.ViewDivisionCmd, RelativeSource={RelativeSource AncestorType=Window}}"
                                     CommandParameter="{Binding Division}" />
-                            <Button Grid.Column="2" Content="Close" Padding="26,10"
+                            <Button Grid.Column="2" Content="Close  (Esc)" AutomationProperties.Name="Close" Padding="26,10"
                                     Command="{Binding DataContext.CloseCard, RelativeSource={RelativeSource AncestorType=Window}}" />
                         </Grid>
                     </Grid>
                 </Border>
-            </Border>
+            </Grid>
         </Grid>
     </Grid>
 </Window>
