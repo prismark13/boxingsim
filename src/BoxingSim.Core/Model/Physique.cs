@@ -42,4 +42,31 @@ public static class Physique
         double offset = StableHash(name) % 1001 / 1000.0 * 10.0 - 4.5;   // -4.5 .. +5.5
         return (int)Math.Round(BaseReach(frame) + offset);
     }
+
+    /// <summary>Average pro height in inches by division, tracking reach closely — a rangy man is usually a tall
+    /// one. Like reach this is synthesised from the frame plus a stable per-name spread, so it never moves
+    /// between sessions and needs nothing stored.</summary>
+    private static double BaseHeight(WeightClass wc) => BaseReach(wc) - 1.5;
+
+    public static int HeightInchesFor(WeightClass wc, string name)
+    {
+        // Reuse the same stable spread as reach but on its own axis, so a long-armed man isn't automatically
+        // the tallest — the two correlate without being locked together.
+        int h = StableHash(name + "|h");
+        double spread = ((h & 0xFF) / 255.0 - 0.5) * 5.0;   // about +/- 2.5 inches
+        return (int)Math.Round(BaseHeight(wc) + spread);
+    }
+
+    /// <summary>Whether a fighter comes out sharp or takes his time: -1 slow starter, 0 even, +1 fast starter.
+    /// A real trait — a slow starter genuinely gives early rounds away and comes on late, which is why the
+    /// engine reads it per round rather than as a flat rating.</summary>
+    public static int StartSpeedFor(string name)
+    {
+        int h = StableHash(name + "|start") & 0xFFFF;
+        int bucket = h % 100;
+        return bucket < 25 ? 1 : bucket < 50 ? -1 : 0;   // a quarter each way, half of them even
+    }
+
+    public static string StartSpeedLabel(int startSpeed) =>
+        startSpeed > 0 ? "fast starter" : startSpeed < 0 ? "slow starter" : "even pace";
 }

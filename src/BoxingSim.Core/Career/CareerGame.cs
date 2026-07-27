@@ -2349,10 +2349,15 @@ public sealed class CareerGame
             Aggression = Ceil(20),
             Heart = Ceil(16)
         };
-        return new Boxer
+        var player = new Boxer
         {
             Id = -1, Name = name, Country = country, WeightClass = wc,
             Ratings = r, Age = startAge, PeakAge = peak, Potential = potential, RankPoints = 1000
         };
+        // Every other fighter gets a reach; the player was left on zero, and ReachEdge treats zero as "unknown"
+        // and returns no effect — so the range battle simply never applied to the player's fights, in either
+        // direction. Give him a frame like anyone else's.
+        player.Reach = Physique.ReachInchesFor(wc, name);
+        return player;
     }
 }

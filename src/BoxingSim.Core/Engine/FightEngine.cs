@@ -163,6 +163,9 @@ public sealed class FightEngine
         public bool CutEye, SwellEye, HandHurt;
         public double HandPen;
         public int RoundKnockdowns, TotalKnockdowns, RoundLanded;
+        /// <summary>Where we are in the fight, 0 at the opening bell and 1 at the last round. Read by the
+        /// starter trait so a slow starter is genuinely muted early and comes on late.</summary>
+        public double Phase;
         public double RoundWeighted;
         public FightingStyle Style;
         public Ratings R => Boxer.Ratings;
@@ -173,6 +176,10 @@ public sealed class FightEngine
             double vision = (CutEye && Cut >= 0.5) ? (Cut - 0.4) * 0.10 : 0.0;
             if (SwellEye && Swell >= 0.5) vision += (Swell - 0.4) * 0.12;   // an eye swelling shut blinds a fighter
             double mult = 1.0 - Fatigue * 0.30 - Math.Max(0, Damage - heart) * 0.35 - Swell * 0.08 - BodyDmg * 0.10 - vision;
+            // A fast starter is sharper out of the gate and fades; a slow starter warms into it. Symmetric
+            // about the midpoint so the trait costs a man nothing over a full fight — it only moves WHEN his
+            // best work happens, which is what decides close rounds.
+            mult *= 1.0 + Boxer.StartSpeed * 0.07 * (1.0 - 2.0 * Phase);
             return rating * Math.Max(0.36, mult);
         }
 
@@ -226,6 +233,8 @@ public sealed class FightEngine
             sa.RoundKnockdowns = sb.RoundKnockdowns = 0;
             sa.RoundLanded = sb.RoundLanded = 0;
             sa.RoundWeighted = sb.RoundWeighted = 0;
+            // 0 at the opening bell, 1 in the last round — drives the fast/slow starter trait.
+            sa.Phase = sb.Phase = scheduledRounds <= 1 ? 0.5 : (round - 1) / (double)(scheduledRounds - 1);
             double cutBeforeA = sa.Cut, cutBeforeB = sb.Cut, swellBeforeA = sa.Swell, swellBeforeB = sb.Swell;
 
             int attemptsA = PunchVolume(sa);

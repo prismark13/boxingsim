@@ -946,6 +946,12 @@ public sealed class CareerViewModel : Observable
             return b is null ? "" : $"{Ui.Code(b.Country)}  ·  age {b.Age}";
         }
     }
+
+    // The physical matchup, which the engine already fights over: the longer man controls the range, and a
+    // fast starter banks early rounds a slow one has to take back.
+    private static string Frame(Boxer b) => $"{b.Height / 12}′{b.Height % 12}″  ·  {b.Reach}″ reach  ·  {b.StartSpeedLabel}";
+    public string PlayerFrame => Game is null ? "" : Frame(Game.Player);
+    public string OfferOpponentFrame => Game?.Offer is { } o ? Frame(o.Opponent) : "";
     public string OfferRounds => Game?.Offer is { } o ? $"{o.Rounds} rounds" : "";
     public string OfferContext
     {
@@ -1020,6 +1026,7 @@ public sealed class CareerViewModel : Observable
             nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),
             nameof(OfferOpponentClass), nameof(OfferOpponentRecord), nameof(OfferOpponentMeta),
             nameof(OfferRounds), nameof(OfferContext), nameof(OfferIsTitle),
+            nameof(PlayerFrame), nameof(OfferOpponentFrame),
             nameof(MoveUpLabel), nameof(HasResult), nameof(ResultHeadline), nameof(LastBoutWon),
             nameof(LastBoutLost), nameof(PlayerRetired), nameof(HasSave), nameof(SaveError),
             nameof(ShowResultBanner), nameof(HasLedger), nameof(RankingDivisions),

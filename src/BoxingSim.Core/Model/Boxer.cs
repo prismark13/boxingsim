@@ -28,6 +28,14 @@ public sealed class Boxer
     /// it only shapes the range battle in the ring (see the fight engine). Synthesised from frame when unknown.</summary>
     public int Reach { get; set; }
 
+    /// <summary>Height in inches. Derived from the frame and the name, so it costs nothing to store and is
+    /// stable across sessions and saves.</summary>
+    public int Height => Physique.HeightInchesFor(TopWeight ?? WeightClass, Name);
+
+    /// <summary>-1 slow starter, 0 even, +1 fast starter. Read per round by the engine, not a flat rating.</summary>
+    public int StartSpeed => Physique.StartSpeedFor(Name);
+    public string StartSpeedLabel => Physique.StartSpeedLabel(StartSpeed);
+
     public int Age { get; set; }
 
     /// <summary>Optional date of birth (free text, e.g. "1949-11-03"). Shown on cards.</summary>
