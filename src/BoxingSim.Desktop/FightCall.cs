@@ -15,7 +15,8 @@ public enum CallEvent { None, RoundBell, Knockdown, Stoppage, Cut, Hurt, HardPun
 /// can move with the call rather than sitting still while text scrolls past.</summary>
 public sealed record CallLine(string Clock, string Text, CallKind Kind,
                               int Round = 0, int MyLanded = 0, int HisLanded = 0,
-                              int MyHurt = 0, int HisHurt = 0, CallEvent Event = CallEvent.None)
+                              int MyHurt = 0, int HisHurt = 0, CallEvent Event = CallEvent.None,
+                              double MyGas = 1, double HisGas = 1)
 {
     public bool IsRound => Kind == CallKind.Round;
     public bool IsDrama => Kind == CallKind.Drama;
@@ -115,8 +116,10 @@ public static class FightCall
 
                 int liveMine = myTotal + (iAmA ? t.LandedA : t.LandedB);
                 int liveHis = hisTotal + (iAmA ? t.LandedB : t.LandedA);
+                double gasMine = iAmA ? t.GasA : t.GasB;
+                double gasHis = iAmA ? t.GasB : t.GasA;
                 CallLine Line(string text, CallKind kind, CallEvent ev = CallEvent.None) =>
-                    new(t.Clock, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis, ev);
+                    new(t.Clock, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis, ev, gasMine, gasHis);
 
                 // Ring position, from my side: positive means I have him backed up. Hysteresis on purpose —
                 // it takes a firm 0.34 to call a man trapped but a drop below 0.16 to call him free, so a

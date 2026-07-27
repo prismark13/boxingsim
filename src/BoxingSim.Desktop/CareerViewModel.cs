@@ -126,6 +126,11 @@ public sealed class FighterCard
     public IReadOnlyList<CardStat> Ratings { get; init; } = Array.Empty<CardStat>();
     public IReadOnlyList<LedgerRow> Recent { get; init; } = Array.Empty<LedgerRow>();
     public bool HasRatings => Ratings.Count > 0;
+
+    /// <summary>What the ledger says about him rather than what his ratings do — how he finishes, how he is
+    /// finished, and the volume he works at. A 1-15 bar cannot say "he has stopped two thirds of them".</summary>
+    public IReadOnlyList<StatRow> Form { get; init; } = Array.Empty<StatRow>();
+    public bool HasForm => Form.Count > 0;
     /// <summary>The division to jump to from the card, so you can follow a fighter to his rankings.</summary>
     public WeightClass? Division { get; init; }
     public string DivisionLink => Division is WeightClass w ? $"See the {w.DisplayName()} rankings" : "";
@@ -546,6 +551,14 @@ public sealed class CareerViewModel : Observable
     /// winning is visible at a glance and moves with every line.</summary>
     public double LiveMineShare => _liveMine + _liveHis > 0 ? (double)_liveMine / (_liveMine + _liveHis) : 0.5;
     public double LiveHisShare => 1.0 - LiveMineShare;
+
+    // What each man has left in the tank, draining as the fight goes on. This is the engine's own fatigue -
+    // the thing that actually fades a fighter - not a decorative second number.
+    private double _liveMyGas = 1, _liveHisGas = 1;
+    public double LiveMyGas => _liveMyGas;
+    public double LiveHisGas => _liveHisGas;
+    public bool MyManGassed => _liveMyGas <= 0.45;
+    public bool HisManGassed => _liveHisGas <= 0.45;
     public bool MyManHurt => _liveMyHurt >= 2;
     public bool HisManHurt => _liveHisHurt >= 2;
 
@@ -622,8 +635,11 @@ public sealed class CareerViewModel : Observable
         _liveHis = line.HisLanded;
         _liveMyHurt = line.MyHurt;
         _liveHisHurt = line.HisHurt;
+        _liveMyGas = line.MyGas;
+        _liveHisGas = line.HisGas;
         foreach (var n in new[] { nameof(LiveRound), nameof(LiveClock), nameof(LiveMine), nameof(LiveHis),
-                                  nameof(LiveMineShare), nameof(LiveHisShare), nameof(MyManHurt), nameof(HisManHurt) })
+                                  nameof(LiveMineShare), nameof(LiveHisShare), nameof(MyManHurt), nameof(HisManHurt),
+                                  nameof(LiveMyGas), nameof(LiveHisGas), nameof(MyManGassed), nameof(HisManGassed) })
             Raise(n);
     }
 
@@ -706,6 +722,7 @@ public sealed class CareerViewModel : Observable
         _call = FightCall.Build(res, me).ToList();
         _fed = 0;
         _liveRound = 0; _liveMine = 0; _liveHis = 0; _liveMyHurt = 0; _liveHisHurt = 0;
+        _liveMyGas = 1; _liveHisGas = 1;
         LiveClock = "";
         PushState(new CallLine("", "", CallKind.Action));
 
@@ -849,6 +866,7 @@ public sealed class CareerViewModel : Observable
             }),
             Belts = string.Join("  ·  ", belts),
             Ratings = AttributeBars(b.Ratings),
+            Form = FormOf(b),
             Recent = b.History.OrderByDescending(h => h.Date).Select(h => ToLedger(h, b.Name)).ToList(),
             Division = b.WeightClass
         };
@@ -874,6 +892,38 @@ public sealed class CareerViewModel : Observable
     /// scales side by side meant nothing: "Power 75" told you nothing about whether 75 was good.</summary>
     private const int TopClass = 15;
     private static int OnClassScale(int raw) => Ratings.ClassFromRaw(raw);
+
+    /// <summary>The part of a fighter that a rating cannot express. His knockout ratio is a fact about what he
+    /// does to people; the punches he lands and takes in a round, worst to best, is the shape of his nights.
+    /// Both come from his ledger, so they are what happened rather than what he is capable of.</summary>
+    private static IReadOnlyList<StatRow> FormOf(Boxer b)
+    {
+        var rows = new List<StatRow>();
+        var r = b.Record;
+        int fights = r.Wins + r.Losses + r.Draws;
+        if (fights == 0) return rows;
+
+        if (r.Wins > 0)
+            rows.Add(new StatRow("KO ratio", $"{100.0 * r.KnockoutWins / r.Wins:0}%",
+                                 $"{r.KnockoutWins} of {r.Wins} wins inside the distance"));
+        rows.Add(new StatRow("Stopped", r.Losses > 0 ? $"{r.KnockoutLosses} of {r.Losses}" : "never",
+                             r.Losses == 0 ? "unbeaten" :
+                             r.KnockoutLosses == 0 ? "never stopped - he has always heard the final bell"
+                             : "losses that came inside the distance"));
+
+        // Punch ranges need per-round cards, which are kept for ranked men and title fights.
+        var cards = b.History.Where(h => h.Rounds is { Count: > 0 }).SelectMany(h => h.Rounds!).ToList();
+        if (cards.Count >= 6)
+        {
+            rows.Add(new StatRow("Output range",
+                                 $"{cards.Min(x => x.LandedFor)}-{cards.Max(x => x.LandedFor)}",
+                                 $"landed in a round, worst to best - {cards.Average(x => x.LandedFor):0.0} typical"));
+            rows.Add(new StatRow("Absorbed range",
+                                 $"{cards.Min(x => x.LandedAgainst)}-{cards.Max(x => x.LandedAgainst)}",
+                                 $"taken in a round, best to worst - {cards.Average(x => x.LandedAgainst):0.0} typical"));
+        }
+        return rows;
+    }
 
     private static CardStat Bar(string name, int raw)
     {

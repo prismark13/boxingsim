@@ -42,10 +42,18 @@ public static class FightScript
         var rounds = RoundsFor(line, rng, stopped);
         var built = new List<RoundResult>(rounds.Count);
 
+        // What each man has left, draining as the fight goes on. Mirrors the engine's own per-round cost:
+        // a base, worse the poorer his stamina, plus what the work itself takes out of him.
+        double gasO = 1, gasF = 1;
+
         foreach (var r in rounds)
         {
             bool last = r.Round == rounds[^1].Round;
-            var ticks = Round(r, owner, foe, styleO, styleF, rng, last && stopped, line, ownerWon, notable);
+            double dropO = Drain(owner, r.LandedFor), dropF = Drain(foe, r.LandedAgainst);
+            var ticks = Round(r, owner, foe, styleO, styleF, rng, last && stopped, line, ownerWon, notable,
+                              gasO, gasF, dropO, dropF);
+            gasO = Math.Max(0.12, gasO - dropO);
+            gasF = Math.Max(0.12, gasF - dropF);
             built.Add(new RoundResult
             {
                 Round = r.Round,
@@ -103,8 +111,14 @@ public static class FightScript
 
     /// <summary>Lay a round's punches out over its three minutes. The totals are fixed by the record; what is
     /// invented is only when each one lands and which punch it was.</summary>
+    /// <summary>What a round costs a man. The engine charges a base plus a penalty for poor stamina; a busy
+    /// round on top of that takes more out of him than a quiet one.</summary>
+    private static double Drain(Boxer b, int landed) =>
+        0.055 + (100 - b.Ratings.Stamina) / 900.0 + Math.Max(0, landed - 12) * 0.0016;
+
     private static FightTick[] Round(BoutRound r, Boxer a, Boxer b, FightingStyle sa, FightingStyle sb,
-                                     Random rng, bool endsHere, BoutLine line, bool ownerWon, bool notable)
+                                     Random rng, bool endsHere, BoutLine line, bool ownerWon, bool notable,
+                                     double gasA, double gasB, double dropA, double dropB)
     {
         // A knockdown ends the action where it falls, so a round that finishes the fight is cut short.
         int segs = endsHere ? Math.Max(4, 6 + rng.Next(TicksPerRound - 8)) : TicksPerRound;
@@ -132,6 +146,10 @@ public static class FightScript
             ring += (forWhen[i] - againstWhen[i]) * 0.06 + (rng.NextDouble() - 0.5) * 0.05;
             ring = Math.Clamp(ring * 0.92, -1, 1);
             t.Ring = ring;
+            // The tank empties across the round rather than stepping down at the bell.
+            double through = (i + 1) / (double)segs;
+            t.GasA = Math.Clamp(gasA - dropA * through, 0.12, 1);
+            t.GasB = Math.Clamp(gasB - dropB * through, 0.12, 1);
         }
 
         // Knockdowns land late in the round, and a man is visibly hurt in the seconds before he goes over.

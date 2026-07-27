@@ -24,6 +24,10 @@ public sealed class FightTick
     /// <summary>Where the fight is being fought: 0 is centre ring, +1 is B pinned on the ropes with A on top
     /// of him, -1 the reverse. Carries across rounds — a man being walked down stays walked down.</summary>
     public double Ring;
+    /// <summary>How much a man has left, 1 at the opening bell down toward 0. The engine has always tracked
+    /// this internally to decide who fades; it is exposed so the fight can SHOW it draining rather than only
+    /// letting you infer it from a dropping punch count.</summary>
+    public double GasA = 1, GasB = 1;
     public FoulEvent? Foul;
     public StopInfo? Fin;                     // set on the tick the fight ends
 }

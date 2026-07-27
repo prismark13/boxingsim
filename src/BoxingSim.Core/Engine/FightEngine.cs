@@ -854,7 +854,7 @@ public sealed class FightEngine
                 t.KnockdownsA = last.KnockdownsA; t.KnockdownsB = last.KnockdownsB;
                 t.DamageA = last.DamageA; t.DamageB = last.DamageB; t.BodyA = last.BodyA; t.BodyB = last.BodyB;
                 t.CutA = last.CutA; t.CutB = last.CutB; t.SwellA = last.SwellA; t.SwellB = last.SwellB;
-                t.Ring = last.Ring;
+                t.Ring = last.Ring; t.GasA = last.GasA; t.GasB = last.GasB;
             }
         }
     }
