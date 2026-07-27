@@ -150,6 +150,8 @@ public sealed class CareerViewModel : Observable
         CloseFight = new Cmd(() => { SelectedFight = null; });
         CloseCard = new Cmd(() => { SelectedCard = null; });
         FinishPlayback = new Cmd(EndPlayback);
+        TogglePause = new Cmd(DoTogglePause);
+        SetSpeed = new Cmd(DoSetSpeed);
         GoBack = new Cmd(DoGoBack, () => CanGoBack);
         Navigate = new Cmd(DoNavigate);
         ViewDivisionCmd = new Cmd(DoViewDivision);
@@ -361,6 +363,8 @@ public sealed class CareerViewModel : Observable
     public Cmd OpenAwardFighter { get; }
     public Cmd CloseFight { get; }
     public Cmd FinishPlayback { get; }
+    public Cmd TogglePause { get; }
+    public Cmd SetSpeed { get; }
     public Cmd GoBack { get; }
     public Cmd Navigate { get; }
     public Cmd ViewDivisionCmd { get; }
@@ -497,6 +501,52 @@ public sealed class CareerViewModel : Observable
 
     public string PlaybackButtonLabel => PlaybackFinished ? "Continue" : "Skip to the verdict";
 
+    // ---- watching it at your own pace ----
+
+    private double _speed = 1.0;
+    /// <summary>Playback speed multiplier. Applied to every line's dwell, so the shape of the pacing — a
+    /// knockdown hanging longer than a jab — survives at any speed.</summary>
+    public double Speed
+    {
+        get => _speed;
+        private set
+        {
+            _speed = value;
+            foreach (var n in new[] { nameof(Speed), nameof(IsHalfSpeed), nameof(IsNormalSpeed), nameof(IsDoubleSpeed) })
+                Raise(n);
+        }
+    }
+    public bool IsHalfSpeed => Math.Abs(_speed - 0.5) < 0.01;
+    public bool IsNormalSpeed => Math.Abs(_speed - 1.0) < 0.01;
+    public bool IsDoubleSpeed => Math.Abs(_speed - 2.0) < 0.01;
+
+    private bool _paused;
+    public bool IsPaused
+    {
+        get => _paused;
+        private set { _paused = value; Raise(); Raise(nameof(PauseLabel)); }
+    }
+    public string PauseLabel => _paused ? "Resume" : "Pause";
+
+    /// <summary>Pausing stops the call where it is so the feed can be scrolled back and read.</summary>
+    private void DoTogglePause()
+    {
+        if (PlaybackFinished) return;
+        IsPaused = !IsPaused;
+        if (IsPaused) _playbackTimer.Stop();
+        else _playbackTimer.Start();
+    }
+
+    private void DoSetSpeed(object? param)
+    {
+        Speed = param switch
+        {
+            double d => d,
+            string t when double.TryParse(t, System.Globalization.CultureInfo.InvariantCulture, out var d) => d,
+            _ => 1.0
+        };
+    }
+
     private void StartPlayback()
     {
         var res = _svc.LastResult;
@@ -521,8 +571,9 @@ public sealed class CareerViewModel : Observable
 
         if (_call.Count == 0) { PlaybackFinished = true; IsPlayingBack = true; return; }
         PlaybackFinished = false;
+        IsPaused = false;
         IsPlayingBack = true;
-        _playbackTimer.Interval = TimeSpan.FromMilliseconds(420);
+        _playbackTimer.Interval = TimeSpan.FromMilliseconds(420 / Math.Max(0.1, _speed));
         _playbackTimer.Start();
     }
 
@@ -531,23 +582,25 @@ public sealed class CareerViewModel : Observable
         if (_fed >= _call.Count) { _playbackTimer.Stop(); PlaybackFinished = true; return; }
         var line = _call[_fed++];
         Feed.Add(line);
-        // Let the big moments hang before the next line lands; rattle through the routine ones.
-        _playbackTimer.Interval = TimeSpan.FromMilliseconds(
-            line.Kind switch
-            {
-                CallKind.Round => 700,
-                CallKind.Drama => 950,
-                CallKind.Verdict => 1100,
-                CallKind.Score => 800,
-                CallKind.Big => 500,
-                _ => 380
-            });
+        // Let the big moments hang before the next line lands; rattle through the routine ones. The speed
+        // multiplier scales the whole shape rather than flattening it.
+        double dwell = line.Kind switch
+        {
+            CallKind.Round => 700,
+            CallKind.Drama => 950,
+            CallKind.Verdict => 1100,
+            CallKind.Score => 800,
+            CallKind.Big => 500,
+            _ => 380
+        };
+        _playbackTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(40, dwell / Math.Max(0.1, _speed)));
     }
 
     /// <summary>Skip to the verdict, or dismiss it once shown.</summary>
     private void EndPlayback()
     {
         _playbackTimer.Stop();
+        IsPaused = false;
         if (!PlaybackFinished && _fed < _call.Count)
         {
             for (; _fed < _call.Count; _fed++) Feed.Add(_call[_fed]);

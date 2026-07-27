@@ -62,6 +62,13 @@ public sealed class BoolToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
 }
 
+/// <summary>true -> "on", so a style Trigger can highlight the selected item of a small segmented control.</summary>
+public sealed class OnOffConverter : IValueConverter
+{
+    public object Convert(object? value, Type t, object? p, CultureInfo c) => value is true ? "on" : "off";
+    public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
 /// <summary>True for the loud moments in a round's commentary — a knockdown, a man hurt, a stoppage — so they
 /// stand out from the routine "his round (12-8 landed)" recap.</summary>
 public sealed class ShoutConverter : IValueConverter

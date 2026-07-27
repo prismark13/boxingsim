@@ -334,6 +334,33 @@
         </Setter>
     </Style>
 
+    <!-- A small segmented control: the speed the fight is called at. -->
+    <Style x:Key="SpeedButton" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="b" Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                            BorderThickness="1" CornerRadius="7" Padding="13,7" Margin="0,0,6,0">
+                        <TextBlock x:Name="t" Text="{TemplateBinding Content}" FontSize="12"
+                                   Foreground="{StaticResource Muted}" HorizontalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="t" Property="Foreground" Value="{StaticResource Text}" />
+                        </Trigger>
+                        <Trigger Property="Tag" Value="on">
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource AccentSoft}" />
+                            <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Accent}" />
+                            <Setter TargetName="t" Property="Foreground" Value="#CFE4FF" />
+                            <Setter TargetName="t" Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- A whole list row that behaves as a button, so clicking anywhere on a fighter opens his card. -->
     <Style x:Key="RowButton" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />

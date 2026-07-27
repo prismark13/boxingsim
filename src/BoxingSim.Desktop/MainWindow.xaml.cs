@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 
 namespace BoxingSim.Desktop;
@@ -23,6 +24,19 @@ public partial class MainWindow : Window
         Loaded -= OnLoaded;
         await _vm.WarmupAsync();
         if (DesktopCareerService.HasSave) _vm.ContinueCareer.Execute(null);
+    }
+
+    // The call auto-scrolls to the newest line, but yields the moment you scroll back — otherwise pausing to
+    // read what just happened would be undone by the next line arriving.
+    private bool _followFeed = true;
+
+    private void FeedScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (sender is not ScrollViewer sv) return;
+        if (e.ExtentHeightChange == 0)                       // a real user scroll, not new content
+            _followFeed = sv.VerticalOffset >= sv.ScrollableHeight - 2;
+        else if (_followFeed)
+            sv.ScrollToEnd();
     }
 
     protected override void OnSourceInitialized(EventArgs e)

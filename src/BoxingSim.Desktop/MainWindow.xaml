@@ -44,6 +44,7 @@
         <local:FractionWidthConverter x:Key="BarWidth" />
         <local:WeightClassNameConverter x:Key="DivName" />
         <local:ShoutConverter x:Key="Shout" />
+        <local:OnOffConverter x:Key="OnOff" />
 
         <!-- Weight classes read as "Light Heavyweight", never the raw enum name. -->
         <DataTemplate x:Key="DivisionItem">
@@ -922,7 +923,8 @@
                     </StackPanel>
 
                     <Border Grid.Row="1" Style="{StaticResource Card}" Background="#0A0E15">
-                        <ScrollViewer x:Name="FeedScroll" VerticalScrollBarVisibility="Hidden" Padding="30,22,30,22">
+                        <ScrollViewer x:Name="FeedScroll" VerticalScrollBarVisibility="Auto" Padding="30,22,30,22"
+                                      ScrollChanged="FeedScroll_ScrollChanged">
                             <ItemsControl ItemsSource="{Binding Feed}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -979,6 +981,24 @@
                         <TextBlock Text="{Binding PlaybackVerdict}" FontSize="19" TextWrapping="Wrap"
                                    Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,0,0,14"
                                    Visibility="{Binding PlaybackFinished, Converter={StaticResource BoolVis}}" />
+                        <!-- Watch it at your own pace: speed, pause, or jump to the end. Pausing lets the call
+                             be scrolled back and read. -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,12"
+                                    Visibility="{Binding PlaybackFinished, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                            <TextBlock Text="SPEED" Style="{StaticResource Label}" VerticalAlignment="Center"
+                                       Margin="0,0,10,0" />
+                            <Button Style="{StaticResource SpeedButton}" Content="0.5x" AutomationProperties.Name="Half speed"
+                                    Command="{Binding SetSpeed}" CommandParameter="0.5"
+                                    Tag="{Binding IsHalfSpeed, Converter={StaticResource OnOff}}" />
+                            <Button Style="{StaticResource SpeedButton}" Content="1x" AutomationProperties.Name="Normal speed"
+                                    Command="{Binding SetSpeed}" CommandParameter="1"
+                                    Tag="{Binding IsNormalSpeed, Converter={StaticResource OnOff}}" />
+                            <Button Style="{StaticResource SpeedButton}" Content="2x" AutomationProperties.Name="Double speed"
+                                    Command="{Binding SetSpeed}" CommandParameter="2"
+                                    Tag="{Binding IsDoubleSpeed, Converter={StaticResource OnOff}}" />
+                            <Button Content="{Binding PauseLabel}" AutomationProperties.Name="{Binding PauseLabel}"
+                                    Command="{Binding TogglePause}" Margin="14,0,0,0" Padding="18,7" FontSize="12" />
+                        </StackPanel>
                         <Button Command="{Binding FinishPlayback}" Style="{StaticResource PrimaryButton}"
                                 Content="{Binding PlaybackButtonLabel}" Padding="30,12"
                                 AutomationProperties.Name="{Binding PlaybackButtonLabel}"
