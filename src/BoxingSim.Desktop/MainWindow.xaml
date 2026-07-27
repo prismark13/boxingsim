@@ -1114,6 +1114,8 @@
                                     Tag="{Binding IsDoubleSpeed, Converter={StaticResource OnOff}}" />
                             <Button Content="{Binding PauseLabel}" AutomationProperties.Name="{Binding PauseLabel}"
                                     Command="{Binding TogglePause}" Margin="14,0,0,0" Padding="18,7" FontSize="12" />
+                            <Button Content="{Binding SoundLabel}" AutomationProperties.Name="{Binding SoundLabel}"
+                                    Command="{Binding ToggleSound}" Margin="8,0,0,0" Padding="18,7" FontSize="12" />
                         </StackPanel>
                         <Button Command="{Binding FinishPlayback}" Style="{StaticResource PrimaryButton}"
                                 Content="{Binding PlaybackButtonLabel}" Padding="30,12"

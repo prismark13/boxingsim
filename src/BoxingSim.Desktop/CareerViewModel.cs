@@ -153,6 +153,7 @@ public sealed class CareerViewModel : Observable
         TogglePause = new Cmd(DoTogglePause);
         SetSpeed = new Cmd(DoSetSpeed);
         ToggleRound = new Cmd(p => { if (p is RoundBlock b) b.IsExpanded = !b.IsExpanded; });
+        ToggleSound = new Cmd(() => SoundOn = !SoundOn);
         GoBack = new Cmd(DoGoBack, () => CanGoBack);
         Navigate = new Cmd(DoNavigate);
         ViewDivisionCmd = new Cmd(DoViewDivision);
@@ -367,6 +368,7 @@ public sealed class CareerViewModel : Observable
     public Cmd TogglePause { get; }
     public Cmd SetSpeed { get; }
     public Cmd ToggleRound { get; }
+    public Cmd ToggleSound { get; }
     public Cmd GoBack { get; }
     public Cmd Navigate { get; }
     public Cmd ViewDivisionCmd { get; }
@@ -540,7 +542,28 @@ public sealed class CareerViewModel : Observable
             _live.Lines.Add(line);
         }
         PushState(line);
+        Sound(line);
     }
+
+    /// <summary>Sparse by design: a bell to open a round, a thud when a man goes down, the final bell on the
+    /// verdict. Silent while skipping, because forty lines at once would be forty sounds at once.</summary>
+    private void Sound(CallLine line)
+    {
+        if (!SoundOn || _skipping) return;
+        if (line.IsRound) Sfx.Bell();
+        else if (line.IsVerdict) Sfx.FinalBellSound();
+        else if (line.IsDrama && (line.Text.Contains("DOWN") || line.Text.Contains("KNOCKS OUT"))) Sfx.Knockdown_();
+    }
+
+    private bool _skipping;
+
+    private bool _soundOn = true;
+    public bool SoundOn
+    {
+        get => _soundOn;
+        private set { _soundOn = value; Sfx.Enabled = value; Raise(); Raise(nameof(SoundLabel)); }
+    }
+    public string SoundLabel => _soundOn ? "Sound on" : "Sound off";
 
     private RoundBlock AddOpeningBlock()
     {
@@ -669,8 +692,11 @@ public sealed class CareerViewModel : Observable
         IsPaused = false;
         if (!PlaybackFinished && _fed < _call.Count)
         {
+            _skipping = true;
             for (; _fed < _call.Count; _fed++) Feed(_call[_fed]);
+            _skipping = false;
             PlaybackFinished = true;
+            if (SoundOn) Sfx.FinalBellSound();   // one bell for the end, not one per skipped line
             return;
         }
         IsPlayingBack = false;
