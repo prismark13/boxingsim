@@ -15,6 +15,13 @@
     <ProjectReference Include="..\BoxingSim.Core\BoxingSim.Core.csproj" />
   </ItemGroup>
 
+  <!-- Real audio, if any is supplied. Drop files into assets/audio and they override the synthesised layers
+       at runtime; the app works with none, some, or all of them present. -->
+  <ItemGroup>
+    <None Include="assets/audio/**/*.*" CopyToOutputDirectory="PreserveNewest"
+          Link="assets/audio/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- The roster is BOTH embedded and copied beside the .exe. Embedding keeps a single-file publish genuinely
        standalone; the loose copy lets the data be swapped without a rebuild, and wins when present. -->
   <ItemGroup>

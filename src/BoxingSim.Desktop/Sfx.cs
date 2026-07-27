@@ -158,10 +158,30 @@ public static class Sfx
         catch { }
     }
 
-    /// <summary>MediaPlayer needs a URI, so each synthesised tone is written once to temp and reused.</summary>
+    /// <summary>Where the audio for a layer comes from.
+    ///
+    /// A REAL RECORDING WINS. Drop a file named for the layer into assets/audio beside the executable and it is
+    /// used instead of the synthesised version — no code change, no rebuild of the audio path. Synthesised
+    /// voices are a decent approximation but they will never match a recorded crowd, so the app is built to
+    /// prefer the real thing the moment it exists.
+    ///
+    /// Recognised names (.wav or .mp3):
+    ///   bed-small-calm  bed-small-hot     a club hall, quiet and roaring
+    ///   bed-big-calm    bed-big-hot       an arena, quiet and roaring
+    ///   thud  ooh  roar  bell  bell3      one-shots
+    ///
+    /// Beds should be seamless loops; anything else is played once per event.</summary>
     private static string FileFor(string key, Func<byte[]> make)
     {
-        if (_files.TryGetValue(key, out var existing) && File.Exists(existing)) return existing;
+        if (_files.TryGetValue(key, out var cached) && File.Exists(cached)) return cached;
+
+        foreach (var ext in new[] { ".wav", ".mp3", ".ogg" })
+        {
+            var asset = Path.Combine(AppContext.BaseDirectory, "assets", "audio", key + ext);
+            if (File.Exists(asset)) { _files[key] = asset; _real.Add(key); return asset; }
+        }
+
+        // Nothing supplied — synthesise it once into temp and reuse.
         var dir = Path.Combine(Path.GetTempPath(), "BoxingSim.sfx");
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, key + ".wav");
@@ -169,6 +189,12 @@ public static class Sfx
         _files[key] = path;
         return path;
     }
+
+    private static readonly HashSet<string> _real = new();
+
+    /// <summary>Which layers are playing real recordings rather than synthesis — for a settings line, and so a
+    /// half-populated assets folder is visible rather than silently mixed.</summary>
+    public static IReadOnlyCollection<string> RealSamples => _real;
 
     // ---- synthesis ----
 
