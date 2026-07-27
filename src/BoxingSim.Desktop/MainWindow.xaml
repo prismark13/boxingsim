@@ -1302,6 +1302,19 @@
                                 <TextBlock Text="{Binding Note}" FontSize="11.5" Foreground="{StaticResource Gold}"
                                            Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
                             </StackPanel>
+
+                            <!-- Any fight in the record books can be watched, not just the player's own. The
+                                 world resolves most bouts statistically, so this rebuilds the night from the
+                                 result before playing it. -->
+                            <Button Content="▶  Watch this fight" Style="{StaticResource PrimaryButton}"
+                                    HorizontalAlignment="Left" Margin="0,14,0,0"
+                                    AutomationProperties.Name="Watch this fight"
+                                    Command="{Binding DataContext.WatchFight, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}" />
+                            <TextBlock Text="{Binding DataContext.WatchUnavailable, RelativeSource={RelativeSource AncestorType=Window}}"
+                                       FontSize="11.5" Foreground="{StaticResource Faint}" TextWrapping="Wrap"
+                                       Margin="0,8,0,0"
+                                       Visibility="{Binding DataContext.HasWatchProblem, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}" />
                         </StackPanel>
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

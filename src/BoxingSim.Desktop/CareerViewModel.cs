@@ -66,7 +66,7 @@ public sealed class AwardDetail
     public bool HasCommentary => !string.IsNullOrWhiteSpace(Commentary);
 }
 public sealed record LedgerRow(string Date, string Result, string Opponent, string Detail, bool Win, bool Loss,
-                               BoutLine? Bout = null);
+                               BoutLine? Bout = null, string? OwnerName = null, bool Notable = false);
 
 /// <summary>One round of a stored bout, from the owning fighter's point of view, with what was said about it.</summary>
 public sealed record FightRoundRow(string Round, string Score, string Landed, string Knockdowns,
@@ -80,6 +80,8 @@ public sealed record FightRoundRow(string Round, string Score, string Landed, st
 /// Everything here was already being stored on the bout — it simply had nowhere to be seen.</summary>
 public sealed class FightDetail
 {
+    /// <summary>The ledger row this panel was opened from — carries what is needed to rebuild and watch it.</summary>
+    public LedgerRow? Source { get; init; }
     public string Opponent { get; init; } = "";
     public string Date { get; init; } = "";
     public string Verdict { get; init; } = "";
@@ -139,6 +141,7 @@ public sealed class CareerViewModel : Observable
         RollName = new Cmd(() => PlayerName = NameGen.Generate(Country, _rng));
         ShowFighter = new Cmd(OnShowFighter);
         ShowFight = new Cmd(OnShowFight);
+        WatchFight = new Cmd(OnWatchFight);
         ShowAward = new Cmd(OnShowAward);
         CloseAward = new Cmd(() => { SelectedAward = null; });
         OpenAwardFighter = new Cmd(() =>
@@ -363,6 +366,9 @@ public sealed class CareerViewModel : Observable
     public Cmd ShowFighter { get; }
     public Cmd CloseCard { get; }
     public Cmd ShowFight { get; }
+
+    /// <summary>Replay a fight from the record books, blow by blow.</summary>
+    public Cmd WatchFight { get; }
     public Cmd ShowAward { get; }
     public Cmd CloseAward { get; }
     public Cmd OpenAwardFighter { get; }
@@ -652,7 +658,17 @@ public sealed class CareerViewModel : Observable
     {
         var res = _svc.LastResult;
         if (res is null || Game is null) return;
-        var me = Game.Player;
+        Play(res, Game.Player,
+             Game.Offer is { } o && o.TitleFight ? $"{o.Belt} TITLE" : $"{res.ScheduledRounds} rounds",
+             ResultHeadline);
+    }
+
+    /// <summary>Play any fight, from any man's corner. The player's own bout is just the case where the point
+    /// of view is him and the result came straight from the engine; a fight out of the record books arrives
+    /// here having been rebuilt, and from this point on nothing downstream can tell the difference.</summary>
+    private void Play(FightResult res, Boxer pov, string billLine, string verdict)
+    {
+        var me = pov;
         bool iAmA = res.A.Id == me.Id;
         var them = iAmA ? res.B : res.A;
 
@@ -660,8 +676,8 @@ public sealed class CareerViewModel : Observable
         FightNightAway = them.Name;
         FightNightHomeRecord = me.Record.ToString();
         FightNightAwayRecord = them.Record.ToString();
-        FightNightBillLine = Game.Offer is { } o && o.TitleFight ? $"{o.Belt} TITLE" : $"{res.ScheduledRounds} rounds";
-        PlaybackVerdict = ResultHeadline;
+        FightNightBillLine = billLine;
+        PlaybackVerdict = verdict;
         foreach (var n in new[] { nameof(FightNightHome), nameof(FightNightAway), nameof(FightNightHomeRecord),
                                   nameof(FightNightAwayRecord), nameof(FightNightBillLine), nameof(PlaybackVerdict) })
             Raise(n);
@@ -684,6 +700,52 @@ public sealed class CareerViewModel : Observable
         _playbackTimer.Interval = TimeSpan.FromMilliseconds(420 / Math.Max(0.1, _speed));
         _playbackTimer.Start();
     }
+
+    /// <summary>Watch a fight out of the record books. Bouts the world resolved statistically have a result and
+    /// a card but no punches, so there is nothing to call — the fight is rebuilt by running the real engine
+    /// until it produces a night ending the way the record says it ended, then played like any other.
+    ///
+    /// A fight that won an award is rebuilt asking for the best of several matching nights rather than the
+    /// first, so opening Fight of the Year gives you the knockdowns and the late finish it was named for.</summary>
+    private void OnWatchFight(object? param)
+    {
+        if (Game is null) return;
+        var row = param as LedgerRow ?? (param is FightDetail fd ? fd.Source : null);
+        if (row?.Bout is not BoutLine line || row.OwnerName is not string ownerName) return;
+
+        var owner = Game.FindByName(ownerName);
+        var foe = Game.FindByName(line.Opponent);
+        if (owner is null || foe is null) { WatchUnavailable = "One of these fighters has left the sport."; return; }
+
+        _ = WatchAsync(owner, foe, line, row.Notable);
+    }
+
+    private async Task WatchAsync(Boxer owner, Boxer foe, BoutLine line, bool notable)
+    {
+        FightResult? res = null;
+        await BusyAsync("Going back over the tape…", () => res = FightRecall.Rebuild(owner, foe, line, notable));
+        if (res is null)
+        {
+            // Some nights cannot be reconstructed — a first-round knockout by a heavy underdog, say. The
+            // round-by-round card is still there; say so plainly rather than failing silently.
+            WatchUnavailable = "This one can't be replayed blow by blow — the card is below.";
+            return;
+        }
+        WatchUnavailable = "";
+        string verdict = res.Winner is null
+            ? $"DRAW — {res.A.Name} and {res.B.Name}"
+            : $"{res.Winner.Name} beat {res.Loser!.Name} by {res.Method}" +
+              (res.Method is "KO" or "TKO" ? $", round {res.EndRound}" : "");
+        Play(res, owner, line.Note is string n ? n.ToUpperInvariant() : $"{res.ScheduledRounds} rounds", verdict);
+    }
+
+    private string _watchUnavailable = "";
+    public string WatchUnavailable
+    {
+        get => _watchUnavailable;
+        set { _watchUnavailable = value; Raise(); Raise(nameof(HasWatchProblem)); }
+    }
+    public bool HasWatchProblem => !string.IsNullOrEmpty(WatchUnavailable);
 
     /// <summary>Read the occasion from the bout itself: a title fight fills a arena, a six-rounder against a
     /// journeyman fills a hall.</summary>
@@ -767,7 +829,7 @@ public sealed class CareerViewModel : Observable
             }),
             Belts = string.Join("  ·  ", belts),
             Ratings = AttributeBars(b.Ratings),
-            Recent = b.History.OrderByDescending(h => h.Date).Take(12).Select(ToLedger).ToList(),
+            Recent = b.History.OrderByDescending(h => h.Date).Take(12).Select(h => ToLedger(h, b.Name)).ToList(),
             Division = b.WeightClass
         };
     }
@@ -784,7 +846,7 @@ public sealed class CareerViewModel : Observable
         }),
         Belts = (m.WeightTitles >= 2 ? $"{m.WeightTitles}-weight champion" : m.WasChampion ? "World champion" : "")
                 + (m.Defenses > 0 ? $"  ·  {m.Defenses} defences" : ""),
-        Recent = m.History.OrderByDescending(h => h.Date).Take(12).Select(ToLedger).ToList(),
+        Recent = m.History.OrderByDescending(h => h.Date).Take(12).Select(h => ToLedger(h, m.Name)).ToList(),
         Division = m.Division
     };
 
@@ -806,7 +868,7 @@ public sealed class CareerViewModel : Observable
         Bar("Cut resistance", r.CutResistance), Bar("Aggression", r.Aggression), Bar("Heart", r.Heart),
     };
 
-    private static LedgerRow ToLedger(BoutLine h)
+    private static LedgerRow ToLedger(BoutLine h, string? owner = null)
     {
         string detail = h.Method + (h.Round > 0 && h.Method is "KO" or "TKO" ? $" rd{h.Round}" : "");
         if (h.Note is not null) detail = $"{h.Note} · {detail}";
@@ -817,8 +879,12 @@ public sealed class CareerViewModel : Observable
             int kd = rs.Sum(r => r.KdFor), kda = rs.Sum(r => r.KdAgainst);
             if (kd + kda > 0) detail += $" · KD {kd}-{kda}";
         }
+        // The owner travels with the row: rebuilding the fight to watch it needs BOTH men, and the bout line
+        // only names the opponent. A title fight is flagged as one worth the extra search when it is replayed,
+        // so the night it comes back with is the best of several rather than the first that fits.
+        bool notable = h.Note is string note && note.Contains("title", StringComparison.OrdinalIgnoreCase);
         return new LedgerRow(h.Date.ToString("d MMM yyyy"), h.Result.ToString(), h.Opponent, detail,
-                             h.Result == 'W', h.Result == 'L', h);
+                             h.Result == 'W', h.Result == 'L', h, owner, notable);
     }
 
     // ---- a single fight, opened out ----
@@ -876,6 +942,7 @@ public sealed class CareerViewModel : Observable
 
         SelectedFight = new FightDetail
         {
+            Source = row,
             Opponent = h.Opponent,
             Date = h.Date.ToString("d MMMM yyyy"),
             Verdict = (h.Result == 'W' ? "Won" : h.Result == 'L' ? "Lost" : "Drew") + $" by {h.Method}"
@@ -1000,7 +1067,7 @@ public sealed class CareerViewModel : Observable
         if (Game is null) return;
         var p = Game.Player;
 
-        foreach (var h in p.History.OrderByDescending(h => h.Date).Take(5)) RecentForm.Add(ToLedger(h));
+        foreach (var h in p.History.OrderByDescending(h => h.Date).Take(5)) RecentForm.Add(ToLedger(h, p.Name));
 
         int r = 1;
         foreach (var b in Game.RankingBoard(p.WeightClass, 5))
@@ -1263,7 +1330,7 @@ public sealed class CareerViewModel : Observable
         Ledger.Clear();
         if (Game is null) return;
         foreach (var h in Game.Player.History.OrderByDescending(h => h.Date).Take(60))
-            Ledger.Add(ToLedger(h));
+            Ledger.Add(ToLedger(h, Game.Player.Name));
     }
 
     /// <summary>Tale of the tape: the player's attributes against the man he's being offered, so the decision to

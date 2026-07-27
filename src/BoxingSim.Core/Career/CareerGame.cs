@@ -1450,6 +1450,14 @@ public sealed class CareerGame
     /// <summary>How much a young fighter over-performs his current rating — most of the ceiling he's
     /// still to realise. A can't-miss prospect (huge gap to a high ceiling) already handles lesser men
     /// with ease, so a journeyman almost never upsets a future great. Zero once he's at/past his peak.</summary>
+    /// <summary>Find a fighter anywhere in the world by name — active, retired or enshrined. Bout lines record
+    /// only an opponent's name, so replaying an old fight has to look the other man back up.</summary>
+    public Boxer? FindByName(string name)
+    {
+        if (Player.Name == name) return Player;
+        return _roster.FirstOrDefault(b => b.Name == name);
+    }
+
     private static double YouthEdge(Boxer b) => b.Age <= b.PeakAge ? Math.Min(16, Math.Max(0, b.Potential - b.Overall) * 0.4) : 0;
 
     /// <summary>Opponents a fighter has met in his last few bouts — used to avoid stale rematches.</summary>

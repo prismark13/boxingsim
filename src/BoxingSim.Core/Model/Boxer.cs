@@ -24,6 +24,15 @@ public sealed class Boxer
 
     public required Ratings Ratings { get; set; }
 
+    /// <summary>A shallow copy of this fighter carrying different ratings. Used to replay a recorded bout as a
+    /// night where a man was better than he usually is — the copy goes into the engine, never into the world.</summary>
+    public Boxer WithRatings(Ratings r)
+    {
+        var c = (Boxer)MemberwiseClone();
+        c.Ratings = r;
+        return c;
+    }
+
     /// <summary>Arm reach in inches — a physical frame trait, not a skill. It never feeds Overall/Class;
     /// it only shapes the range battle in the ring (see the fight engine). Synthesised from frame when unknown.</summary>
     public int Reach { get; set; }
