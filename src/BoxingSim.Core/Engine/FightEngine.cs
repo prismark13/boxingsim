@@ -141,6 +141,48 @@ public sealed class FightEngine
         return Math.Clamp(e, -0.7, 0.7);
     }
 
+    /// <summary>How hard a man walks his opponent down. This is what MOVES the other fighter — it is not the
+    /// same as wanting space: an out-boxer applies almost no pressure but is not thereby retreating, he is
+    /// simply not herding anyone. Fatigue and damage take a man's legs, and a fighter who cannot walk forward
+    /// stops being able to hold the middle of the ring.</summary>
+    private static double Pressure(State s)
+    {
+        double style = s.Style switch
+        {
+            FightingStyle.Swarmer => 1.00,
+            FightingStyle.Slugger => 0.75,
+            FightingStyle.BoxerPuncher => 0.45,
+            FightingStyle.CounterPuncher => 0.25,
+            FightingStyle.OutBoxer => 0.15,
+            _ => 0.4
+        };
+        double condition = 1.0 - s.Fatigue * 0.50 - s.Damage * 0.60;
+        return Math.Max(0, style * (0.6 + (s.R.Aggression - 50) / 100.0) * Math.Max(0.15, condition));
+    }
+
+    /// <summary>Ring generalship — the feet and upper-body movement that get a man off the ropes and back to
+    /// the centre. What keeps a good boxer out of trouble even against someone walking him down all night.</summary>
+    private static double Footwork(State s) => (s.Eff(s.R.Speed) * 0.6 + s.EffDef() * 0.4) / 100.0;
+
+    /// <summary>Where the fight is being fought, on one axis: 0 is centre ring, +1 is B trapped on the ropes
+    /// with A on top of him, -1 the reverse. One number is enough, because what matters in a fight is not
+    /// coordinates but who has whom where.
+    ///
+    /// Pressure drives it, clean punches drive it harder — a man eats a shot and gives ground — and whoever is
+    /// pinned works his way back toward the middle at a rate set by his feet. That tug-of-war is why a swarmer
+    /// can spend a round on top of an out-boxer without ever pinning him, and why the same swarmer traps a
+    /// tiring man against the ropes in the tenth.</summary>
+    private double StepRing(double ring, State sa, State sb, bool bigA, bool bigB)
+    {
+        double push = Pressure(sa) - Pressure(sb) + (bigA ? 0.50 : 0) - (bigB ? 0.50 : 0);
+        ring += push * 0.035;
+        // The trapped man is the one who has to move, and good feet get him out faster.
+        double pinned = ring > 0 ? Footwork(sb) : Footwork(sa);
+        ring -= ring * Math.Clamp(pinned * 0.10, 0.02, 0.18);
+        ring += (_rng.NextDouble() - 0.5) * 0.05;      // the ring is never still
+        return Math.Clamp(ring, -1, 1);
+    }
+
     /// <summary>How readily a fighter catches a missing opponent with a counter.</summary>
     private double CounterChance(State def)
     {
@@ -212,9 +254,16 @@ public sealed class FightEngine
         var styleA = StyleClassifier.Of(a);
         var styleB = StyleClassifier.Of(b);
         sa.Style = styleA; sb.Style = styleB;
-        // The total edge each man carries into every exchange = the style rock-paper-scissors plus his reach.
-        double edgeA = FightingStyles.Advantage(styleA, styleB) + ReachEdge(a.Reach, b.Reach, styleB);
-        double edgeB = FightingStyles.Advantage(styleB, styleA) + ReachEdge(b.Reach, a.Reach, styleA);
+        // Style and reach are kept apart rather than summed, because they do not behave the same way: the
+        // style matchup travels wherever the fight goes, while reach only pays while there is room to use it.
+        double styleEdgeA = FightingStyles.Advantage(styleA, styleB);
+        double styleEdgeB = FightingStyles.Advantage(styleB, styleA);
+        double reachEdgeA = ReachEdge(a.Reach, b.Reach, styleB);
+        double reachEdgeB = ReachEdge(b.Reach, a.Reach, styleA);
+
+        // Where the fight is being fought. Positive means A has B backed up. It carries across rounds — a man
+        // walked down all night does not get a clean slate at the bell, he only gets a minute's rest.
+        double ring = 0;
 
         // Running judge totals (three judges), accumulated as each round is scored.
         var jtA = new int[3];
@@ -247,6 +296,8 @@ public sealed class FightEngine
             var touched = new bool[TicksPerRound];
 
             int stopSeg = -1;
+            // How much of the round each man spent holding the other where he wanted him.
+            double workA = 0, workB = 0;
 
             for (int e = 0; e < exchanges && stopSeg < 0; e++)
             {
@@ -254,9 +305,12 @@ public sealed class FightEngine
                 var t = ticks[seg];
                 touched[seg] = true;
 
+                bool bigA = false, bigB = false;
+
                 if (e < attemptsA)
                 {
-                    var hit = Throw(sa, sb, wcKo, edgeA);
+                    var hit = Throw(sa, sb, wcKo, styleEdgeA, reachEdgeA, ring);
+                    bigA = hit.Big; bigB |= hit.CounterBig;
                     FoldHit(t, hit, attacker: true, sa, sb);
                     if (hit.CountedOut) { stoppage = FightOutcome.Knockout; stopWinner = a; stopLoser = b; stopMethod = "KO"; bodyStop = hit.ToBodyKd; stopSeg = seg; }
                     else if (hit.CounterCountedOut) { stoppage = FightOutcome.Knockout; stopWinner = b; stopLoser = a; stopMethod = "KO"; bodyStop = hit.CounterToBodyKd; stopSeg = seg; }
@@ -265,14 +319,18 @@ public sealed class FightEngine
                 }
                 if (stopSeg < 0 && e < attemptsB)
                 {
-                    var hit = Throw(sb, sa, wcKo, edgeB);
+                    var hit = Throw(sb, sa, wcKo, styleEdgeB, reachEdgeB, -ring);
+                    bigB |= hit.Big; bigA |= hit.CounterBig;
                     FoldHit(t, hit, attacker: false, sa, sb);
                     if (hit.CountedOut) { stoppage = FightOutcome.Knockout; stopWinner = b; stopLoser = a; stopMethod = "KO"; bodyStop = hit.ToBodyKd; stopSeg = seg; }
                     else if (hit.CounterCountedOut) { stoppage = FightOutcome.Knockout; stopWinner = a; stopLoser = b; stopMethod = "KO"; bodyStop = hit.CounterToBodyKd; stopSeg = seg; }
                     else if (sa.Damage >= 1.0 || sa.BodyDmg >= 1.0) { stoppage = FightOutcome.TechnicalKnockout; stopWinner = b; stopLoser = a; stopMethod = "TKO"; bodyStop = sa.BodyDmg >= 1.0; stopSeg = seg; }
                     else if (sb.Damage >= 1.0 || sb.BodyDmg >= 1.0) { stoppage = FightOutcome.TechnicalKnockout; stopWinner = a; stopLoser = b; stopMethod = "TKO"; bodyStop = sb.BodyDmg >= 1.0; stopSeg = seg; }
                 }
+                ring = StepRing(ring, sa, sb, bigA, bigB);
+                if (ring > 0) workA += ring; else workB += -ring;
                 Snapshot(t, sa, sb);
+                t.Ring = ring;
             }
 
             FoulEvent? roundFoul = null;
@@ -360,8 +418,12 @@ public sealed class FightEngine
             });
 
             if (stoppage is not null) { endRound = round; break; }
-            Recover(sa);
-            Recover(sb);
+            // Cutting the ring off and holding a man there is work, and the man doing it pays for it. This is
+            // what stops pressure running away with a fight: a swarmer who spends three rounds on top of
+            // somebody arrives at the fourth with less in his legs, his pressure drops, and the fight comes
+            // back to the middle. Fights breathe rather than tipping one way and staying there.
+            Recover(sa, workA / Math.Max(1, exchanges));
+            Recover(sb, workB / Math.Max(1, exchanges));
         }
 
         // ---- decide the bout ----
@@ -412,9 +474,21 @@ public sealed class FightEngine
         return Math.Max(6, (int)Math.Round(basis * (0.85 + _rng.NextDouble() * 0.30)));
     }
 
-    private Hit Throw(State att, State def, double wcKo, double styleEdge)
+    /// <param name="ring">Where the fight is, from the ATTACKER's point of view: positive means he has his man
+    /// backed up, negative means he is the one on the ropes throwing off the back foot.</param>
+    private Hit Throw(State att, State def, double wcKo, double styleEdge, double reachEdge, double ring)
     {
         var hit = new Hit();
+        double trapped = Math.Max(0, ring);    // the defender has nowhere to go
+        double onRopes = Math.Max(0, -ring);   // the attacker is the one pinned
+
+        // Reach is worth nothing without room to use it. Pin the long man on the ropes and his jab stops
+        // being a fence; equally, a short man who cannot cut the ring off never gets past it. So the reach
+        // edge is paid out in proportion to how open the fight is, while the style matchup applies wherever
+        // the two men happen to be standing.
+        double open = 1.0 - 0.70 * Math.Abs(ring);
+        double edge = styleEdge + reachEdge * open;
+
         // Landing blends accuracy, speed and power: a feared puncher backs opponents up and forces
         // openings, so power is part of offense — not just damage once a shot lands. Weights sum to 1
         // so an evenly-matched bout is unchanged; only the style balance shifts.
@@ -422,14 +496,18 @@ public sealed class FightEngine
         double pressure = 1.0 - Math.Max(0, att.R.Aggression - 60) / 350.0;   // a pressure fighter crowds his man, cutting his defence
         double defense = (def.EffDef() * 0.6 + def.Eff(def.R.Speed) * 0.4) * pressure;
         double landProb = 0.55 / (1.0 + Math.Exp(-(offense - defense) / 14.0));
-        landProb = Math.Clamp(landProb * (1.0 + 0.10 * styleEdge), 0.03, 0.95);
+        landProb = Math.Clamp(landProb * (1.0 + 0.10 * edge), 0.03, 0.95);
+        // A man on the ropes cannot slip or roll the way he can in open ring; a man punching off the back
+        // foot has nothing on his shots.
+        landProb = Math.Clamp(landProb * (1.0 + 0.15 * trapped - 0.12 * onRopes), 0.03, 0.95);
 
         bool power = _rng.NextDouble() < PunchProfile.PowerFraction(att.Style, att.R);  // jab or load up? (style-driven)
 
         if (_rng.NextDouble() >= landProb)
         {
-            // Missed. Loading up on a power shot leaves him open — a sharp defender counters.
-            if (power && _rng.NextDouble() < CounterChance(def))
+            // Missed. Loading up on a power shot leaves him open — a sharp defender counters. Pinned against
+            // the ropes he is covering up instead, and the chance to make you pay largely goes.
+            if (power && _rng.NextDouble() < CounterChance(def) * (1.0 - 0.45 * trapped))
             {
                 def.RoundLanded++;
                 var cp = _rng.NextDouble() < 0.6 ? Punch.Cross : Punch.Hook;
@@ -449,7 +527,12 @@ public sealed class FightEngine
             return hit;
         }
 
-        var blow = ApplyPower(att, def, PickPowerPunch(att), wcKo, isCounter: false);
+        // A man with his back to the ropes gets hit more often, but he is also covering up with something
+        // solid behind him - a good deal of what lands is taken on the gloves and arms. So the extra volume
+        // does NOT come with proportionally cleaner shots. What is unambiguous is the other side of it: a
+        // fighter going backwards cannot sit down on anything he throws.
+        double weight = 1.0 + 0.04 * trapped - 0.15 * onRopes;
+        var blow = ApplyPower(att, def, PickPowerPunch(att), wcKo, isCounter: false, forceScale: weight);
         hit.Big = blow.Big; hit.Body = blow.Body; hit.Type = blow.Type;
         hit.HandHurt = blow.HandHurt; hit.CountedOut = blow.CountedOut; hit.ToBodyKd = blow.ToBodyKd;
 
@@ -459,10 +542,12 @@ public sealed class FightEngine
         {
             int shots = 1;
             bool comboBody = blow.Body;
-            double cc = ComboChance(att);
+            // With his man trapped he can set his feet and let his hands go — this is where rounds are won
+            // in a hurry, and why being walked onto the ropes is worse than the punch count suggests.
+            double cc = ComboChance(att) * (1.0 + 0.22 * trapped);
             while (shots < 3 && _rng.NextDouble() < cc)
             {
-                var extra = ApplyPower(att, def, PickPowerPunch(att), wcKo, isCounter: false, forceScale: 0.7);
+                var extra = ApplyPower(att, def, PickPowerPunch(att), wcKo, isCounter: false, forceScale: 0.7 * weight);
                 shots++; att.RoundLanded++;
                 if (extra.Body) comboBody = true;
                 if (extra.HandHurt) hit.HandHurt = true;
@@ -594,9 +679,11 @@ public sealed class FightEngine
         return (scoreA, scoreB, closeness);
     }
 
-    private void Recover(State s)
+    /// <param name="work">How much of the round this man spent cutting the ring off and holding his
+    /// opponent there, 0 to 1. Pressure is not free.</param>
+    private void Recover(State s, double work = 0)
     {
-        s.Fatigue = Math.Min(1.0, s.Fatigue + 0.06 + (100 - s.R.Stamina) / 900.0);
+        s.Fatigue = Math.Min(1.0, s.Fatigue + 0.06 + (100 - s.R.Stamina) / 900.0 + work * 0.055);
         double recovery = 0.07 + s.R.Conditioning / 500.0;
         s.Damage = Math.Max(0, s.Damage - recovery);
         s.BodyDmg = Math.Max(0, s.BodyDmg - recovery * 0.7);
@@ -767,6 +854,7 @@ public sealed class FightEngine
                 t.KnockdownsA = last.KnockdownsA; t.KnockdownsB = last.KnockdownsB;
                 t.DamageA = last.DamageA; t.DamageB = last.DamageB; t.BodyA = last.BodyA; t.BodyB = last.BodyB;
                 t.CutA = last.CutA; t.CutB = last.CutB; t.SwellA = last.SwellA; t.SwellB = last.SwellB;
+                t.Ring = last.Ring;
             }
         }
     }

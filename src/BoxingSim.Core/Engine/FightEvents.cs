@@ -21,6 +21,9 @@ public sealed class FightTick
     public bool HandA, HandB;                 // a fighter hurt his hand this segment
     public bool StaggerA, StaggerB;           // a fighter was wobbled and got jumped on
     public bool CounterA, CounterB;           // a fighter landed a counter this segment
+    /// <summary>Where the fight is being fought: 0 is centre ring, +1 is B pinned on the ropes with A on top
+    /// of him, -1 the reverse. Carries across rounds — a man being walked down stays walked down.</summary>
+    public double Ring;
     public FoulEvent? Foul;
     public StopInfo? Fin;                     // set on the tick the fight ends
 }

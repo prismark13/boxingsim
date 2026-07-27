@@ -1141,6 +1141,13 @@
                                                                         <Setter Property="FontStyle" Value="Italic" />
                                                                         <Setter Property="Margin" Value="0,6,0,4" />
                                                                     </DataTrigger>
+                                                                    <!-- Where the fight is being fought. Sits between the plain action lines and the
+                                                                         big shots: it is not an event, it is the shape the round is taking. -->
+                                                                    <DataTrigger Binding="{Binding IsPosition}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#8FA6C8" />
+                                                                        <Setter Property="FontSize" Value="14" />
+                                                                        <Setter Property="Margin" Value="0,4,0,2" />
+                                                                    </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </TextBlock.Style>

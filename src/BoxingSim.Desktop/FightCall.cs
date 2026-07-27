@@ -4,7 +4,7 @@ using BoxingSim.Core.Model;
 namespace BoxingSim.Desktop;
 
 /// <summary>How loud a line of the call is — drives its size and colour on the night.</summary>
-public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern, Corner, Crowd }
+public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern, Corner, Crowd, Position }
 
 /// <summary>What actually HAPPENED on a line, independent of how it was worded. Sound and effects key off this,
 /// never off the prose — the phrasing rotates, so matching on words silently missed half the knockdowns.</summary>
@@ -24,6 +24,7 @@ public sealed record CallLine(string Clock, string Text, CallKind Kind,
     public bool IsPattern => Kind == CallKind.Pattern;
     public bool IsCorner => Kind == CallKind.Corner;
     public bool IsCrowd => Kind == CallKind.Crowd;
+    public bool IsPosition => Kind == CallKind.Position;
     /// <summary>The moments that deserve to stop the room.</summary>
     public bool IsMoment => Kind is CallKind.Drama or CallKind.Verdict;
 }
@@ -73,6 +74,9 @@ public static class FightCall
         var lines = new List<CallLine>();
 
         int myTotal = 0, hisTotal = 0;
+        // Where the fight is being fought carries across rounds, so the call does too: -1 means I am the one
+        // on the ropes, +1 means he is, 0 means neither. Only CHANGES get spoken.
+        int ringState = 0;
         foreach (var rd in res.Rounds)
         {
             lines.Add(new CallLine("", $"ROUND {rd.Round}", CallKind.Round, rd.Round, myTotal, hisTotal, Event: CallEvent.RoundBell));
@@ -111,6 +115,19 @@ public static class FightCall
                 int liveHis = hisTotal + (iAmA ? t.LandedB : t.LandedA);
                 CallLine Line(string text, CallKind kind, CallEvent ev = CallEvent.None) =>
                     new(t.Clock, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis, ev);
+
+                // Ring position, from my side: positive means I have him backed up. Hysteresis on purpose —
+                // it takes a firm 0.34 to call a man trapped but a drop below 0.16 to call him free, so a
+                // position hovering on the threshold does not flip back and forth in the commentary.
+                double ring = iAmA ? t.Ring : -t.Ring;
+                int nowState = ring >= 0.34 ? 1 : ring <= -0.34 ? -1 : Math.Abs(ring) <= 0.16 ? 0 : ringState;
+                if (nowState != ringState)
+                {
+                    if (nowState == 1) lines.Add(Line(caller.Trapped(my, his), CallKind.Position));
+                    else if (nowState == -1) lines.Add(Line(caller.Trapped(his, my), CallKind.Position));
+                    else lines.Add(Line(caller.Escaped(ringState == 1 ? his : my), CallKind.Position));
+                    ringState = nowState;
+                }
 
                 if (bigMine && punchMine is not null)
                     lines.Add(Line(caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big, CallEvent.HardPunch));
@@ -208,6 +225,24 @@ public static class FightCall
             _cursor[family] = (i + 1) % variants.Length;
             return variants[i % variants.Length];
         }
+
+        /// <summary>A man has been walked onto the ropes or into a corner. Called on the transition only —
+        /// position is a state, and saying it every ten seconds would drown the round.</summary>
+        public string Trapped(string att, string tgt) => Rotate("trapped",
+            $"{att} has him on the ropes.",
+            $"{tgt} is being backed up — {att} is cutting the ring off.",
+            $"{att} walks him into the corner.",
+            $"{tgt} has nowhere to go, and {att} knows it.",
+            $"{att} has him pinned, working him over against the ropes.",
+            $"{tgt} finds himself trapped along the ropes again.");
+
+        /// <summary>And back out. Getting off the ropes is the other half of the story.</summary>
+        public string Escaped(string who) => Rotate("escaped",
+            $"{who} spins off the ropes and back to centre ring.",
+            $"{who} works his way out of the corner.",
+            $"{who} gets his feet moving and finds space again.",
+            $"Good feet from {who} — he's back in the middle of the ring.",
+            $"{who} slides out and resets.");
 
         public string Power(string att, string tgt, string punch, bool body, int combo, bool counter)
         {
