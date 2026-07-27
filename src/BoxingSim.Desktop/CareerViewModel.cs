@@ -68,9 +68,13 @@ public sealed class AwardDetail
 public sealed record LedgerRow(string Date, string Result, string Opponent, string Detail, bool Win, bool Loss,
                                BoutLine? Bout = null);
 
-/// <summary>One round of a stored bout, from the owning fighter's point of view.</summary>
+/// <summary>One round of a stored bout, from the owning fighter's point of view, with what was said about it.</summary>
 public sealed record FightRoundRow(string Round, string Score, string Landed, string Knockdowns,
-                                   bool WonRound, bool Knockdown, double ShareFor);
+                                   bool WonRound, bool Knockdown, double ShareFor,
+                                   IReadOnlyList<string> Commentary)
+{
+    public bool HasCommentary => Commentary.Count > 0;
+}
 
 /// <summary>A single fight opened out: the round-by-round card, the totals, the judges and the highlights.
 /// Everything here was already being stored on the bout — it simply had nowhere to be seen.</summary>
@@ -657,6 +661,14 @@ public sealed class CareerViewModel : Observable
         int won = rounds.Count(r => r.ScoreFor > r.ScoreAgainst);
         int lost = rounds.Count(r => r.ScoreAgainst > r.ScoreFor);
 
+        // Commentary sits WITH its round rather than in a block underneath: on anything longer than a
+        // three-rounder that block was pushed off the bottom of the card and the fight read as bare numbers.
+        var byRound = CommentaryByRound(h.Commentary);
+        var placed = byRound.Values.SelectMany(v => v).ToHashSet();
+        var unplaced = (h.Commentary ?? Array.Empty<string>())
+            .Where(l => !placed.Any(p => l.EndsWith(p, StringComparison.Ordinal)))
+            .ToList();
+
         var totals = new List<StatRow>();
         if (rounds.Count > 0)
         {
@@ -678,7 +690,7 @@ public sealed class CareerViewModel : Observable
             Cards = h.Cards ?? "",
             Win = h.Result == 'W',
             Loss = h.Result == 'L',
-            Commentary = h.Commentary?.ToList() ?? (IReadOnlyList<string>)Array.Empty<string>(),
+            Commentary = unplaced,
             Totals = totals,
             Rounds = rounds.Select(r => new FightRoundRow(
                 $"R{r.Round}",
@@ -687,7 +699,8 @@ public sealed class CareerViewModel : Observable
                 r.KdFor + r.KdAgainst > 0 ? $"{r.KdFor}–{r.KdAgainst}" : "",
                 r.ScoreFor > r.ScoreAgainst,
                 r.KdFor + r.KdAgainst > 0,
-                r.LandedFor + r.LandedAgainst > 0 ? (double)r.LandedFor / (r.LandedFor + r.LandedAgainst) : 0.5))
+                r.LandedFor + r.LandedAgainst > 0 ? (double)r.LandedFor / (r.LandedFor + r.LandedAgainst) : 0.5,
+                byRound.GetValueOrDefault(r.Round) ?? (IReadOnlyList<string>)Array.Empty<string>()))
                 .ToList()
         };
     }

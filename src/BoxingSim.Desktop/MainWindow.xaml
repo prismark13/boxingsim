@@ -1097,6 +1097,10 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid Margin="24,4">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="46" />
                                                         <ColumnDefinition Width="70" />
@@ -1138,6 +1142,28 @@
                                                     <TextBlock Grid.Column="4" Text="{Binding Knockdowns}" FontSize="12"
                                                                FontWeight="Bold" Foreground="{StaticResource Gold}"
                                                                VerticalAlignment="Center" />
+                                                    <ItemsControl Grid.Row="1" Grid.ColumnSpan="5" Margin="46,3,0,7"
+                                                                  ItemsSource="{Binding Commentary}"
+                                                                  Visibility="{Binding HasCommentary, Converter={StaticResource BoolVis}}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
+                                                                           Margin="0,0,0,2">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Converter={StaticResource Shout}}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -1151,7 +1177,7 @@
                                 </StackPanel>
 
                                 <StackPanel Visibility="{Binding HasCommentary, Converter={StaticResource BoolVis}}">
-                                    <TextBlock Text="HIGHLIGHTS" Style="{StaticResource PanelHeader}" Margin="24,14,24,4" />
+                                    <TextBlock Text="OTHER NOTES" Style="{StaticResource PanelHeader}" Margin="24,14,24,4" />
                                     <ItemsControl ItemsSource="{Binding Commentary}" Margin="24,0,24,8">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
