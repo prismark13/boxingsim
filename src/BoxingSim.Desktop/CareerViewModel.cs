@@ -98,8 +98,12 @@ public sealed record StatRow(string Label, string Value, string Note);
 /// <summary>One attribute in the tale of the tape. The fractions drive the bar widths.</summary>
 public sealed record TapeRow(string Attribute, int Mine, int Theirs, double MineWidth, double TheirsWidth, bool IAmBetter);
 
-/// <summary>One round as the playback reveals it.</summary>
-public sealed record PlaybackRow(int Round, string Score, string Landed, string Note, bool Knockdown, bool Stoppage);
+/// <summary>One round as the playback reveals it, with the round's own commentary lines.</summary>
+public sealed record PlaybackRow(int Round, string Score, string Landed, bool Knockdown, bool Stoppage,
+                                 IReadOnlyList<string> Commentary)
+{
+    public bool HasCommentary => Commentary.Count > 0;
+}
 
 /// <summary>The drill-down card for any fighter in any list.</summary>
 public sealed record CardStat(string Name, int Value, double Width);
@@ -481,6 +485,11 @@ public sealed class CareerViewModel : Observable
         bool iAmA = res.A.Id == me.Id;
         var them = iAmA ? res.B : res.A;
 
+        // The engine already writes a line of commentary for every notable moment and a recap of each round;
+        // it was only ever visible afterwards, in the fight card. Split it back out by round so the playback
+        // reads like someone calling the fight instead of a column of numbers.
+        var byRound = CommentaryByRound(Game.Player.History.LastOrDefault()?.Commentary);
+
         Playback.Clear();
         _pending = res.Rounds.Select(r =>
         {
@@ -488,14 +497,11 @@ public sealed class CareerViewModel : Observable
             int theirScore = iAmA ? r.ScoreB : r.ScoreA;
             int myLanded = iAmA ? r.LandedA : r.LandedB;
             int theirLanded = iAmA ? r.LandedB : r.LandedA;
-            int myKd = iAmA ? r.KnockdownsB : r.KnockdownsA;      // knockdowns I scored
-            int theirKd = iAmA ? r.KnockdownsA : r.KnockdownsB;   // knockdowns against me
-            var note = myKd > 0 ? $"{me.Name} drops him"
-                     : theirKd > 0 ? $"{them.Name} puts him down"
-                     : "";
+            int kds = r.KnockdownsA + r.KnockdownsB;
             return new PlaybackRow(r.Round, $"{myScore}–{theirScore}", $"{myLanded} / {theirLanded}",
-                                   note, myKd + theirKd > 0,
-                                   r.Round == res.EndRound && res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout);
+                                   kds > 0,
+                                   r.Round == res.EndRound && res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout,
+                                   byRound.GetValueOrDefault(r.Round) ?? (IReadOnlyList<string>)Array.Empty<string>());
         }).ToList();
 
         PlaybackTitle = $"{me.Name}  vs  {them.Name}";
@@ -508,6 +514,21 @@ public sealed class CareerViewModel : Observable
         Raise(nameof(PlaybackVerdict));
         IsPlayingBack = true;
         _playbackTimer.Start();
+    }
+
+    /// <summary>Commentary arrives as flat lines tagged with their round ("R3 — he STOPS him!"). Group them by
+    /// round and drop the tag, since the playback already shows which round you're looking at.</summary>
+    private static Dictionary<int, IReadOnlyList<string>> CommentaryByRound(IReadOnlyList<string>? lines)
+    {
+        var byRound = new Dictionary<int, List<string>>();
+        foreach (var line in lines ?? Array.Empty<string>())
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(line, @"^R(\d+)\s*[^\w]\s*(.+)$");
+            if (!m.Success || !int.TryParse(m.Groups[1].Value, out int rd)) continue;
+            if (!byRound.TryGetValue(rd, out var list)) byRound[rd] = list = new List<string>();
+            list.Add(m.Groups[2].Value.Trim());
+        }
+        return byRound.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value);
     }
 
     private void RevealNextRound()
@@ -584,18 +605,22 @@ public sealed class CareerViewModel : Observable
         Division = m.Division
     };
 
+    /// <summary>Attributes on the SAME 1–15 scale as the class pills, not the engine's internal 1–100. Two
+    /// scales side by side meant nothing: "Power 75" told you nothing about whether 75 was good.</summary>
+    private const int TopClass = 15;
+    private static int OnClassScale(int raw) => Ratings.ClassFromRaw(raw);
+
+    private static CardStat Bar(string name, int raw)
+    {
+        int c = OnClassScale(raw);
+        return new CardStat(name, c, c / (double)TopClass);
+    }
+
     private static IReadOnlyList<CardStat> AttributeBars(Ratings r) => new[]
     {
-        new CardStat("Power", r.Power, r.Power / 100.0),
-        new CardStat("Chin", r.Chin, r.Chin / 100.0),
-        new CardStat("Speed", r.Speed, r.Speed / 100.0),
-        new CardStat("Defence", r.Defense, r.Defense / 100.0),
-        new CardStat("Stamina", r.Stamina, r.Stamina / 100.0),
-        new CardStat("Accuracy", r.Accuracy, r.Accuracy / 100.0),
-        new CardStat("Conditioning", r.Conditioning, r.Conditioning / 100.0),
-        new CardStat("Cut resistance", r.CutResistance, r.CutResistance / 100.0),
-        new CardStat("Aggression", r.Aggression, r.Aggression / 100.0),
-        new CardStat("Heart", r.Heart, r.Heart / 100.0),
+        Bar("Power", r.Power), Bar("Chin", r.Chin), Bar("Speed", r.Speed), Bar("Defence", r.Defense),
+        Bar("Stamina", r.Stamina), Bar("Accuracy", r.Accuracy), Bar("Conditioning", r.Conditioning),
+        Bar("Cut resistance", r.CutResistance), Bar("Aggression", r.Aggression), Bar("Heart", r.Heart),
     };
 
     private static LedgerRow ToLedger(BoutLine h)
@@ -636,8 +661,10 @@ public sealed class CareerViewModel : Observable
         if (rounds.Count > 0)
         {
             totals.Add(new StatRow("Rounds", rounds.Count.ToString(), $"{won} won · {lost} lost"));
-            totals.Add(new StatRow("Punches landed", lf.ToString(), $"{(double)lf / rounds.Count:0.0} a round"));
-            totals.Add(new StatRow("Punches absorbed", la.ToString(), $"{(double)la / rounds.Count:0.0} a round"));
+            totals.Add(new StatRow("Punches landed", lf.ToString(),
+                                   $"{(double)lf / rounds.Count:0.0} a rd · range {rounds.Min(r => r.LandedFor)}–{rounds.Max(r => r.LandedFor)}"));
+            totals.Add(new StatRow("Punches absorbed", la.ToString(),
+                                   $"{(double)la / rounds.Count:0.0} a rd · range {rounds.Min(r => r.LandedAgainst)}–{rounds.Max(r => r.LandedAgainst)}"));
             totals.Add(new StatRow("Knockdowns", $"{kf}–{ka}", kf > ka ? "scored more" : ka > kf ? "took more" : ""));
         }
 
@@ -763,13 +790,14 @@ public sealed class CareerViewModel : Observable
         foreach (var h in p.History.OrderByDescending(h => h.Date).Take(5)) RecentForm.Add(ToLedger(h));
 
         int r = 1;
-        foreach (var b in Game.RankingOf(p.WeightClass, 5))
+        foreach (var b in Game.RankingBoard(p.WeightClass, 5))
         {
+            bool champ = Game.IsWorldChampion(b);
             var belts = Game.BeltsHeld(b).Select(x => x.Belt).ToList();
-            DivisionTop.Add(new RankRow(Game.IsWorldChampion(b) ? "C" : r.ToString(), b.Class, b.Name,
+            DivisionTop.Add(new RankRow(champ ? "C" : r.ToString(), b.Class, b.Name,
                                         belts.Count > 0 ? string.Join(" · ", belts) : "",
-                                        b.Record.ToString(), b.Id == p.Id, Game.IsWorldChampion(b), b));
-            r++;
+                                        b.Record.ToString(), b.Id == p.Id, champ, b));
+            if (!champ) r++;
         }
 
         foreach (var (e, _) in Game.Log.Select((e, i) => (e, i))
@@ -830,13 +858,14 @@ public sealed class CareerViewModel : Observable
         Rankings.Clear();
         if (Game is null) return;
         int r = 1;
-        foreach (var b in Game.RankingOf(ViewDivision, 15))
+        foreach (var b in Game.RankingBoard(ViewDivision, 15))
         {
+            bool champ = Game.IsWorldChampion(b);
             var belts = Game.BeltsHeld(b).Select(x => x.Belt).ToList();
-            Rankings.Add(new RankRow(Game.IsWorldChampion(b) ? "C" : r.ToString(), b.Class, b.Name,
+            Rankings.Add(new RankRow(champ ? "C" : r.ToString(), b.Class, b.Name,
                                      belts.Count > 0 ? string.Join(" · ", belts) : "",
-                                     b.Record.ToString(), b.Id == Game.Player.Id, Game.IsWorldChampion(b), b));
-            r++;
+                                     b.Record.ToString(), b.Id == Game.Player.Id, champ, b));
+            if (!champ) r++;   // contenders are #1 down; the champions sit above the numbering
         }
     }
 
@@ -1031,8 +1060,12 @@ public sealed class CareerViewModel : Observable
         if (Game?.Offer is not { } o) return;
         var me = Game.Player.Ratings;
         var them = o.Opponent.Ratings;
-        void Row(string name, int a, int b) =>
-            Tape.Add(new TapeRow(name, a, b, a / 100.0, b / 100.0, a >= b));
+        // Both men's attributes on the 1–15 class scale, so the tape reads in the same units as the pills.
+        void Row(string name, int rawA, int rawB)
+        {
+            int a = OnClassScale(rawA), b = OnClassScale(rawB);
+            Tape.Add(new TapeRow(name, a, b, a / (double)TopClass, b / (double)TopClass, a >= b));
+        }
         Row("Power", me.Power, them.Power);
         Row("Chin", me.Chin, them.Chin);
         Row("Speed", me.Speed, them.Speed);
@@ -1093,6 +1126,14 @@ public sealed class CareerViewModel : Observable
                                   $"{(double)lf / rounds.Count:0.0} a round"));
             Stats.Add(new StatRow("Punches absorbed", la.ToString("N0"),
                                   $"{(double)la / rounds.Count:0.0} a round"));
+            // The spread, not just the average — a man averaging 14 who ranges 4 to 30 is a different fighter
+            // from one who lands 13 or 15 every round.
+            Stats.Add(new StatRow("Output range",
+                                  $"{rounds.Min(r => r.LandedFor)}–{rounds.Max(r => r.LandedFor)}",
+                                  "landed in a round, worst to best"));
+            Stats.Add(new StatRow("Absorbed range",
+                                  $"{rounds.Min(r => r.LandedAgainst)}–{rounds.Max(r => r.LandedAgainst)}",
+                                  "taken in a round, best to worst"));
             Stats.Add(new StatRow("Punch differential", (lf - la >= 0 ? "+" : "") + (lf - la).ToString("N0"),
                                   lf >= la ? "outlanding them" : "being outlanded"));
             Stats.Add(new StatRow("Knockdowns", $"{kf}–{ka}",

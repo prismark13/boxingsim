@@ -168,6 +168,20 @@ public sealed class CareerGame
     public IReadOnlyList<Boxer> RankingOf(WeightClass wc, int take = 15) =>
         ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(take).ToList();
 
+    /// <summary>The division's ranking as a BOARD reads it: the champions first — the convention every real
+    /// sanctioning body follows — then the contenders behind them in ranking order. A champion appears whether
+    /// or not his record clears the contender bar, because holding the belt is what puts him there.
+    /// Matchmaking deliberately keeps using <see cref="RankingOf"/>, which stays ordered purely on merit: who
+    /// the sim protects a prospect from shouldn't shift just because a board lists champions differently.</summary>
+    public IReadOnlyList<Boxer> RankingBoard(WeightClass wc, int take = 15)
+    {
+        var champions = ActiveIn(wc).Where(IsWorldChampion).OrderByDescending(RankScore).ToList();
+        var champIds = champions.Select(b => b.Id).ToHashSet();
+        var contenders = ActiveIn(wc).Where(b => RankedContender(b) && !champIds.Contains(b.Id))
+                                     .OrderByDescending(RankScore);
+        return champions.Concat(contenders).Take(take).ToList();
+    }
+
     /// <summary>True if the fighter currently holds any world belt (WBA/WBC/IBF) in his division.</summary>
     public bool IsWorldChampion(Boxer b) =>
         ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;

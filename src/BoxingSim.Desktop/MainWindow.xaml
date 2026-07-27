@@ -31,6 +31,7 @@
         <local:EnumToVisibilityConverter x:Key="PageVis" />
         <local:FractionWidthConverter x:Key="BarWidth" />
         <local:WeightClassNameConverter x:Key="DivName" />
+        <local:ShoutConverter x:Key="Shout" />
 
         <!-- Weight classes read as "Light Heavyweight", never the raw enum name. -->
         <DataTemplate x:Key="DivisionItem">
@@ -488,7 +489,7 @@
                                            HorizontalAlignment="Center" Margin="0,10,0,0" />
 
                                 <!-- Tale of the tape -->
-                                <TextBlock Text="TALE OF THE TAPE" Style="{StaticResource Label}"
+                                <TextBlock Text="TALE OF THE TAPE · 1–15" Style="{StaticResource Label}"
                                            Margin="24,20,24,10" HorizontalAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Tape}" Margin="24,0,24,4">
                                     <ItemsControl.ItemTemplate>
@@ -890,7 +891,7 @@
                             <ItemsControl ItemsSource="{Binding Playback}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="24,5">
+                                        <Grid Margin="24,7">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="52" />
                                                 <ColumnDefinition Width="66" />
@@ -898,26 +899,36 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="{Binding Round, StringFormat=R{0}}" FontSize="11.5"
-                                                       Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                       Foreground="{StaticResource Faint}" VerticalAlignment="Top"
+                                                       Margin="0,1,0,0" />
                                             <TextBlock Grid.Column="1" Text="{Binding Score}" FontSize="14"
                                                        FontWeight="SemiBold" Foreground="{StaticResource Text}"
-                                                       VerticalAlignment="Center" />
+                                                       VerticalAlignment="Top" />
                                             <TextBlock Grid.Column="2" Text="{Binding Landed}" FontSize="11.5"
-                                                       Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="3" Text="{Binding Note}" FontSize="12"
-                                                       TextWrapping="Wrap" VerticalAlignment="Center">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Knockdown}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                                       Foreground="{StaticResource Muted}" VerticalAlignment="Top"
+                                                       Margin="0,2,0,0" />
+                                            <!-- What the engine actually said about this round. -->
+                                            <ItemsControl Grid.Column="3" ItemsSource="{Binding Commentary}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}" FontSize="12.5" TextWrapping="Wrap"
+                                                                   Margin="0,0,0,3">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                    <Style.Triggers>
+                                                                        <!-- The loud moments read louder. -->
+                                                                        <DataTrigger Binding="{Binding Converter={StaticResource Shout}}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -1204,7 +1215,7 @@
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <TextBlock Text="ATTRIBUTES" Style="{StaticResource PanelHeader}" Margin="24,4,24,8"
+                                <TextBlock Text="ATTRIBUTES · 1–15" Style="{StaticResource PanelHeader}" Margin="24,4,24,8"
                                            Visibility="{Binding HasRatings, Converter={StaticResource BoolVis}}" />
                                 <ItemsControl ItemsSource="{Binding Ratings}" Margin="24,0,24,8">
                                     <ItemsControl.ItemsPanel>

@@ -62,6 +62,16 @@ public sealed class BoolToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
 }
 
+/// <summary>True for the loud moments in a round's commentary — a knockdown, a man hurt, a stoppage — so they
+/// stand out from the routine "his round (12-8 landed)" recap.</summary>
+public sealed class ShoutConverter : IValueConverter
+{
+    public object Convert(object? value, Type t, object? p, CultureInfo c) =>
+        value is string s && (s.Contains("DOWN") || s.Contains("STOPS") || s.Contains("KNOCKS OUT")
+                              || s.Contains("badly hurt") || s.Contains("disqualified") || s.Contains("is cut"));
+    public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
 /// <summary>A weight class's display name ("Light Heavyweight"), not the raw enum name ("LightHeavyweight").</summary>
 public sealed class WeightClassNameConverter : IValueConverter
 {
