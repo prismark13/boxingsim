@@ -920,57 +920,173 @@
                                            Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
                             </StackPanel>
                         </Grid>
+
+                        <!-- The scoreboard MOVES with the call: round, clock, and each man's share of the
+                             punches landed leaning against each other. Without something changing, a wall of
+                             text has nothing to land against. -->
+                        <Grid Margin="0,18,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding LiveMine}" FontSize="30" FontWeight="Light"
+                                       Foreground="{StaticResource Accent}" HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" Margin="0,0,18,0" />
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding LiveRound}" FontSize="13" FontWeight="Bold"
+                                           Foreground="{StaticResource Text}" HorizontalAlignment="Center" />
+                                <TextBlock Text="{Binding LiveClock}" FontSize="20" FontFamily="Consolas"
+                                           Foreground="{StaticResource Gold}" HorizontalAlignment="Center"
+                                           Margin="0,2,0,0" />
+                                <TextBlock Text="PUNCHES LANDED" FontSize="8.5" FontWeight="Bold"
+                                           Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
+                                           Margin="0,3,0,0" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="{Binding LiveHis}" FontSize="30" FontWeight="Light"
+                                       Foreground="{StaticResource Muted}" HorizontalAlignment="Left"
+                                       VerticalAlignment="Center" Margin="18,0,0,0" />
+                        </Grid>
+
+                        <Grid Margin="0,8,0,0" Height="9">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="4" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid x:Name="MineShare">
+                                <Border Background="{StaticResource Line}" CornerRadius="4" />
+                                <Border HorizontalAlignment="Right" CornerRadius="4" Background="{StaticResource Accent}">
+                                    <Border.Width>
+                                        <MultiBinding Converter="{StaticResource BarWidth}">
+                                            <Binding Path="LiveMineShare" />
+                                            <Binding Path="ActualWidth" ElementName="MineShare" />
+                                        </MultiBinding>
+                                    </Border.Width>
+                                </Border>
+                            </Grid>
+                            <Grid x:Name="HisShare" Grid.Column="2">
+                                <Border Background="{StaticResource Line}" CornerRadius="4" />
+                                <Border HorizontalAlignment="Left" CornerRadius="4" Background="{StaticResource Line2}">
+                                    <Border.Width>
+                                        <MultiBinding Converter="{StaticResource BarWidth}">
+                                            <Binding Path="LiveHisShare" />
+                                            <Binding Path="ActualWidth" ElementName="HisShare" />
+                                        </MultiBinding>
+                                    </Border.Width>
+                                </Border>
+                            </Grid>
+                        </Grid>
+
+                        <!-- A man in trouble is stated plainly, and stays stated while he is. -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="HURT" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Loss}"
+                                       HorizontalAlignment="Right" Margin="0,0,18,0"
+                                       Visibility="{Binding MyManHurt, Converter={StaticResource BoolVis}}" />
+                            <TextBlock Grid.Column="1" Text="HURT" FontSize="10" FontWeight="Bold"
+                                       Foreground="{StaticResource Loss}" HorizontalAlignment="Left" Margin="18,0,0,0"
+                                       Visibility="{Binding HisManHurt, Converter={StaticResource BoolVis}}" />
+                        </Grid>
                     </StackPanel>
 
                     <Border Grid.Row="1" Style="{StaticResource Card}" Background="#0A0E15">
                         <ScrollViewer x:Name="FeedScroll" VerticalScrollBarVisibility="Auto" Padding="30,22,30,22"
                                       ScrollChanged="FeedScroll_ScrollChanged">
-                            <ItemsControl ItemsSource="{Binding Feed}">
+                            <!-- Bottom-aligned: with finished rounds folded away the call is short, and
+                                 growing upward from a fixed point reads far better than floating in a void. -->
+                            <ItemsControl ItemsSource="{Binding Rounds}" VerticalAlignment="Bottom">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="0,0,0,7">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="58" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Clock}" FontSize="11" FontFamily="Consolas"
-                                                       Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap"
-                                                       FontSize="14.5" Foreground="{StaticResource Muted}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsRound}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Accent}" />
-                                                                <Setter Property="FontSize" Value="15" />
-                                                                <Setter Property="FontWeight" Value="Bold" />
-                                                                <Setter Property="Margin" Value="0,16,0,6" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsBig}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Text}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsDrama}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                <Setter Property="FontSize" Value="19" />
-                                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsVerdict}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Win}" />
-                                                                <Setter Property="FontSize" Value="22" />
-                                                                <Setter Property="FontWeight" Value="Bold" />
-                                                                <Setter Property="Margin" Value="0,8,0,8" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsScore}" Value="True">
-                                                                <Setter Property="Foreground" Value="{StaticResource Faint}" />
-                                                                <Setter Property="FontSize" Value="12.5" />
-                                                                <Setter Property="FontStyle" Value="Italic" />
-                                                                <Setter Property="Margin" Value="0,4,0,2" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Grid>
+                                        <StackPanel Margin="0,0,0,10">
+                                            <!-- The round heading doubles as the fold: click it to reopen a
+                                                 round that has already been fought. -->
+                                            <Button Style="{StaticResource RowButton}" HorizontalAlignment="Stretch"
+                                                    AutomationProperties.Name="{Binding Title}"
+                                                    Command="{Binding DataContext.ToggleRound, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Grid Margin="0,10,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="Bold"
+                                                               Foreground="{StaticResource Accent}" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Summary}" FontSize="12.5"
+                                                               FontStyle="Italic" Foreground="{StaticResource Faint}"
+                                                               Margin="14,2,0,0" TextWrapping="Wrap"
+                                                               Visibility="{Binding HasSummary, Converter={StaticResource BoolVis}}" />
+                                                </Grid>
+                                            </Button>
+                                            <ItemsControl ItemsSource="{Binding Lines}" Margin="0,0,0,4"
+                                                          Visibility="{Binding IsExpanded, Converter={StaticResource BoolVis}}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                <Grid Margin="0,0,0,7">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="58" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Clock}" FontSize="11" FontFamily="Consolas"
+                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap"
+                                                               FontSize="14.5" Foreground="{StaticResource Muted}"
+                                                               RenderTransformOrigin="0,0.5">
+                                                        <TextBlock.RenderTransform>
+                                                            <TranslateTransform x:Name="tt" X="0" />
+                                                        </TextBlock.RenderTransform>
+                                                        <TextBlock.Triggers>
+                                                            <EventTrigger RoutedEvent="Loaded">
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                         From="0" To="1" Duration="0:0:0.22" />
+                                                                        <DoubleAnimation Storyboard.TargetName="tt"
+                                                                                         Storyboard.TargetProperty="X"
+                                                                                         From="16" To="0" Duration="0:0:0.22">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <CubicEase EasingMode="EaseOut" />
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </EventTrigger>
+                                                        </TextBlock.Triggers>
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsBig}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsDrama}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                        <Setter Property="FontSize" Value="19" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsVerdict}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                                                        <Setter Property="FontSize" Value="22" />
+                                                                        <Setter Property="FontWeight" Value="Bold" />
+                                                                        <Setter Property="Margin" Value="0,8,0,8" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsPattern}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                                                        <Setter Property="FontSize" Value="14" />
+                                                                        <Setter Property="FontStyle" Value="Italic" />
+                                                                        <Setter Property="Margin" Value="0,6,0,4" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -1159,7 +1275,9 @@
                                         <TextBlock Grid.Column="3" Text="LANDED" Style="{StaticResource TagText}" Foreground="{StaticResource Faint}" />
                                         <TextBlock Grid.Column="4" Text="KD" Style="{StaticResource TagText}" Foreground="{StaticResource Faint}" />
                                     </Grid>
-                                    <ItemsControl ItemsSource="{Binding Rounds}">
+                                    <!-- Bottom-aligned: with finished rounds folded away the call is short, and
+                                 growing upward from a fixed point reads far better than floating in a void. -->
+                            <ItemsControl ItemsSource="{Binding Rounds}" VerticalAlignment="Bottom">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid Margin="24,4">

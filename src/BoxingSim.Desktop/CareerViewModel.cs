@@ -152,6 +152,7 @@ public sealed class CareerViewModel : Observable
         FinishPlayback = new Cmd(EndPlayback);
         TogglePause = new Cmd(DoTogglePause);
         SetSpeed = new Cmd(DoSetSpeed);
+        ToggleRound = new Cmd(p => { if (p is RoundBlock b) b.IsExpanded = !b.IsExpanded; });
         GoBack = new Cmd(DoGoBack, () => CanGoBack);
         Navigate = new Cmd(DoNavigate);
         ViewDivisionCmd = new Cmd(DoViewDivision);
@@ -365,6 +366,7 @@ public sealed class CareerViewModel : Observable
     public Cmd FinishPlayback { get; }
     public Cmd TogglePause { get; }
     public Cmd SetSpeed { get; }
+    public Cmd ToggleRound { get; }
     public Cmd GoBack { get; }
     public Cmd Navigate { get; }
     public Cmd ViewDivisionCmd { get; }
@@ -481,7 +483,10 @@ public sealed class CareerViewModel : Observable
     /// result away before a punch had been thrown.</summary>
     public bool ShowResultBanner => HasResult && !IsPlayingBack;
 
-    public ObservableCollection<CallLine> Feed { get; } = new();
+    /// <summary>The call, grouped by round. A finished round folds down to its one-line verdict so the round
+    /// being fought is always the thing in front of you; any of them can be opened again.</summary>
+    public ObservableCollection<RoundBlock> Rounds { get; } = new();
+    private RoundBlock? _live;
     private List<CallLine> _call = new();
     private int _fed;
 
@@ -500,6 +505,62 @@ public sealed class CareerViewModel : Observable
     }
 
     public string PlaybackButtonLabel => PlaybackFinished ? "Continue" : "Skip to the verdict";
+
+    // ---- the live scoreboard, moved by the call ----
+
+    private int _liveRound, _liveMine, _liveHis, _liveMyHurt, _liveHisHurt;
+    public string LiveRound => _liveRound > 0 ? $"ROUND {_liveRound}" : "";
+    public string LiveClock { get; private set; } = "";
+    public int LiveMine => _liveMine;
+    public int LiveHis => _liveHis;
+    /// <summary>Each man's share of the punches landed so far — two bars leaning against each other, so who is
+    /// winning is visible at a glance and moves with every line.</summary>
+    public double LiveMineShare => _liveMine + _liveHis > 0 ? (double)_liveMine / (_liveMine + _liveHis) : 0.5;
+    public double LiveHisShare => 1.0 - LiveMineShare;
+    public bool MyManHurt => _liveMyHurt >= 2;
+    public bool HisManHurt => _liveHisHurt >= 2;
+
+    /// <summary>Place one line of the call: a ROUND heading folds the previous round away and opens a new one,
+    /// the end-of-round card becomes that round's summary, everything else is action inside it.</summary>
+    private void Feed(CallLine line)
+    {
+        if (line.IsRound)
+        {
+            if (_live is not null) _live.IsExpanded = false;   // the round just fought folds away
+            _live = new RoundBlock { Round = line.Round };
+            Rounds.Add(_live);
+        }
+        else if (line.IsScore && _live is not null)
+        {
+            _live.Summary = line.Text;
+        }
+        else
+        {
+            _live ??= AddOpeningBlock();
+            _live.Lines.Add(line);
+        }
+        PushState(line);
+    }
+
+    private RoundBlock AddOpeningBlock()
+    {
+        var b = new RoundBlock { Round = 0 };
+        Rounds.Add(b);
+        return b;
+    }
+
+    private void PushState(CallLine line)
+    {
+        if (line.Round > 0) _liveRound = line.Round;
+        if (!string.IsNullOrEmpty(line.Clock)) LiveClock = line.Clock;
+        _liveMine = line.MyLanded;
+        _liveHis = line.HisLanded;
+        _liveMyHurt = line.MyHurt;
+        _liveHisHurt = line.HisHurt;
+        foreach (var n in new[] { nameof(LiveRound), nameof(LiveClock), nameof(LiveMine), nameof(LiveHis),
+                                  nameof(LiveMineShare), nameof(LiveHisShare), nameof(MyManHurt), nameof(HisManHurt) })
+            Raise(n);
+    }
 
     // ---- watching it at your own pace ----
 
@@ -565,9 +626,13 @@ public sealed class CareerViewModel : Observable
                                   nameof(FightNightAwayRecord), nameof(FightNightBillLine), nameof(PlaybackVerdict) })
             Raise(n);
 
-        Feed.Clear();
+        Rounds.Clear();
+        _live = null;
         _call = FightCall.Build(res, me).ToList();
         _fed = 0;
+        _liveRound = 0; _liveMine = 0; _liveHis = 0; _liveMyHurt = 0; _liveHisHurt = 0;
+        LiveClock = "";
+        PushState(new CallLine("", "", CallKind.Action));
 
         if (_call.Count == 0) { PlaybackFinished = true; IsPlayingBack = true; return; }
         PlaybackFinished = false;
@@ -581,7 +646,7 @@ public sealed class CareerViewModel : Observable
     {
         if (_fed >= _call.Count) { _playbackTimer.Stop(); PlaybackFinished = true; return; }
         var line = _call[_fed++];
-        Feed.Add(line);
+        Feed(line);
         // Let the big moments hang before the next line lands; rattle through the routine ones. The speed
         // multiplier scales the whole shape rather than flattening it.
         double dwell = line.Kind switch
@@ -590,6 +655,7 @@ public sealed class CareerViewModel : Observable
             CallKind.Drama => 950,
             CallKind.Verdict => 1100,
             CallKind.Score => 800,
+            CallKind.Pattern => 1000,
             CallKind.Big => 500,
             _ => 380
         };
@@ -603,7 +669,7 @@ public sealed class CareerViewModel : Observable
         IsPaused = false;
         if (!PlaybackFinished && _fed < _call.Count)
         {
-            for (; _fed < _call.Count; _fed++) Feed.Add(_call[_fed]);
+            for (; _fed < _call.Count; _fed++) Feed(_call[_fed]);
             PlaybackFinished = true;
             return;
         }

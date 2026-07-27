@@ -4,16 +4,47 @@ using BoxingSim.Core.Model;
 namespace BoxingSim.Desktop;
 
 /// <summary>How loud a line of the call is — drives its size and colour on the night.</summary>
-public enum CallKind { Round, Action, Big, Drama, Score, Verdict }
+public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern }
 
-/// <summary>One line of the fight being called, with the clock it happened on.</summary>
-public sealed record CallLine(string Clock, string Text, CallKind Kind)
+/// <summary>One line of the fight being called, carrying the state of the fight AT that moment so the scoreboard
+/// can move with the call rather than sitting still while text scrolls past.</summary>
+public sealed record CallLine(string Clock, string Text, CallKind Kind,
+                              int Round = 0, int MyLanded = 0, int HisLanded = 0,
+                              int MyHurt = 0, int HisHurt = 0)
 {
     public bool IsRound => Kind == CallKind.Round;
     public bool IsDrama => Kind == CallKind.Drama;
     public bool IsBig => Kind == CallKind.Big;
     public bool IsVerdict => Kind == CallKind.Verdict;
     public bool IsScore => Kind == CallKind.Score;
+    public bool IsPattern => Kind == CallKind.Pattern;
+    /// <summary>The moments that deserve to stop the room.</summary>
+    public bool IsMoment => Kind is CallKind.Drama or CallKind.Verdict;
+}
+
+/// <summary>One round of the call: its lines while it is being fought, folded down to a summary once it is.</summary>
+public sealed class RoundBlock : Observable
+{
+    public int Round { get; init; }
+    public string Title => Round > 0 ? $"ROUND {Round}" : "";
+
+    public System.Collections.ObjectModel.ObservableCollection<CallLine> Lines { get; } = new();
+
+    private string _summary = "";
+    public string Summary
+    {
+        get => _summary;
+        set { _summary = value; Raise(); Raise(nameof(HasSummary)); }
+    }
+    public bool HasSummary => !string.IsNullOrEmpty(_summary);
+
+    private bool _expanded = true;
+    public bool IsExpanded
+    {
+        get => _expanded;
+        set { _expanded = value; Raise(); Raise(nameof(IsCollapsed)); }
+    }
+    public bool IsCollapsed => !_expanded;
 }
 
 /// <summary>Turns the engine's 15-second ticks into a blow-by-blow call.
@@ -35,9 +66,10 @@ public static class FightCall
         var caller = new Caller();
         var lines = new List<CallLine>();
 
+        int myTotal = 0, hisTotal = 0;
         foreach (var rd in res.Rounds)
         {
-            lines.Add(new CallLine("", $"ROUND {rd.Round}", CallKind.Round));
+            lines.Add(new CallLine("", $"ROUND {rd.Round}", CallKind.Round, rd.Round, myTotal, hisTotal));
             caller.NewRound();
 
             int prevKdMine = 0, prevKdHis = 0;
@@ -68,44 +100,49 @@ public static class FightCall
                 bool downBodyHis = iAmA ? t.DownBodyB : t.DownBodyA;
                 bool downBodyMine = iAmA ? t.DownBodyA : t.DownBodyB;
 
+                int liveMine = myTotal + (iAmA ? t.LandedA : t.LandedB);
+                int liveHis = hisTotal + (iAmA ? t.LandedB : t.LandedA);
+                CallLine Line(string text, CallKind kind) =>
+                    new(t.Clock, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis);
+
                 if (bigMine && punchMine is not null)
-                    lines.Add(new CallLine(t.Clock, caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big));
+                    lines.Add(Line(caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big));
                 if (bigHis && punchHis is not null)
-                    lines.Add(new CallLine(t.Clock, caller.Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big));
+                    lines.Add(Line(caller.Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big));
 
                 if (!hurtCalled && rockHis >= 2)
-                { lines.Add(new CallLine(t.Clock, caller.Hurt(my, his), CallKind.Drama)); hurtCalled = true; }
+                { lines.Add(Line(caller.Hurt(my, his), CallKind.Drama)); hurtCalled = true; }
                 else if (!hurtCalled && rockMine >= 2)
-                { lines.Add(new CallLine(t.Clock, caller.Hurt(his, my), CallKind.Drama)); hurtCalled = true; }
+                { lines.Add(Line(caller.Hurt(his, my), CallKind.Drama)); hurtCalled = true; }
 
                 // Once a round: the engine flags a stagger on every tick a man stays wobbled, and calling it
                 // each time turned the drama into a stuck record.
                 if (!staggerCalled && staggerHis)
-                { lines.Add(new CallLine(t.Clock, caller.Stagger(my, his), CallKind.Drama)); staggerCalled = true; }
+                { lines.Add(Line(caller.Stagger(my, his), CallKind.Drama)); staggerCalled = true; }
                 else if (!staggerCalled && staggerMine)
-                { lines.Add(new CallLine(t.Clock, caller.Stagger(his, my), CallKind.Drama)); staggerCalled = true; }
+                { lines.Add(Line(caller.Stagger(his, my), CallKind.Drama)); staggerCalled = true; }
 
                 if (kdAgainstHim > prevKdHis)
                 {
                     prevKdHis = kdAgainstHim;
-                    lines.Add(new CallLine(t.Clock, caller.Down(my, his, downBodyHis, kdAgainstHim), CallKind.Drama));
+                    lines.Add(Line(caller.Down(my, his, downBodyHis, kdAgainstHim), CallKind.Drama));
                 }
                 if (kdAgainstMe > prevKdMine)
                 {
                     prevKdMine = kdAgainstMe;
-                    lines.Add(new CallLine(t.Clock, caller.Down(his, my, downBodyMine, kdAgainstMe), CallKind.Drama));
+                    lines.Add(Line(caller.Down(his, my, downBodyMine, kdAgainstMe), CallKind.Drama));
                 }
 
-                if (!cutHis && cutH >= 0.4) { cutHis = true; lines.Add(new CallLine(t.Clock, caller.Cut(his), CallKind.Drama)); }
-                if (!cutMine && cutM >= 0.4) { cutMine = true; lines.Add(new CallLine(t.Clock, caller.Cut(my), CallKind.Drama)); }
+                if (!cutHis && cutH >= 0.4) { cutHis = true; lines.Add(Line(caller.Cut(his), CallKind.Drama)); }
+                if (!cutMine && cutM >= 0.4) { cutMine = true; lines.Add(Line(caller.Cut(my), CallKind.Drama)); }
 
-                if (handMine) lines.Add(new CallLine(t.Clock, caller.Hand(my), CallKind.Action));
-                if (handHis) lines.Add(new CallLine(t.Clock, caller.Hand(his), CallKind.Action));
+                if (handMine) lines.Add(Line(caller.Hand(my), CallKind.Action));
+                if (handHis) lines.Add(Line(caller.Hand(his), CallKind.Action));
 
                 if (t.Foul is FoulEvent f)
                 {
                     string who = (f.Who == 0) == iAmA ? my : his;
-                    lines.Add(new CallLine(t.Clock,
+                    lines.Add(Line(
                         f.Dq ? $"{who} is DISQUALIFIED for {f.Type}."
                         : f.Deduct ? $"A point comes off {who} for {f.Type}."
                         : caller.Warned(who, f.Type),
@@ -116,7 +153,7 @@ public static class FightCall
                 {
                     string w = (fin.Winner == 0) == iAmA ? my : his;
                     string l = w == my ? his : my;
-                    lines.Add(new CallLine(t.Clock, caller.Finish(w, l, fin), CallKind.Verdict));
+                    lines.Add(Line(caller.Finish(w, l, fin), CallKind.Verdict));
                 }
             }
 
@@ -124,8 +161,15 @@ public static class FightCall
             int hisLanded = iAmA ? rd.LandedB : rd.LandedA;
             int myScore = iAmA ? rd.ScoreA : rd.ScoreB;
             int hisScore = iAmA ? rd.ScoreB : rd.ScoreA;
+
+            // How the round was FOUGHT, not just who won it. This is the read a commentator adds between the
+            // action and the card, and it is what makes a quiet round worth listening to.
+            if (caller.Pattern(rd, iAmA, my, his) is string shape)
+                lines.Add(new CallLine("", shape, CallKind.Pattern, rd.Round, myTotal + myLanded, hisTotal + hisLanded));
+            myTotal += myLanded;
+            hisTotal += hisLanded;
             lines.Add(new CallLine("", caller.Recap(rd.Round, my, his, myLanded, hisLanded, myScore, hisScore),
-                                   CallKind.Score));
+                                   CallKind.Score, rd.Round, myTotal, hisTotal));
         }
         return lines;
     }
@@ -250,6 +294,83 @@ public static class FightCall
                     $"The referee has seen enough — {w} STOPS him!",
                     $"{l}'s corner has seen enough. {w} wins it!")
         };
+
+        /// <summary>Read the shape of a round from its ticks: body investment, a late surge or a fade, a war in
+        /// the pocket, a cagey feeling-out, a man content to counter. Returns null when the round had no story
+        /// worth telling, so this never becomes filler.</summary>
+        public string? Pattern(RoundResult rd, bool iAmA, string my, string his)
+        {
+            var ticks = rd.Ticks;
+            if (ticks.Count < 3) return null;
+
+            int myBody = 0, hisBody = 0, myCounters = 0, hisCounters = 0;
+            foreach (var t in ticks)
+            {
+                if (iAmA ? t.BodyShotA : t.BodyShotB) myBody++;
+                if (iAmA ? t.BodyShotB : t.BodyShotA) hisBody++;
+                if (iAmA ? t.CounterA : t.CounterB) myCounters++;
+                if (iAmA ? t.CounterB : t.CounterA) hisCounters++;
+            }
+
+            // Landed counts on a tick are cumulative for the round, so halves come from the midpoint reading.
+            var mid = ticks[ticks.Count / 2];
+            var last = ticks[^1];
+            int myFirst = iAmA ? mid.LandedA : mid.LandedB;
+            int hisFirst = iAmA ? mid.LandedB : mid.LandedA;
+            int myAll = iAmA ? last.LandedA : last.LandedB;
+            int hisAll = iAmA ? last.LandedB : last.LandedA;
+            int mySecond = myAll - myFirst, hisSecond = hisAll - hisFirst;
+
+            if (myBody >= 3 && myBody > hisBody + 1)
+                return Rotate("bodyMe",
+                    $"{my} has been banking body shots all round — that tells late.",
+                    $"Note the investment downstairs from {my}; {his} is starting to wear it.");
+            if (hisBody >= 3 && hisBody > myBody + 1)
+                return Rotate("bodyHim",
+                    $"{his} keeps digging to the body — {my} is taking a toll there.",
+                    $"That body work from {his} will be felt in the later rounds.");
+
+            // A one-sided round is a story too.
+            if (myAll >= 8 && myAll >= hisAll * 3)
+                return Rotate("dominateMe",
+                    $"{my} is putting a beating on him now.",
+                    $"{his} has no answer — {my} is landing at will.");
+            if (hisAll >= 8 && hisAll >= myAll * 3)
+                return Rotate("dominateHim",
+                    $"{his} is taking {my} apart in there.",
+                    $"{my} is shipping a lot of leather — he needs to hold on.");
+
+            if (myAll + hisAll >= 16 && Math.Abs(myAll - hisAll) <= 4)
+                return Rotate("war",
+                    "Neither man will take a backward step — they're trading in the pocket.",
+                    "This has turned into a war; both are standing and letting them go.");
+
+            if (mySecond >= myFirst * 2 && mySecond >= 4)
+                return Rotate("surgeMe",
+                    $"{my} finished the round on top — he took over in the last minute.",
+                    $"A strong close from {my}; he stole that one late.");
+            if (hisSecond >= hisFirst * 2 && hisSecond >= 4)
+                return Rotate("surgeHim",
+                    $"{his} came on strong at the end of that round.",
+                    $"{his} finished the stronger — {my} faded in the last minute.");
+
+            if (myFirst >= 4 && mySecond * 2 <= myFirst)
+                return Rotate("fadeMe", $"{my} started fast and his output dropped away.");
+            if (hisFirst >= 4 && hisSecond * 2 <= hisFirst)
+                return Rotate("fadeHim", $"{his} began brightly, then the work dried up.");
+
+            if (myCounters >= 3)
+                return Rotate("ctrMe", $"{my} is content to sit back and counter everything {his} offers.");
+            if (hisCounters >= 3)
+                return Rotate("ctrHim", $"{his} is picking his moments, countering as {my} comes in.");
+
+            if (myAll + hisAll <= 8)
+                return Rotate("cagey",
+                    "A cagey round — both men measuring, little committed.",
+                    "Not much doing there; a feeling-out round.");
+
+            return null;
+        }
 
         public string Recap(int round, string my, string his, int mine, int theirs, int myScore, int hisScore)
         {
