@@ -550,9 +550,15 @@ public sealed class CareerViewModel : Observable
     private void Sound(CallLine line)
     {
         if (!SoundOn || _skipping) return;
-        if (line.IsRound) Sfx.Bell();
-        else if (line.IsVerdict) Sfx.FinalBellSound();
-        else if (line.IsDrama && (line.Text.Contains("DOWN") || line.Text.Contains("KNOCKS OUT"))) Sfx.Knockdown_();
+        // Keyed off the EVENT, never the wording. Matching on text missed every knockdown phrased "on the
+        // canvas" or "on the floor" — half of them, depending on which variant the rotation reached for.
+        switch (line.Event)
+        {
+            case CallEvent.RoundBell: Sfx.Bell(); break;
+            case CallEvent.Knockdown: Sfx.Knockdown_(); break;
+            case CallEvent.Stoppage: Sfx.FinalBellSound(); break;
+        }
+        if (line.IsCrowd) Sfx.CrowdRoar();
     }
 
     private bool _skipping;

@@ -1072,6 +1072,16 @@
                                                                         <Setter Property="FontWeight" Value="Bold" />
                                                                         <Setter Property="Margin" Value="0,8,0,8" />
                                                                     </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsCorner}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                                                        <Setter Property="FontSize" Value="13.5" />
+                                                                        <Setter Property="Margin" Value="0,7,0,5" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsCrowd}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#B08CFF" />
+                                                                        <Setter Property="FontSize" Value="15" />
+                                                                        <Setter Property="FontStyle" Value="Italic" />
+                                                                    </DataTrigger>
                                                                     <DataTrigger Binding="{Binding IsPattern}" Value="True">
                                                                         <Setter Property="Foreground" Value="{StaticResource Accent}" />
                                                                         <Setter Property="FontSize" Value="14" />

@@ -20,12 +20,14 @@ public static class Sfx
     private static readonly Lazy<byte[]> RoundBell = new(() => Bell(0.9, 1.0));
     private static readonly Lazy<byte[]> FinalBell = new(() => Bell(1.9, 1.0, strikes: 3));
     private static readonly Lazy<byte[]> Thud = new(() => Knockdown());
+    private static readonly Lazy<byte[]> Roar = new(() => Crowd());
 
     private static SoundPlayer? _player;
 
     public static void Bell() => Play(RoundBell.Value);
     public static void FinalBellSound() => Play(FinalBell.Value);
     public static void Knockdown_() => Play(Thud.Value);
+    public static void CrowdRoar() => Play(Roar.Value);
 
     private static void Play(byte[] wav)
     {
@@ -82,6 +84,28 @@ public static class Sfx
             double body = Math.Sin(2 * Math.PI * 72 * t) * Math.Exp(-7.5 * t);
             double snap = (rng.NextDouble() * 2 - 1) * Math.Exp(-55 * t);   // the impact itself
             buf[i] = (body * 0.85 + snap * 0.5) * 0.5;
+        }
+        return Wav(buf);
+    }
+
+    /// <summary>A crowd: filtered noise that swells and falls away. Broadband noise alone sounds like static;
+    /// rolling it through a one-pole low-pass and riding a slow envelope over the top gives it a body that
+    /// reads as a room full of people rather than a hiss.</summary>
+    private static byte[] Crowd()
+    {
+        int n = (int)(Rate * 2.2);
+        var buf = new double[n];
+        var rng = new Random(7);
+        double lp = 0, lp2 = 0;
+        for (int i = 0; i < n; i++)
+        {
+            double t = i / (double)Rate;
+            double white = rng.NextDouble() * 2 - 1;
+            lp += (white - lp) * 0.045;      // two poles: takes the fizz off and leaves a roar
+            lp2 += (lp - lp2) * 0.12;
+            // Swell up over half a second, hold, then fall away.
+            double env = Math.Min(1.0, t / 0.45) * Math.Exp(-1.15 * Math.Max(0, t - 0.45));
+            buf[i] = lp2 * env * 3.2;
         }
         return Wav(buf);
     }

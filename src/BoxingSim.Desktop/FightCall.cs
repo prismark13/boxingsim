@@ -4,13 +4,17 @@ using BoxingSim.Core.Model;
 namespace BoxingSim.Desktop;
 
 /// <summary>How loud a line of the call is — drives its size and colour on the night.</summary>
-public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern }
+public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern, Corner, Crowd }
+
+/// <summary>What actually HAPPENED on a line, independent of how it was worded. Sound and effects key off this,
+/// never off the prose — the phrasing rotates, so matching on words silently missed half the knockdowns.</summary>
+public enum CallEvent { None, RoundBell, Knockdown, Stoppage, Cut, Hurt }
 
 /// <summary>One line of the fight being called, carrying the state of the fight AT that moment so the scoreboard
 /// can move with the call rather than sitting still while text scrolls past.</summary>
 public sealed record CallLine(string Clock, string Text, CallKind Kind,
                               int Round = 0, int MyLanded = 0, int HisLanded = 0,
-                              int MyHurt = 0, int HisHurt = 0)
+                              int MyHurt = 0, int HisHurt = 0, CallEvent Event = CallEvent.None)
 {
     public bool IsRound => Kind == CallKind.Round;
     public bool IsDrama => Kind == CallKind.Drama;
@@ -18,6 +22,8 @@ public sealed record CallLine(string Clock, string Text, CallKind Kind,
     public bool IsVerdict => Kind == CallKind.Verdict;
     public bool IsScore => Kind == CallKind.Score;
     public bool IsPattern => Kind == CallKind.Pattern;
+    public bool IsCorner => Kind == CallKind.Corner;
+    public bool IsCrowd => Kind == CallKind.Crowd;
     /// <summary>The moments that deserve to stop the room.</summary>
     public bool IsMoment => Kind is CallKind.Drama or CallKind.Verdict;
 }
@@ -69,11 +75,12 @@ public static class FightCall
         int myTotal = 0, hisTotal = 0;
         foreach (var rd in res.Rounds)
         {
-            lines.Add(new CallLine("", $"ROUND {rd.Round}", CallKind.Round, rd.Round, myTotal, hisTotal));
+            lines.Add(new CallLine("", $"ROUND {rd.Round}", CallKind.Round, rd.Round, myTotal, hisTotal, Event: CallEvent.RoundBell));
             caller.NewRound();
 
             int prevKdMine = 0, prevKdHis = 0;
             bool cutMine = false, cutHis = false, hurtCalled = false, staggerCalled = false;
+            bool hurtMine = false, hurtHis = false;
             foreach (var t in rd.Ticks)
             {
                 // "A" and "B" are the engine's corners; flip them so the call is always from the player's side.
@@ -102,18 +109,20 @@ public static class FightCall
 
                 int liveMine = myTotal + (iAmA ? t.LandedA : t.LandedB);
                 int liveHis = hisTotal + (iAmA ? t.LandedB : t.LandedA);
-                CallLine Line(string text, CallKind kind) =>
-                    new(t.Clock, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis);
+                CallLine Line(string text, CallKind kind, CallEvent ev = CallEvent.None) =>
+                    new(t.Clock, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis, ev);
 
                 if (bigMine && punchMine is not null)
                     lines.Add(Line(caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big));
                 if (bigHis && punchHis is not null)
                     lines.Add(Line(caller.Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big));
 
+                if (rockHis >= 2) hurtHis = true;
+                if (rockMine >= 2) hurtMine = true;
                 if (!hurtCalled && rockHis >= 2)
-                { lines.Add(Line(caller.Hurt(my, his), CallKind.Drama)); hurtCalled = true; }
+                { lines.Add(Line(caller.Hurt(my, his), CallKind.Drama, CallEvent.Hurt)); lines.Add(Line(caller.Crowd(true), CallKind.Crowd)); hurtCalled = true; }
                 else if (!hurtCalled && rockMine >= 2)
-                { lines.Add(Line(caller.Hurt(his, my), CallKind.Drama)); hurtCalled = true; }
+                { lines.Add(Line(caller.Hurt(his, my), CallKind.Drama, CallEvent.Hurt)); hurtCalled = true; }
 
                 // Once a round: the engine flags a stagger on every tick a man stays wobbled, and calling it
                 // each time turned the drama into a stuck record.
@@ -125,16 +134,18 @@ public static class FightCall
                 if (kdAgainstHim > prevKdHis)
                 {
                     prevKdHis = kdAgainstHim;
-                    lines.Add(Line(caller.Down(my, his, downBodyHis, kdAgainstHim), CallKind.Drama));
+                    lines.Add(Line(caller.Down(my, his, downBodyHis, kdAgainstHim), CallKind.Drama, CallEvent.Knockdown));
+                    lines.Add(Line(caller.Crowd(true), CallKind.Crowd));
                 }
                 if (kdAgainstMe > prevKdMine)
                 {
                     prevKdMine = kdAgainstMe;
-                    lines.Add(Line(caller.Down(his, my, downBodyMine, kdAgainstMe), CallKind.Drama));
+                    lines.Add(Line(caller.Down(his, my, downBodyMine, kdAgainstMe), CallKind.Drama, CallEvent.Knockdown));
+                    lines.Add(Line(caller.Crowd(false), CallKind.Crowd));
                 }
 
-                if (!cutHis && cutH >= 0.4) { cutHis = true; lines.Add(Line(caller.Cut(his), CallKind.Drama)); }
-                if (!cutMine && cutM >= 0.4) { cutMine = true; lines.Add(Line(caller.Cut(my), CallKind.Drama)); }
+                if (!cutHis && cutH >= 0.4) { cutHis = true; lines.Add(Line(caller.Cut(his), CallKind.Drama, CallEvent.Cut)); }
+                if (!cutMine && cutM >= 0.4) { cutMine = true; lines.Add(Line(caller.Cut(my), CallKind.Drama, CallEvent.Cut)); }
 
                 if (handMine) lines.Add(Line(caller.Hand(my), CallKind.Action));
                 if (handHis) lines.Add(Line(caller.Hand(his), CallKind.Action));
@@ -153,7 +164,8 @@ public static class FightCall
                 {
                     string w = (fin.Winner == 0) == iAmA ? my : his;
                     string l = w == my ? his : my;
-                    lines.Add(Line(caller.Finish(w, l, fin), CallKind.Verdict));
+                    lines.Add(Line(caller.Finish(w, l, fin), CallKind.Verdict, CallEvent.Stoppage));
+                    lines.Add(Line(caller.Crowd(w == my), CallKind.Crowd));
                 }
             }
 
@@ -170,6 +182,11 @@ public static class FightCall
             hisTotal += hisLanded;
             lines.Add(new CallLine("", caller.Recap(rd.Round, my, his, myLanded, hisLanded, myScore, hisScore),
                                    CallKind.Score, rd.Round, myTotal, hisTotal));
+
+            // The corner, between rounds. Advice follows what actually happened to him, so it lands as counsel
+            // rather than noise — and it is the only voice in the call that is on the player's side.
+            if (rd.Round < res.Rounds.Count && caller.Corner(my, his, myLanded, hisLanded, cutMine, hurtMine, hurtHis) is string corner)
+                lines.Add(new CallLine("", corner, CallKind.Corner, rd.Round, myTotal, hisTotal));
         }
         return lines;
     }
@@ -270,6 +287,43 @@ public static class FightCall
             $"{who} has been opened up — there's blood.",
             $"A cut on {who}, and it's leaking badly.",
             $"{who} is marked up now; the doctor will want a look.");
+
+        /// <summary>The arena. Only on the moments that would actually lift or silence a crowd.</summary>
+        public string Crowd(bool forMe) => forMe
+            ? Rotate("crowdUp",
+                "The crowd is on its feet!",
+                "A roar goes round the arena!",
+                "They can smell it — the place has erupted!",
+                "You can barely hear yourself in here!")
+            : Rotate("crowdDown",
+                "The crowd draws breath — they saw that one.",
+                "A gasp goes round the hall.",
+                "The place has gone quiet.");
+
+        /// <summary>The corner between rounds. Advice tracks what actually happened to him last round, so it
+        /// reads as counsel rather than filler — and it is the one voice in the call on the player's side.</summary>
+        public string? Corner(string my, string his, int mine, int theirs, bool cut, bool wasHurt, bool hurtHim)
+        {
+            if (wasHurt) return Rotate("cnrHurt",
+                "CORNER: “Sit down. Clear your head, hold if you have to — you're not losing this in one round.”",
+                "CORNER: “Breathe. Tie him up, take your time and let it pass.”");
+            if (cut) return Rotate("cnrCut",
+                "CORNER: “Let me work on it. Keep that side away from him and don't let him see it bother you.”",
+                "CORNER: “It's under control. Guard high, don't lean into that right hand.”");
+            if (hurtHim) return Rotate("cnrGo",
+                "CORNER: “He's there for the taking. Go and finish it — don't let him breathe.”",
+                "CORNER: “You've hurt him. Straight down the middle and don't stop punching.”");
+            if (theirs > mine + 3) return Rotate("cnrBehind",
+                "CORNER: “You're giving this away. Double the jab and get off first.”",
+                "CORNER: “He's beating you to the punch. Move your head and come back at him.”",
+                "CORNER: “You need this round. Let your hands go.”");
+            if (mine > theirs + 3) return Rotate("cnrAhead",
+                "CORNER: “You're on top. Keep it long, don't get greedy.”",
+                "CORNER: “That's the round. Same again — behind the jab, don't stand with him.”");
+            return Rotate("cnrLevel",
+                "CORNER: “It's close. Whoever wants it more takes this.”",
+                "CORNER: “Nothing in it. Be first, and be busier.”");
+        }
 
         public string Hand(string who) => Rotate("hand",
             $"{who} shakes his hand out — that looked painful.",
