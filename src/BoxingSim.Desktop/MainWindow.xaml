@@ -541,7 +541,7 @@
                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 <Grid x:Name="TheirsTrack" Grid.Column="2" Height="16">
                                                     <Border HorizontalAlignment="Left" CornerRadius="3"
-                                                            Background="{StaticResource Line2}">
+                                                            Background="{StaticResource Foe}">
                                                         <Border.Width>
                                                             <MultiBinding Converter="{StaticResource BarWidth}">
                                                                 <Binding Path="TheirsWidth" />
@@ -549,9 +549,11 @@
                                                             </MultiBinding>
                                                         </Border.Width>
                                                     </Border>
+                                                    <!-- Dark on the bar, matching the player's side: the number sits ON the
+                                                         colour now rather than on an empty track behind it. -->
                                                     <TextBlock Text="{Binding Theirs}" FontSize="10.5" Margin="7,0,0,0"
                                                                HorizontalAlignment="Left" VerticalAlignment="Center"
-                                                               Foreground="{StaticResource Text}" FontWeight="Bold" />
+                                                               Foreground="#1F0A04" FontWeight="Bold" />
                                                 </Grid>
                                             </Grid>
                                         </DataTemplate>
@@ -999,8 +1001,10 @@
                                            Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
                                            Margin="0,3,0,0" />
                             </StackPanel>
+                            <!-- His count in his corner's colour, matching the bar beneath it. In muted grey next
+                                 to the player's blue it read as a caption rather than the other man's score. -->
                             <TextBlock Grid.Column="2" Text="{Binding LiveHis}" FontSize="30" FontWeight="Light"
-                                       Foreground="{StaticResource Muted}" HorizontalAlignment="Left"
+                                       Foreground="{StaticResource Foe}" HorizontalAlignment="Left"
                                        VerticalAlignment="Center" Margin="18,0,0,0" />
                         </Grid>
 
@@ -1021,9 +1025,11 @@
                                     </Border.Width>
                                 </Border>
                             </Grid>
+                            <!-- His share is the OTHER fighter, not empty space. In grey on a grey track it was
+                                 barely visible, so the live count read as one man landing and nobody opposite. -->
                             <Grid x:Name="HisShare" Grid.Column="2">
                                 <Border Background="{StaticResource Line}" CornerRadius="4" />
-                                <Border HorizontalAlignment="Left" CornerRadius="4" Background="{StaticResource Line2}">
+                                <Border HorizontalAlignment="Left" CornerRadius="4" Background="{StaticResource Foe}">
                                     <Border.Width>
                                         <MultiBinding Converter="{StaticResource BarWidth}">
                                             <Binding Path="LiveHisShare" />
@@ -1403,10 +1409,11 @@
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
-                                                    <!-- How the round's punches split, at a glance. -->
+                                                    <!-- How the round's punches split, at a glance. Both halves are a
+                                                         man, so the remainder is his colour rather than empty track. -->
                                                     <Grid x:Name="Track" Grid.Column="2" Height="8" VerticalAlignment="Center"
                                                           Margin="0,0,14,0">
-                                                        <Border Background="{StaticResource Line}" CornerRadius="4" />
+                                                        <Border Background="{StaticResource Foe}" CornerRadius="4" />
                                                         <Border HorizontalAlignment="Left" CornerRadius="4"
                                                                 Background="{StaticResource Accent}">
                                                             <Border.Width>

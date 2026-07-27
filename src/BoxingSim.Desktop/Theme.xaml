@@ -26,6 +26,13 @@
     <SolidColorBrush x:Key="Win" Color="#43D17F" />
     <SolidColorBrush x:Key="Loss" Color="#FF6F6F" />
 
+    <!-- The other man. Boxing already solved this: the player fights out of the blue corner, so his opponent
+         gets the red one. Anything grey reads as an absence rather than a fighter — an opponent's best
+         attribute drawn in the same colour as an empty track looks like nothing is there at all. Deliberately
+         warmer and more orange than Loss, which means a defeat and would put a verdict on a man who has not
+         fought yet. -->
+    <SolidColorBrush x:Key="Foe" Color="#FF8355" />
+
     <!-- Type -->
     <Style x:Key="Label" TargetType="TextBlock">
         <Setter Property="FontSize" Value="10.5" />
