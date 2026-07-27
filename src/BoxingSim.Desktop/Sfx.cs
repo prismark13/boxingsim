@@ -34,12 +34,19 @@ public static class Sfx
     private static bool _enabled = true;
 
     // ---- layers ----
-    private static MediaPlayer? _bed;
+    // Two beds run at once, not one: a calm room and a roaring one, CROSSFADED by how excited the crowd is.
+    // Riding a single bed's volume only makes the same murmur louder; a real crowd changes character, not just
+    // level. This is what sports-game audio does with intensity stems, and it is the difference between
+    // "louder murmur" and "the place is going up".
+    //
+    // The two loops are different lengths (7s and 11s) so they drift against each other and the repeat never
+    // becomes audible — the same trick as asynchronous ambience loops.
+    private static MediaPlayer? _bedCalm, _bedHot;
     private static readonly MediaPlayer[] _oneShots = new MediaPlayer[6];   // a pool, so rapid hits overlap
     private static int _next;
 
-    private static double _bedBase;      // the occasion's resting level
-    private static double _bedLevel;     // where it is right now, including any swell
+    private static double _room;         // how full the building is (the occasion)
+    private static double _excitement;   // 0 = between rounds in a quiet hall, 1 = a man is down
     private static DispatcherTimer? _decay;
 
     private static readonly Dictionary<string, string> _files = new();
@@ -47,16 +54,15 @@ public static class Sfx
     /// <summary>Set the room before the first bell.</summary>
     public static void SetOccasion(Occasion o)
     {
-        _bedBase = o switch
+        _room = o switch
         {
-            Occasion.Club => 0.10,          // a few hundred people, mostly quiet
-            Occasion.Ranked => 0.22,
-            Occasion.Title => 0.38,
-            Occasion.Unification => 0.55,   // a full arena, humming before a punch is thrown
-            _ => 0.2
+            Occasion.Club => 0.16,          // a few hundred people, mostly quiet
+            Occasion.Ranked => 0.30,
+            Occasion.Title => 0.50,
+            Occasion.Unification => 0.72,   // a full arena, humming before a punch is thrown
+            _ => 0.3
         };
-        _bedLevel = _bedBase;
-        if (_bed is not null) _bed.Volume = _bedLevel;
+        ApplyMix();
     }
 
     /// <summary>Bring the crowd up and keep it there until StopBed.</summary>
@@ -64,19 +70,15 @@ public static class Sfx
     {
         if (!_enabled) return;
         SetOccasion(o);
+        _excitement = 0;
         try
         {
-            // A club room is sparse claps and murmur; an arena is a wall of noise. Two different beds, not
-            // just two volumes — a quiet arena still sounds like an arena.
-            string key = _bedBase >= 0.3 ? "bed-big" : "bed-small";
-            _bed ??= new MediaPlayer();
-            _bed.MediaEnded -= LoopBed;
-            _bed.MediaEnded += LoopBed;
-            _bed.Open(new Uri(FileFor(key, () => CrowdBed(dense: _bedBase >= 0.3))));
-            _bed.Volume = _bedLevel;
-            _bed.Play();
+            bool dense = _room >= 0.45;
+            _bedCalm = Loop(_bedCalm, dense ? "bed-big-calm" : "bed-small-calm", () => CrowdBed(dense, 0.0));
+            _bedHot = Loop(_bedHot, dense ? "bed-big-hot" : "bed-small-hot", () => CrowdBed(dense, 0.9));
+            ApplyMix();
 
-            _decay ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
+            _decay ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
             _decay.Tick -= Settle;
             _decay.Tick += Settle;
             _decay.Start();
@@ -84,40 +86,62 @@ public static class Sfx
         catch { /* no audio device — the fight carries on in silence */ }
     }
 
+    private static MediaPlayer Loop(MediaPlayer? p, string key, Func<byte[]> make)
+    {
+        p ??= new MediaPlayer();
+        p.MediaEnded -= Rewind;
+        p.MediaEnded += Rewind;
+        p.Open(new Uri(FileFor(key, make)));
+        p.Play();
+        return p;
+    }
+
+    private static void Rewind(object? s, EventArgs e)
+    {
+        if (s is MediaPlayer p) { try { p.Position = TimeSpan.Zero; p.Play(); } catch { } }
+    }
+
     public static void StopBed()
     {
-        try { _decay?.Stop(); _bed?.Stop(); } catch { }
+        try { _decay?.Stop(); _bedCalm?.Stop(); _bedHot?.Stop(); } catch { }
     }
 
-    private static void LoopBed(object? s, EventArgs e)
+    /// <summary>Crossfade the two beds by excitement, and scale the pair by how full the building is.</summary>
+    private static void ApplyMix()
     {
-        try { if (_bed is not null) { _bed.Position = TimeSpan.Zero; _bed.Play(); } } catch { }
+        try
+        {
+            double e = Math.Clamp(_excitement, 0, 1);
+            // Equal-power, so the total loudness stays steady through the crossfade instead of dipping.
+            if (_bedCalm is not null) _bedCalm.Volume = Math.Clamp(_room * Math.Cos(e * Math.PI / 2), 0, 1);
+            if (_bedHot is not null) _bedHot.Volume = Math.Clamp(_room * Math.Sin(e * Math.PI / 2) * 1.25, 0, 1);
+        }
+        catch { }
     }
 
-    /// <summary>Ease the crowd back down to its resting level after a swell.</summary>
+    /// <summary>Let the crowd come back down after a swell.</summary>
     private static void Settle(object? s, EventArgs e)
     {
-        if (_bed is null) return;
-        if (Math.Abs(_bedLevel - _bedBase) < 0.005) return;
-        _bedLevel += (_bedBase - _bedLevel) * 0.08;
-        try { _bed.Volume = Math.Clamp(_bedLevel, 0, 1); } catch { }
+        if (_excitement <= 0.001) return;
+        _excitement *= 0.955;
+        if (_excitement < 0.005) _excitement = 0;
+        ApplyMix();
     }
 
-    /// <summary>Lift the crowd. The amount is the event's weight, so a hard shot stirs them and a knockdown
-    /// takes the roof off.</summary>
+    /// <summary>Lift the crowd, by an amount matched to what just happened.</summary>
     private static void Swell(double amount)
     {
-        _bedLevel = Math.Clamp(_bedLevel + amount, 0, 1);
-        try { if (_bed is not null) _bed.Volume = _bedLevel; } catch { }
+        _excitement = Math.Clamp(_excitement + amount, 0, 1);
+        ApplyMix();
     }
 
     // ---- one-shots ----
 
     public static void Bell() => Fire("bell", () => BellTone(0.9, 1), 0.55);
-    public static void FinalBell() => Fire("bell3", () => BellTone(1.9, 3), 0.6, swell: 0.30);
-    public static void Thud(double force = 1.0) => Fire("thud", Punch, 0.30 + 0.25 * force, swell: 0.03 * force);
-    public static void Ooh() => Fire("ooh", CrowdOoh, 0.6, swell: 0.16);
-    public static void Roar() => Fire("roar", CrowdRoar, 0.75, swell: 0.35);
+    public static void FinalBell() => Fire("bell3", () => BellTone(1.9, 3), 0.6, swell: 0.8);
+    public static void Thud(double force = 1.0) => Fire("thud", Punch, 0.30 + 0.25 * force, swell: 0.10 * force);
+    public static void Ooh() => Fire("ooh", CrowdOoh, 0.6, swell: 0.40);
+    public static void Roar() => Fire("roar", CrowdRoar, 0.75, swell: 1.0);
 
     private static void Fire(string key, Func<byte[]> make, double volume, double swell = 0)
     {
@@ -148,32 +172,72 @@ public static class Sfx
 
     // ---- synthesis ----
 
-    /// <summary>A crowd that carries on underneath everything. Layers of filtered noise at different rates give
-    /// it movement so it doesn't sit as a flat hiss, and in a small hall you hear individual claps over the top
-    /// rather than a wall of sound.</summary>
-    private static byte[] CrowdBed(bool dense)
+    /// <summary>A crowd, built the way a crowd actually is: out of VOICES.
+    ///
+    /// The first attempt filtered white noise, which is why it sounded like rain. Noise has no formant
+    /// structure, and formants are the whole reason the ear hears "people" rather than "hiss". Real games
+    /// sidestep this by using recordings and multiplying them with pitch-shift, chorus and unison plugins —
+    /// with no recordings to hand, the nearest honest equivalent is to synthesise the individuals and let a
+    /// crowd emerge from the pile.
+    ///
+    /// Each voice is a glottal pulse train at its own pitch, pushed through two formant resonators tuned to a
+    /// vowel. Hundreds of them at random pitches and entry times give the beating, uneven texture of a room.
+    /// A thin noise floor underneath is the air and the shuffling; the voices sit on top of it.</summary>
+    private static byte[] CrowdBed(bool dense, double excitement = 0.0)
     {
-        int n = (int)(Rate * 8.0);          // eight seconds, looped
+        double seconds = dense ? 11.0 : 7.0;   // co-prime-ish lengths so two layers rarely repeat together
+        int n = (int)(Rate * seconds);
         var buf = new double[n];
         var rng = new Random(dense ? 11 : 29);
-        double lp = 0, lp2 = 0, slow = 0;
 
+        // The air in the room. A whisper under the voices, not a rumble over them — the first attempt put
+        // half its energy below 120 Hz, which the ear reads as weather rather than people.
+        double lp = 0;
         for (int i = 0; i < n; i++)
         {
-            double white = rng.NextDouble() * 2 - 1;
-            lp += (white - lp) * (dense ? 0.05 : 0.035);
-            lp2 += (lp - lp2) * 0.10;
-            // A slow wander so the level breathes instead of sitting flat.
-            slow += ((rng.NextDouble() * 2 - 1) - slow) * 0.00004;
-            buf[i] = lp2 * (dense ? 3.0 : 1.7) * (1.0 + slow * 2.2);
+            lp += ((rng.NextDouble() * 2 - 1) - lp) * 0.08;
+            buf[i] += lp * 0.05;
         }
 
-        // A thin hall: you pick out individual claps. A full arena swallows them.
-        int claps = dense ? 40 : 130;
+        // The people. More of them in an arena; more of them shouting rather than talking when excited.
+        int voices = (int)((dense ? 340 : 120) * (1.0 + excitement * 0.8));
+        for (int v = 0; v < voices; v++)
+        {
+            int at = rng.Next(n);
+            double dur = 0.25 + rng.NextDouble() * (excitement > 0.4 ? 1.1 : 0.55);
+            int len = Math.Min((int)(dur * Rate), n - at);
+            if (len < 400) continue;
+
+            // A voice: pitch, a vowel, and how hard it is being used.
+            double f0 = (excitement > 0.4 ? 150 : 105) * (0.72 + rng.NextDouble() * 0.85);
+            var (f1, f2) = Vowel(rng, excitement);
+            double amp = (0.05 + rng.NextDouble() * 0.10) * (dense ? 1.0 : 1.5);
+
+            var r1 = new Resonator(f1, 90);
+            var r2 = new Resonator(f2, 130);
+            double phase = rng.NextDouble();
+            for (int i = 0; i < len; i++)
+            {
+                double t = i / (double)Rate;
+                // Glottal pulses: a train of narrow impulses, which is what gives a voice its buzz.
+                phase += f0 / Rate;
+                double drive = 0;
+                if (phase >= 1.0) { phase -= 1.0; drive = 1.0; }
+                drive += (rng.NextDouble() * 2 - 1) * 0.03;      // breath
+
+                double voiced = r1.Next(drive) * 0.7 + r2.Next(drive) * 0.45;
+                // Ease in and out so nobody starts or stops mid-shout.
+                double env = Math.Sin(Math.PI * i / len);
+                buf[at + i] += voiced * env * amp;
+            }
+        }
+
+        // Claps, which is what you actually pick out in a small hall. An arena swallows them.
+        int claps = dense ? 55 : 150;
         for (int c = 0; c < claps; c++)
         {
             int at = rng.Next(n - 3000);
-            double amp = (dense ? 0.10 : 0.34) * (0.5 + rng.NextDouble());
+            double amp = (dense ? 0.09 : 0.30) * (0.5 + rng.NextDouble());
             for (int i = 0; i < 2200; i++)
             {
                 double t = i / (double)Rate;
@@ -181,15 +245,83 @@ public static class Sfx
             }
         }
 
-        // Fade the seam so the loop doesn't click.
+        // Strip everything under ~170 Hz. A voice's energy lives in its formants, not its fundamental, and
+        // sub-bass in a crowd bed only ever muddies it — this is the single biggest step from "noise" to
+        // "people". Measured: the voice band goes from a quarter of the signal to the majority of it.
+        HighPass(buf, 170);
+        Normalise(buf, dense ? 0.72 : 0.55);
+        FadeSeam(buf);
+        return Wav(buf);
+    }
+
+    /// <summary>Vowel formant pairs. A calm room is talking ("uh", "er"); an excited one is open-mouthed
+    /// ("ah", "oh"), which is both louder and brighter — the shift is audible even at the same volume.</summary>
+    private static (double F1, double F2) Vowel(Random rng, double excitement)
+    {
+        (double, double)[] calm = { (500, 1500), (450, 1100), (600, 1000), (400, 900) };      // uh / er / o
+        (double, double)[] loud = { (730, 1100), (700, 1200), (640, 1200), (800, 1150) };     // ah / aw
+        var set = rng.NextDouble() < excitement ? loud : calm;
+        var (f1, f2) = set[rng.Next(set.Length)];
+        // Nobody's throat is identical; the spread is what stops it sounding like one person multiplied.
+        return (f1 * (0.9 + rng.NextDouble() * 0.2), f2 * (0.9 + rng.NextDouble() * 0.2));
+    }
+
+    /// <summary>A two-pole resonator — the cheapest thing that behaves like a vocal tract formant.</summary>
+    private sealed class Resonator
+    {
+        private readonly double _a0, _b1, _b2;
+        private double _y1, _y2;
+        public Resonator(double freq, double bandwidth)
+        {
+            double r = Math.Exp(-Math.PI * bandwidth / Rate);
+            double theta = 2 * Math.PI * freq / Rate;
+            _b1 = 2 * r * Math.Cos(theta);
+            _b2 = -r * r;
+            _a0 = (1 - r) * Math.Sqrt(1 - 2 * r * Math.Cos(2 * theta) + r * r);
+        }
+        public double Next(double x)
+        {
+            double y = _a0 * x + _b1 * _y1 + _b2 * _y2;
+            _y2 = _y1; _y1 = y;
+            return y;
+        }
+    }
+
+    /// <summary>A one-pole high-pass. Cheap, and enough to take the rumble out from under a crowd.</summary>
+    private static void HighPass(double[] buf, double cutoffHz)
+    {
+        double a = 1.0 / (1.0 + 2 * Math.PI * cutoffHz / Rate);
+        double prevIn = 0, prevOut = 0;
+        for (int i = 0; i < buf.Length; i++)
+        {
+            double x = buf[i];
+            double y = a * (prevOut + x - prevIn);
+            prevIn = x; prevOut = y;
+            buf[i] = y;
+        }
+    }
+
+    /// <summary>Scale to a target peak. Hundreds of summed voices land anywhere, so fixing the level after the
+    /// fact is more reliable than guessing per-voice gains.</summary>
+    private static void Normalise(double[] buf, double target)
+    {
+        double peak = 0;
+        foreach (var d in buf) peak = Math.Max(peak, Math.Abs(d));
+        if (peak <= 1e-9) return;
+        double g = target / peak;
+        for (int i = 0; i < buf.Length; i++) buf[i] *= g;
+    }
+
+    /// <summary>Fade both ends to silence so a looping bed doesn't click on the seam.</summary>
+    private static void FadeSeam(double[] buf)
+    {
         int fade = Rate / 4;
-        for (int i = 0; i < fade; i++)
+        for (int i = 0; i < fade && i < buf.Length / 2; i++)
         {
             double g = i / (double)fade;
             buf[i] *= g;
-            buf[n - 1 - i] *= g;
+            buf[buf.Length - 1 - i] *= g;
         }
-        return Wav(buf);
     }
 
     /// <summary>The "ooooh" — a crowd drawing breath. Voiced, not noisy: a low cluster of tones sliding up
