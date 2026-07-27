@@ -1,4 +1,5 @@
 using BoxingSim.Core.Engine;
+using System.Linq;
 using BoxingSim.Core.Model;
 
 namespace BoxingSim.Desktop;
@@ -85,6 +86,7 @@ public static class FightCall
             int prevKdMine = 0, prevKdHis = 0;
             bool cutMine = false, cutHis = false, hurtCalled = false, staggerCalled = false;
             bool hurtMine = false, hurtHis = false;
+            bool endedFight = false;
             foreach (var t in rd.Ticks)
             {
                 // "A" and "B" are the engine's corners; flip them so the call is always from the player's side.
@@ -183,6 +185,7 @@ public static class FightCall
                     string l = w == my ? his : my;
                     lines.Add(Line(caller.Finish(w, l, fin), CallKind.Verdict, CallEvent.Stoppage));
                     lines.Add(Line(caller.Crowd(w == my), CallKind.Crowd));
+                    endedFight = true;
                 }
             }
 
@@ -191,14 +194,23 @@ public static class FightCall
             int myScore = iAmA ? rd.ScoreA : rd.ScoreB;
             int hisScore = iAmA ? rd.ScoreB : rd.ScoreA;
 
-            // How the round was FOUGHT, not just who won it. This is the read a commentator adds between the
-            // action and the card, and it is what makes a quiet round worth listening to.
-            if (caller.Pattern(rd, iAmA, my, his) is string shape)
-                lines.Add(new CallLine("", shape, CallKind.Pattern, rd.Round, myTotal + myLanded, hisTotal + hisLanded));
+            // Nothing follows the finish. The call used to run on into the shape of the round and then the
+            // card, both written as though the fight were still going — and because a round cut short by a
+            // knockout has barely any punches in it, the quiet-round read was the one that fired: "a cagey
+            // round, both men measuring" printed directly underneath a man being counted out. When it is over
+            // the finish is the read and the verdict is the card.
+            if (!endedFight)
+            {
+                // How the round was FOUGHT, not just who won it. This is the read a commentator adds between
+                // the action and the card, and it is what makes a quiet round worth listening to.
+                if (caller.Pattern(rd, iAmA, my, his) is string shape)
+                    lines.Add(new CallLine("", shape, CallKind.Pattern, rd.Round, myTotal + myLanded, hisTotal + hisLanded));
+            }
             myTotal += myLanded;
             hisTotal += hisLanded;
-            lines.Add(new CallLine("", caller.Recap(rd.Round, my, his, myLanded, hisLanded, myScore, hisScore),
-                                   CallKind.Score, rd.Round, myTotal, hisTotal));
+            if (!endedFight)
+                lines.Add(new CallLine("", caller.Recap(rd.Round, my, his, myLanded, hisLanded, myScore, hisScore),
+                                       CallKind.Score, rd.Round, myTotal, hisTotal));
 
             // The corner, between rounds. Advice follows what actually happened to him, so it lands as counsel
             // rather than noise — and it is the only voice in the call that is on the player's side.
@@ -453,7 +465,17 @@ public static class FightCall
             if (hisCounters >= 3)
                 return Rotate("ctrHim", $"{his} is picking his moments, countering as {my} comes in.");
 
-            if (myAll + hisAll <= 8)
+            // Low punch counts usually mean a quiet round — but not when the reason the punches stopped is that
+            // somebody was on the floor. A round with a knockdown or a man badly hurt in it is never a
+            // feeling-out round, however few shots landed.
+            //
+            // The threshold used to be 8, which turns out to catch 0.0% of rounds that are actually fought to
+            // the bell — so this read only ever appeared on rounds cut short by a stoppage, describing a
+            // knockout as "both men measuring". With those correctly excluded it would have been dead code, so
+            // it is set where genuinely quiet rounds live: 14 or fewer is about one round in forty-five.
+            bool violent = rd.KnockdownsA + rd.KnockdownsB > 0
+                           || ticks.Any(t => t.RockA >= 2 || t.RockB >= 2);
+            if (myAll + hisAll <= 14 && !violent)
                 return Rotate("cagey",
                     "A cagey round — both men measuring, little committed.",
                     "Not much doing there; a feeling-out round.");
