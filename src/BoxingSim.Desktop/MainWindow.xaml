@@ -842,26 +842,38 @@
                     <ItemsControl ItemsSource="{Binding News}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="18,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="96" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding PlayerBout}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource Text}" />
-                                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </Grid>
+                                <!-- A headline that reports a fight is a way INTO that fight. The rest of the
+                                     feed stays as plain text, so only the openable ones invite a click. -->
+                                <Button Style="{StaticResource RowButton}" HorizontalAlignment="Stretch"
+                                        AutomationProperties.Name="{Binding Text}"
+                                        Command="{Binding DataContext.WatchNews, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        IsHitTestVisible="{Binding CanWatch}">
+                                    <Grid Margin="18,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="96" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding PlayerBout}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Grid.Column="2" Text="watch ›" FontSize="10.5" Margin="12,0,0,0"
+                                                   VerticalAlignment="Center" Foreground="{StaticResource Accent}"
+                                                   Visibility="{Binding CanWatch, Converter={StaticResource BoolVis}}" />
+                                    </Grid>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -1564,7 +1576,7 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
-                                <TextBlock Text="RECENT BOUTS" Style="{StaticResource PanelHeader}" Margin="24,10,24,4" />
+                                <TextBlock Text="FIGHT RECORD" Style="{StaticResource PanelHeader}" Margin="24,10,24,4" />
                                 <ItemsControl ItemsSource="{Binding Recent}" ItemTemplate="{StaticResource LedgerRowTemplate}"
                                               Margin="6,0,6,8" />
                             </StackPanel>

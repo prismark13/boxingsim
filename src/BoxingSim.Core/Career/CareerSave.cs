@@ -237,4 +237,7 @@ public sealed class CareerEventSave
     public bool PlayerBout { get; set; }
     public string? Kind { get; set; }
     public string? Div { get; set; }
+    // The fight the headline reports. Absent on saves written before the feed was clickable.
+    public string? BoutWinner { get; set; }
+    public string? BoutLoser { get; set; }
 }

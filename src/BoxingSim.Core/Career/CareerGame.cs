@@ -387,7 +387,17 @@ public sealed class CareerGame
         _lastTitleShot = s.LastTitleShot;
         foreach (var h in s.Historical) _historical[h.Id] = (h.Prime.ToRatings(), h.Peak);
         foreach (var f in s.Future) _future.Add((f.DebutYear, f.Proto.ToBoxer(), f.DebutAge, f.Peak));
-        foreach (var e in s.Log) _log.Add(new CareerEvent { On = ParseDate(e.On, Date), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = Enum.TryParse<WeightClass>(e.Div, out var ed) ? ed : null });
+        foreach (var e in s.Log)
+        {
+            var on = ParseDate(e.On, Date);
+            _log.Add(new CareerEvent
+            {
+                On = on, Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind,
+                Div = Enum.TryParse<WeightClass>(e.Div, out var ed) ? ed : null,
+                Bout = e.BoutWinner is not null && e.BoutLoser is not null
+                       ? new BoutRef(e.BoutWinner, e.BoutLoser, on) : null
+            });
+        }
         foreach (var r in s.Reigns) _reigns.Add(new TitleReign { Belt = r.Belt, Won = ParseDate(r.Won, Date), Lost = string.IsNullOrEmpty(r.Lost) ? null : ParseDate(r.Lost, Date), Defenses = r.Defenses });
         foreach (var kv in s.Regional)
         {
@@ -481,7 +491,7 @@ public sealed class CareerGame
         }
         foreach (var kv in _historical) s.Historical.Add(new HistoricalSave { Id = kv.Key, Peak = kv.Value.Peak, Prime = RatingsSave.From(kv.Value.Prime) });
         foreach (var f in _future) s.Future.Add(new FutureSave { DebutYear = f.DebutYear, DebutAge = f.DebutAge, Peak = f.Peak, Proto = BoxerSave.From(f.Proto) });
-        foreach (var e in _log) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString() });
+        foreach (var e in _log) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString(), BoutWinner = e.Bout?.Winner, BoutLoser = e.Bout?.Loser });
         foreach (var r in _reigns) s.Reigns.Add(new TitleReignSave { Belt = r.Belt, Won = r.Won.ToString("yyyy-MM-dd"), Lost = r.Lost?.ToString("yyyy-MM-dd"), Defenses = r.Defenses });
         foreach (var kv in _regional) s.Regional[$"{kv.Key.Div}|{kv.Key.Region}"] = kv.Value.Id;
         foreach (var m in _hof) s.HallOfFame.Add(new HallOfFamerSave
@@ -536,7 +546,8 @@ public sealed class CareerGame
 
         string verb = res.IsDraw ? "drew with" : (res.Winner!.Id == Player.Id ? "beat" : "lost to");
         string how = res.IsDraw ? Offer.Rounds + "-round draw" : res.Method;
-        LogEvent($"{Player.Name} {verb} {opp.Name} ({how}){(belt is not null ? $" — {belt} TITLE" : "")}", playerBout: true);
+        LogEvent($"{Player.Name} {verb} {opp.Name} ({how}){(belt is not null ? $" — {belt} TITLE" : "")}", playerBout: true,
+                 bout: res.Winner is null ? null : new BoutRef(res.Winner.Name, res.Loser!.Name, Date));
 
         if (belt == UndisputedBelt && !res.IsDraw)
         {
@@ -899,7 +910,11 @@ public sealed class CareerGame
     }
 
     /// <summary>Log a title event, tagged with the division being simulated so the news feed can filter it.</summary>
-    private void LogTitle(string text) => LogEvent(text, kind: "title", div: _cursor);
+    private void LogTitle(string text, BoutRef? bout = null) => LogEvent(text, kind: "title", div: _cursor, bout: bout);
+
+    /// <summary>How to find a just-fought bout again. A draw has no winner to key on, so it gets no link.</summary>
+    private BoutRef? RefOf(FightResult res) =>
+        res.Winner is null || res.Loser is null ? null : new BoutRef(res.Winner.Name, res.Loser.Name, Date);
 
     // ---- weight movement ----
 
@@ -1130,8 +1145,8 @@ public sealed class CareerGame
                 {
                     var res = FastBout(Champ, ch, 12);
                     ApplyOutcome(res, Champ, ch, $"{PrimaryBelt} title");
-                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {Champ.Name} for the {PrimaryBelt} title!"); CrownChampion(ch); }
-                    else { Defended(_cursor, "WBA", Champ.Id); LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}."); ConsiderTitleStepUp(Champ); }
+                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {Champ.Name} for the {PrimaryBelt} title!", RefOf(res)); CrownChampion(ch); }
+                    else { Defended(_cursor, "WBA", Champ.Id); LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(Champ); }
                 }
             }
             if (Wbc is not null && Wbc.Id != Player.Id && DaysSinceLastBout(Wbc) >= 70 && _rng.NextDouble() < 0.12)   // ~2–3 defences a year, min ~10 weeks apart
@@ -1141,8 +1156,8 @@ public sealed class CareerGame
                 {
                     var res = FastBout(Wbc, ch, 12);
                     ApplyOutcome(res, Wbc, ch, "WBC title");
-                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {Wbc.Name}!"); CrownWbc(ch); }
-                    else { Defended(_cursor, "WBC", Wbc.Id); LogTitle($"{Wbc.Name} retains the WBC title against {ch.Name}."); ConsiderTitleStepUp(Wbc); }
+                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {Wbc.Name}!", RefOf(res)); CrownWbc(ch); }
+                    else { Defended(_cursor, "WBC", Wbc.Id); LogTitle($"{Wbc.Name} retains the WBC title against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(Wbc); }
                 }
             }
         }
@@ -1155,8 +1170,8 @@ public sealed class CareerGame
             {
                 var res = FastBout(Ibf, ch, 12);
                 ApplyOutcome(res, Ibf, ch, "IBF title");
-                if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {Ibf.Name}!"); CrownIbf(ch); }
-                else { Defended(_cursor, "IBF", Ibf.Id); LogTitle($"{Ibf.Name} retains the IBF title against {ch.Name}."); ConsiderTitleStepUp(Ibf); }
+                if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {Ibf.Name}!", RefOf(res)); CrownIbf(ch); }
+                else { Defended(_cursor, "IBF", Ibf.Id); LogTitle($"{Ibf.Name} retains the IBF title against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(Ibf); }
             }
         }
 
@@ -1171,7 +1186,7 @@ public sealed class CareerGame
             if (chall is null) continue;
             var rres = FastBout(rc, chall, 12);
             ApplyOutcome(rres, rc, chall, $"{region} title");
-            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(_cursor, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}."); }
+            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(_cursor, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", RefOf(rres)); }
         }
 
         int bouts = 2 + _rng.Next(3);
@@ -1287,7 +1302,7 @@ public sealed class CareerGame
         if (!res.IsDraw)
         {
             var w = res.Winner!;
-            LogTitle($"{w.Name} UNIFIES the {PrimaryBelt} and WBC titles!");
+            LogTitle($"{w.Name} UNIFIES the {PrimaryBelt} and WBC titles!", RefOf(res));
             CrownChampion(w); CrownWbc(w);
             ClaimLinealByUnification(w.WeightClass);
         }
@@ -1302,10 +1317,10 @@ public sealed class CareerGame
         ApplyOutcome(res, champ, ch, "Undisputed title");
         if (!res.IsDraw && res.Winner!.Id == ch.Id)
         {
-            LogTitle($"{ch.Name} DETHRONES {champ.Name} to take the unified {PrimaryBelt} and WBC titles!");
+            LogTitle($"{ch.Name} DETHRONES {champ.Name} to take the unified {PrimaryBelt} and WBC titles!", RefOf(res));
             CrownChampion(ch); CrownWbc(ch);
         }
-        else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}."); ConsiderTitleStepUp(champ); }
+        else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(champ); }
     }
 
     /// <summary>Warmup: a unified champion runs a season of 2–3 combined defences, and may vacate a belt.</summary>
@@ -2242,7 +2257,8 @@ public sealed class CareerGame
         {
             LogEvent(Pick($"UPSET! {w.Name} shocks {l.Name}{(ko ? $", stopped in {res.EndRound}" : "")}.",
                           $"Boilover — {w.Name} outpoints the fancied {l.Name}.",
-                          $"{l.Name} is stunned by {w.Name} in a major upset."), kind: "upset", div: div);
+                          $"{l.Name} is stunned by {w.Name} in a major upset."), kind: "upset", div: div,
+                     bout: new BoutRef(w.Name, l.Name, Date));
             return;
         }
         // A long unbeaten run is news in itself — reported once it hits 10, then every 5 (15, 20, …).
@@ -2251,7 +2267,8 @@ public sealed class CareerGame
         {
             LogEvent(Pick($"{w.Name} extends his unbeaten run to {wins} straight.",
                           $"Still perfect — {w.Name} makes it {wins} wins in a row and is knocking on the door.",
-                          $"{w.Name} runs his streak to {wins} in a row, forcing his way into the picture."), kind: "streak", div: div);
+                          $"{w.Name} runs his streak to {wins} in a row, forcing his way into the picture."), kind: "streak", div: div,
+                     bout: new BoutRef(w.Name, l.Name, Date));
             return;
         }
         if (ko)
@@ -2261,12 +2278,14 @@ public sealed class CareerGame
             {
                 LogEvent(Pick($"{w.Name} rolls on — {streak} straight inside the distance.",
                               $"{w.Name} keeps the KO streak going, now {streak} in a row.",
-                              $"Frightening — {w.Name} up to {streak} consecutive knockouts."), kind: "streak", div: div);
+                              $"Frightening — {w.Name} up to {streak} consecutive knockouts."), kind: "streak", div: div,
+                         bout: new BoutRef(w.Name, l.Name, Date));
                 return;
             }
             if (w.Overall >= 76 && WorldRanked(l) && _rng.NextDouble() < 0.4)
                 LogEvent(Pick($"{w.Name} halts {l.Name} in {res.EndRound}.",
-                              $"{w.Name} takes out {l.Name} inside the distance."), kind: "ko", div: div);
+                              $"{w.Name} takes out {l.Name} inside the distance."), kind: "ko", div: div,
+                         bout: new BoutRef(w.Name, l.Name, Date));
             return;
         }
     }
@@ -2293,9 +2312,11 @@ public sealed class CareerGame
     }
 
     private string Pick(params string[] opts) => opts[_rng.Next(opts.Length)];
-    private void LogEvent(string text, bool playerBout = false, string? kind = null, WeightClass? div = null)
+    private void LogEvent(string text, bool playerBout = false, string? kind = null, WeightClass? div = null,
+                          BoutRef? bout = null)
     {
-        _log.Add(new CareerEvent { On = Date, Text = text, PlayerBout = playerBout, Kind = kind, Div = div ?? Division });
+        _log.Add(new CareerEvent { On = Date, Text = text, PlayerBout = playerBout, Kind = kind,
+                                   Div = div ?? Division, Bout = bout });
         if (_log.Count > 1500) _log.RemoveAt(0);   // bounded; eight divisions produce more news
     }
 

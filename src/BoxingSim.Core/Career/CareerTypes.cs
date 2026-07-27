@@ -78,6 +78,10 @@ public sealed class CareerEvent
     public WeightClass? Div { get; init; }   // which division this event belongs to (for the news filter)
     public int Year => On.Year;
     public string DateLabel => On.ToString("d MMM yyyy");
+
+    /// <summary>The bout this headline reports, when it reports one. A result in the feed is a fight that
+    /// happened, and it should be openable rather than only readable.</summary>
+    public BoutRef? Bout { get; init; }
 }
 
 /// <summary>One placing in an annual award (a fighter/bout with a one-line citation).</summary>

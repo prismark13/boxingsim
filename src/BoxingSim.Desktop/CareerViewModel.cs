@@ -44,7 +44,11 @@ public sealed record RankRow(string Rank, int Class, string Name, string Detail,
                              bool IsPlayer, bool IsChampion, Boxer? Fighter, HallOfFamer? Legend = null);
 public sealed record BeltRow(string Belt, string Holder, string Detail, bool Lineal, bool Vacant, Boxer? Fighter);
 public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyList<BeltRow> Belts, bool IsPlayerDivision);
-public sealed record NewsRow(string Date, string Text, string Kind, bool PlayerBout);
+public sealed record NewsRow(string Date, string Text, string Kind, bool PlayerBout, BoutRef? Bout = null)
+{
+    /// <summary>A headline reporting a fight can be opened and watched; the rest are just news.</summary>
+    public bool CanWatch => Bout is not null;
+}
 public sealed record AwardRow(string Category, int Year, IReadOnlyList<AwardPlace> Places);
 public sealed record AwardPlace(string Position, string Name, string Division, string Detail, bool Winner,
                                 string Category = "", int Year = 0, string Commentary = "",
@@ -150,6 +154,7 @@ public sealed class CareerViewModel : Observable
         WatchFight = new Cmd(OnWatchFight);
         ShowAward = new Cmd(OnShowAward);
         WatchAward = new Cmd(OnWatchAward);
+        WatchNews = new Cmd(OnWatchNews);
         CloseAward = new Cmd(() => { SelectedAward = null; });
         OpenAwardFighter = new Cmd(() =>
         {
@@ -380,6 +385,9 @@ public sealed class CareerViewModel : Observable
 
     /// <summary>Play the fight an honour was given for.</summary>
     public Cmd WatchAward { get; }
+
+    /// <summary>Play a fight straight from a news headline.</summary>
+    public Cmd WatchNews { get; }
     public Cmd CloseAward { get; }
     public Cmd OpenAwardFighter { get; }
     public Cmd CloseFight { get; }
@@ -839,7 +847,7 @@ public sealed class CareerViewModel : Observable
             }),
             Belts = string.Join("  ·  ", belts),
             Ratings = AttributeBars(b.Ratings),
-            Recent = b.History.OrderByDescending(h => h.Date).Take(12).Select(h => ToLedger(h, b.Name)).ToList(),
+            Recent = b.History.OrderByDescending(h => h.Date).Select(h => ToLedger(h, b.Name)).ToList(),
             Division = b.WeightClass
         };
     }
@@ -856,7 +864,7 @@ public sealed class CareerViewModel : Observable
         }),
         Belts = (m.WeightTitles >= 2 ? $"{m.WeightTitles}-weight champion" : m.WasChampion ? "World champion" : "")
                 + (m.Defenses > 0 ? $"  ·  {m.Defenses} defences" : ""),
-        Recent = m.History.OrderByDescending(h => h.Date).Take(12).Select(h => ToLedger(h, m.Name)).ToList(),
+        Recent = m.History.OrderByDescending(h => h.Date).Select(h => ToLedger(h, m.Name)).ToList(),
         Division = m.Division
     };
 
@@ -1314,6 +1322,19 @@ public sealed class CareerViewModel : Observable
     /// <summary>Watch the fight an award was given for. Rebuilt asking for the best of several matching nights
     /// rather than the first that fits, so a fight named Fight of the Year plays like one — this is the whole
     /// point of an award pointing at a bout instead of just describing it.</summary>
+    /// <summary>Open a fight straight from the news feed. The feed is the record of what is happening in the
+    /// sport, so a result in it should be a way into the fight rather than a sentence about it.</summary>
+    private void OnWatchNews(object? param)
+    {
+        if (Game is null || param is not NewsRow row || row.Bout is not BoutRef r) return;
+        if (Game.FindBout(r) is not (Boxer owner, Boxer foe, BoutLine line))
+        {
+            WatchUnavailable = "That fight is no longer on the record.";
+            return;
+        }
+        _ = WatchAsync(owner, foe, line, notable: line.Note is string n && n.Contains("title", StringComparison.OrdinalIgnoreCase));
+    }
+
     private void OnWatchAward()
     {
         if (Game is null || SelectedAward?.Bout is not BoutRef r) return;
@@ -1348,14 +1369,15 @@ public sealed class CareerViewModel : Observable
         foreach (var (e, _) in Game.Log.Select((e, i) => (e, i))
                                        .OrderByDescending(x => x.e.On).ThenByDescending(x => x.i)
                                        .Take(120))
-            News.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout));
+            News.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout, e.Bout));
     }
 
     private void BuildLedger()
     {
         Ledger.Clear();
         if (Game is null) return;
-        foreach (var h in Game.Player.History.OrderByDescending(h => h.Date).Take(60))
+        // No cap: a busy twenty-year career runs past any round number worth picking.
+        foreach (var h in Game.Player.History.OrderByDescending(h => h.Date))
             Ledger.Add(ToLedger(h, Game.Player.Name));
     }
 
