@@ -601,6 +601,7 @@ public sealed class CareerViewModel : Observable
             _soundOn = value;
             Sfx.Enabled = value;
             if (value && IsPlayingBack && _svc.LastResult is { } r) Sfx.StartBed(OccasionOf(r));
+            else if (!value) Sfx.StopBed();   // "Sound off" has to actually silence the room
             Raise(); Raise(nameof(SoundLabel));
         }
     }
@@ -740,15 +741,13 @@ public sealed class CareerViewModel : Observable
 
     private async Task WatchAsync(Boxer owner, Boxer foe, BoutLine line, bool notable)
     {
+        // The call is WRITTEN from the record rather than searched for in a simulation. The record already says
+        // what happened each round - punches landed, who went down, how it was scored - so there is nothing to
+        // hunt for and nothing that can fail to be found. Every fight gets a call, immediately, and it agrees
+        // with the card exactly because the card is what it was generated from.
         FightResult? res = null;
-        await BusyAsync("Going back over the tape…", () => res = FightRecall.Rebuild(owner, foe, line, notable));
-        if (res is null)
-        {
-            // Some nights cannot be reconstructed — a first-round knockout by a heavy underdog, say. The
-            // round-by-round card is still there; say so plainly rather than failing silently.
-            WatchUnavailable = "This one can't be replayed blow by blow — the card is below.";
-            return;
-        }
+        await BusyAsync("Going back over the tape…", () => res = FightScript.Compose(owner, foe, line, notable));
+        if (res is null) { WatchUnavailable = "That fight is no longer on the record."; return; }
         WatchUnavailable = "";
         string verdict = res.Winner is null
             ? $"DRAW — {res.A.Name} and {res.B.Name}"
@@ -811,6 +810,9 @@ public sealed class CareerViewModel : Observable
             return;
         }
         IsPlayingBack = false;
+        // The crowd goes home with you. Without this the bed played on under the rankings, the news and every
+        // other screen for the rest of the session, and starting a second fight layered another one over it.
+        Sfx.StopBed();
     }
 
     // ---- fighter drill-down ----
