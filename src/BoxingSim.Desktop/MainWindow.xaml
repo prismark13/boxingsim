@@ -719,8 +719,33 @@
                 </local:PageHost>
 
                 <!-- ============ AWARDS ============ -->
-                <local:PageHost Title="AWARDS" Subtitle="End-of-year honours"
-                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Awards}">
+                <Grid Margin="28,26,28,28"
+                      Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Awards}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Margin="2,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="AWARDS" FontSize="19" FontWeight="Light"
+                                       Foreground="{StaticResource Text}" />
+                            <TextBlock Text="{Binding AwardsSubtitle}" FontSize="12"
+                                       Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <ComboBox Width="200" ItemsSource="{Binding AwardCategories}"
+                                      SelectedItem="{Binding AwardCategory}" />
+                            <ComboBox Width="130" Margin="10,0,0,0" ItemsSource="{Binding AwardYears}"
+                                      SelectedItem="{Binding AwardYear}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Grid.Row="1" Style="{StaticResource Card}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,4,0,8">
                     <ItemsControl ItemsSource="{Binding Awards}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -734,6 +759,9 @@
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
+                                              <Button Style="{StaticResource RowButton}" AutomationProperties.Name="{Binding Name}"
+                                                      Command="{Binding DataContext.ShowAward, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                      CommandParameter="{Binding}">
                                                 <Border CornerRadius="10" Padding="13" Margin="0,0,9,9" BorderThickness="1">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
@@ -768,8 +796,11 @@
                                                         <TextBlock Text="{Binding Detail}" FontSize="11.5"
                                                                    Foreground="{StaticResource Muted}" TextWrapping="Wrap"
                                                                    Margin="0,5,0,0" />
+                                                        <TextBlock Text="read the citation ›" FontSize="10.5"
+                                                                   Foreground="{StaticResource Accent}" Margin="0,7,0,0" />
                                                     </StackPanel>
                                                 </Border>
+                                              </Button>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -777,7 +808,9 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </local:PageHost>
+                    </ScrollViewer>
+                    </Border>
+                </Grid>
 
                 <!-- ============ NEWS ============ -->
                 <local:PageHost Title="NEWS" Subtitle="Across the whole sport, most recent first"
@@ -900,6 +933,58 @@
                             <Button Command="{Binding FinishPlayback}" Style="{StaticResource PrimaryButton}"
                                     Content="{Binding PlaybackButtonLabel}"
                                     AutomationProperties.Name="{Binding PlaybackButtonLabel}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ============ AWARD CITATION (overlay) ============ -->
+            <Grid Grid.ColumnSpan="2" Panel.ZIndex="11"
+                  Visibility="{Binding HasAward, Converter={StaticResource BoolVis}}">
+                <Button Style="{StaticResource BackdropButton}" Command="{Binding CloseAward}"
+                        AutomationProperties.Name="Close" />
+                <Border Style="{StaticResource Card}" Width="560" Padding="0"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        DataContext="{Binding SelectedAward}">
+                    <Grid>
+                        <Button Style="{StaticResource CloseXButton}" HorizontalAlignment="Right"
+                                VerticalAlignment="Top" Margin="0,10,10,0" Panel.ZIndex="3"
+                                AutomationProperties.Name="Close"
+                                Command="{Binding DataContext.CloseAward, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        <StackPanel Margin="24,22,24,22">
+                            <TextBlock Text="{Binding Heading}" Style="{StaticResource Label}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Border Style="{StaticResource Tag}" BorderBrush="{StaticResource GoldLine}">
+                                    <TextBlock Text="{Binding Position}" Style="{StaticResource TagText}"
+                                               Foreground="{StaticResource Gold}" />
+                                </Border>
+                                <TextBlock Text="{Binding Division}" Style="{StaticResource TagText}"
+                                           Foreground="{StaticResource Faint}" Margin="10,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Name}" FontSize="21" FontWeight="Light"
+                                       Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,10,0,0" />
+                            <TextBlock Text="{Binding Detail}" FontSize="13" Foreground="{StaticResource Muted}"
+                                       TextWrapping="Wrap" Margin="0,6,0,0" />
+                            <Border Height="1" Background="{StaticResource Line}" Margin="0,16,0,0"
+                                    Visibility="{Binding HasCommentary, Converter={StaticResource BoolVis}}" />
+                            <TextBlock Text="{Binding Commentary}" FontSize="13.5" LineHeight="21"
+                                       Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,16,0,0"
+                                       Visibility="{Binding HasCommentary, Converter={StaticResource BoolVis}}" />
+                            <Grid Margin="0,22,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button Content="{Binding OpenFighterLabel}"
+                                        AutomationProperties.Name="{Binding OpenFighterLabel}"
+                                        Visibility="{Binding CanOpenFighter, Converter={StaticResource BoolVis}}"
+                                        Command="{Binding DataContext.OpenAwardFighter, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                <Button Grid.Column="2" Content="Close  (Esc)" AutomationProperties.Name="Close"
+                                        Padding="26,10"
+                                        Command="{Binding DataContext.CloseAward, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            </Grid>
                         </StackPanel>
                     </Grid>
                 </Border>

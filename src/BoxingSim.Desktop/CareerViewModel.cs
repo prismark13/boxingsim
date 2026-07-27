@@ -46,7 +46,25 @@ public sealed record BeltRow(string Belt, string Holder, string Detail, bool Lin
 public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyList<BeltRow> Belts, bool IsPlayerDivision);
 public sealed record NewsRow(string Date, string Text, string Kind, bool PlayerBout);
 public sealed record AwardRow(string Category, int Year, IReadOnlyList<AwardPlace> Places);
-public sealed record AwardPlace(string Position, string Name, string Division, string Detail, bool Winner);
+public sealed record AwardPlace(string Position, string Name, string Division, string Detail, bool Winner,
+                                string Category = "", int Year = 0, string Commentary = "");
+
+/// <summary>An award opened out — the citation in full, and a way through to the man who won it when the
+/// name resolves to a single fighter (a "Fight of the Year" names two, so it doesn't).</summary>
+public sealed class AwardDetail
+{
+    public string Heading { get; init; } = "";
+    public string Position { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string Division { get; init; } = "";
+    public string Detail { get; init; } = "";
+    public string Commentary { get; init; } = "";
+    public bool Winner { get; init; }
+    public Boxer? Fighter { get; init; }
+    public bool CanOpenFighter => Fighter is not null;
+    public string OpenFighterLabel => Fighter is not null ? $"See {Fighter.Name}'s card" : "";
+    public bool HasCommentary => !string.IsNullOrWhiteSpace(Commentary);
+}
 public sealed record LedgerRow(string Date, string Result, string Opponent, string Detail, bool Win, bool Loss,
                                BoutLine? Bout = null);
 
@@ -121,6 +139,14 @@ public sealed class CareerViewModel : Observable
         RollName = new Cmd(() => PlayerName = NameGen.Generate(Country, _rng));
         ShowFighter = new Cmd(OnShowFighter);
         ShowFight = new Cmd(OnShowFight);
+        ShowAward = new Cmd(OnShowAward);
+        CloseAward = new Cmd(() => { SelectedAward = null; });
+        OpenAwardFighter = new Cmd(() =>
+        {
+            var f = SelectedAward?.Fighter;
+            SelectedAward = null;
+            if (f is not null) SelectedCard = BuildCard(f);
+        });
         CloseFight = new Cmd(() => { SelectedFight = null; });
         CloseCard = new Cmd(() => { SelectedCard = null; });
         FinishPlayback = new Cmd(EndPlayback);
@@ -131,7 +157,8 @@ public sealed class CareerViewModel : Observable
         // Escape backs out of whatever is on top: the fighter card, the playback, then the page you came from.
         Dismiss = new Cmd(() =>
         {
-            if (SelectedFight is not null) SelectedFight = null;
+            if (SelectedAward is not null) SelectedAward = null;
+            else if (SelectedFight is not null) SelectedFight = null;
             else if (SelectedCard is not null) SelectedCard = null;
             else if (IsPlayingBack) EndPlayback();
             else if (CanGoBack) DoGoBack();
@@ -329,6 +356,9 @@ public sealed class CareerViewModel : Observable
     public Cmd ShowFighter { get; }
     public Cmd CloseCard { get; }
     public Cmd ShowFight { get; }
+    public Cmd ShowAward { get; }
+    public Cmd CloseAward { get; }
+    public Cmd OpenAwardFighter { get; }
     public Cmd CloseFight { get; }
     public Cmd FinishPlayback { get; }
     public Cmd GoBack { get; }
@@ -409,7 +439,7 @@ public sealed class CareerViewModel : Observable
 
     private void Decline() { _svc.Decline(); RefreshAll(); }
     private void DoMoveUp() { _svc.MoveUp(); RefreshAll(); }
-    private void Abandon() { EndPlayback(); SelectedCard = null; SelectedFight = null; _svc.Abandon(); RefreshAll(); }
+    private void Abandon() { EndPlayback(); SelectedCard = null; SelectedFight = null; SelectedAward = null; _svc.Abandon(); RefreshAll(); }
 
     public static bool HasSave => DesktopCareerService.HasSave;
     public string? SaveError => _svc.LastSaveError;
@@ -755,7 +785,9 @@ public sealed class CareerViewModel : Observable
                                   p.WeightClass.DisplayName()));
         Headlines.Add(new StatRow("Titles", myBelts.Count > 0 ? string.Join(" · ", myBelts) : "none",
                                   Game.TitleDefenses > 0 ? $"{Game.TitleDefenses} defences" : ""));
-        Headlines.Add(new StatRow("Rating", $"{p.Overall} OVR", $"class {p.Class} · age {p.Age}"));
+        // Lead with the CLASS, the same number the rating pills show everywhere else. The raw 0–100 overall was
+        // the odd one out on this tile and meant nothing next to the pills.
+        Headlines.Add(new StatRow("Rating", $"Class {p.Class}", $"{p.Overall} OVR · age {p.Age}"));
     }
 
     public void RefreshAll()
@@ -868,17 +900,60 @@ public sealed class CareerViewModel : Observable
         }
     }
 
+    // ---- award filters ----
+
+    public IReadOnlyList<string> AwardCategories { get; } = new[]
+    {
+        AllAwards, "Fighter of the Year", "Fight of the Year", "Knockout of the Year", "Upset of the Year"
+    };
+    private const string AllAwards = "All awards";
+    private const string AllYears = "All years";
+
+    public ObservableCollection<string> AwardYears { get; } = new();
+
+    private string _awardCategory = AllAwards;
+    public string AwardCategory
+    {
+        get => _awardCategory;
+        set { if (_awardCategory == value) return; _awardCategory = value; Raise(); BuildAwards(); }
+    }
+
+    private string _awardYear = AllYears;
+    public string AwardYear
+    {
+        get => _awardYear;
+        set { if (_awardYear == value) return; _awardYear = value; Raise(); BuildAwards(); }
+    }
+
+    public string AwardsSubtitle => Awards.Count == 0
+        ? "Nothing matches this filter — awards are handed out at the end of each year."
+        : $"{Awards.Count} categor{(Awards.Count == 1 ? "y" : "ies")} · {AwardCategory} · {AwardYear}";
+
     private void BuildAwards()
     {
         Awards.Clear();
-        if (Game is null) return;
-        foreach (var yr in Game.Awards.Take(8))
+        if (Game is null) { Raise(nameof(AwardsSubtitle)); return; }
+
+        // Keep the year list in step with the career without losing the current pick.
+        var years = new[] { AllYears }.Concat(Game.Awards.Select(a => a.Year.ToString())).ToList();
+        if (!AwardYears.SequenceEqual(years))
         {
+            var keep = _awardYear;
+            AwardYears.Clear();
+            foreach (var y in years) AwardYears.Add(y);
+            if (!years.Contains(keep)) { _awardYear = AllYears; Raise(nameof(AwardYear)); }
+        }
+
+        foreach (var yr in Game.Awards)
+        {
+            if (_awardYear != AllYears && yr.Year.ToString() != _awardYear) continue;
             void Add(string cat, IReadOnlyList<AwardWinner> list)
             {
                 if (list.Count == 0) return;
-                var places = list.Select((w, i) => new AwardPlace(i == 0 ? "1st" : i == 1 ? "2nd" : "3rd",
-                                                                 w.Name, w.Div.DisplayName(), w.Detail, i == 0)).ToList();
+                if (_awardCategory != AllAwards && cat != _awardCategory) return;
+                var places = list.Select((w, i) => new AwardPlace(
+                    i == 0 ? "1st" : i == 1 ? "2nd" : "3rd",
+                    w.Name, w.Div.DisplayName(), w.Detail, i == 0, cat, yr.Year, w.Commentary)).ToList();
                 Awards.Add(new AwardRow(cat, yr.Year, places));
             }
             Add("Fighter of the Year", yr.FighterOfYear);
@@ -886,6 +961,46 @@ public sealed class CareerViewModel : Observable
             Add("Knockout of the Year", yr.KnockoutOfYear);
             Add("Upset of the Year", yr.UpsetOfYear);
         }
+        Raise(nameof(AwardsSubtitle));
+    }
+
+    // ---- an award opened out ----
+
+    private AwardDetail? _selectedAward;
+    public AwardDetail? SelectedAward
+    {
+        get => _selectedAward;
+        private set { _selectedAward = value; Raise(); Raise(nameof(HasAward)); }
+    }
+    public bool HasAward => _selectedAward is not null;
+
+    private void OnShowAward(object? param)
+    {
+        if (param is not AwardPlace a || Game is null) return;
+        SelectedAward = new AwardDetail
+        {
+            Heading = $"{a.Year} · {a.Category}",
+            Position = a.Position,
+            Name = a.Name,
+            Division = a.Division,
+            Detail = a.Detail,
+            Commentary = a.Commentary,
+            Winner = a.Winner,
+            Fighter = FindFighter(a.Name)
+        };
+    }
+
+    /// <summary>Resolve an award's name to a live fighter. A "Fight of the Year" names both men, so it won't
+    /// match — which is why the card link only appears when it does.</summary>
+    private Boxer? FindFighter(string name)
+    {
+        if (Game is null) return null;
+        foreach (var wc in Game.LiveDivisions)
+        {
+            var hit = Game.RankingOf(wc, 500).FirstOrDefault(b => b.Name == name);
+            if (hit is not null) return hit;
+        }
+        return Game.Player.Name == name ? Game.Player : null;
     }
 
     private void BuildNews()
