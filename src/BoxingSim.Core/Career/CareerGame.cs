@@ -34,8 +34,13 @@ public sealed class CareerGame
     private readonly List<AwardsYear> _awards = new();
     private readonly List<YearBout> _yearBouts = new();   // this year's honourable-mention bouts, cleared each year end
     public IReadOnlyList<AwardsYear> Awards => _awards.OrderByDescending(a => a.Year).ToList();
-    private sealed record YearBout(int Year, string Winner, string Loser, int WinnerId, int LoserId, string Method, int Round,
-                                   bool Title, int WinnerOvr, int LoserOvr, int Kds, bool Draw, bool Close, WeightClass Div, string LoserStanding);
+    private sealed record YearBout(int Year, DateOnly Date, string Winner, string Loser, int WinnerId, int LoserId,
+                                   string Method, int Round, bool Title, int WinnerOvr, int LoserOvr, int Kds,
+                                   bool Draw, bool Close, WeightClass Div, string LoserStanding)
+    {
+        /// <summary>How to find this night again in either man's record.</summary>
+        public BoutRef Ref => new(Winner, Loser, Date);
+    }
     private sealed class FoyAcc { public string Name = ""; public WeightClass Div; public double Score; public int Wins, Losses, Titles, Kos; public double BestScore = -1; public YearBout? Best; }
     private readonly HashSet<int> _everChampion = new();
     private readonly Dictionary<int, int> _peakOverall = new();
@@ -404,7 +409,15 @@ public sealed class CareerGame
                     Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
                 }).ToList()
             });
-        AwardWinner AwLoad(AwardWinnerSave w) => new() { Name = w.Name, Detail = w.Detail, Div = Enum.TryParse<WeightClass>(w.Div, out var wd) ? wd : WeightClass.Heavyweight, Commentary = w.Commentary };
+        AwardWinner AwLoad(AwardWinnerSave w) => new()
+        {
+            Name = w.Name, Detail = w.Detail,
+            Div = Enum.TryParse<WeightClass>(w.Div, out var wd) ? wd : WeightClass.Heavyweight,
+            Commentary = w.Commentary,
+            // Saves written before awards carried their fight simply have none; the citation still reads.
+            Bout = w.BoutWinner is not null && w.BoutLoser is not null && DateOnly.TryParse(w.BoutDate, out var bd)
+                   ? new BoutRef(w.BoutWinner, w.BoutLoser, bd) : null
+        };
         foreach (var a in s.Awards) _awards.Add(new AwardsYear
         {
             Year = a.Year,
@@ -482,7 +495,12 @@ public sealed class CareerGame
                 Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
             }).ToList()
         });
-        AwardWinnerSave AwSave(AwardWinner w) => new() { Name = w.Name, Detail = w.Detail, Div = w.Div.ToString(), Commentary = w.Commentary };
+        AwardWinnerSave AwSave(AwardWinner w) => new()
+        {
+            Name = w.Name, Detail = w.Detail, Div = w.Div.ToString(), Commentary = w.Commentary,
+            BoutWinner = w.Bout?.Winner, BoutLoser = w.Bout?.Loser,
+            BoutDate = w.Bout?.Date.ToString("yyyy-MM-dd")
+        };
         foreach (var a in _awards) s.Awards.Add(new AwardsYearSave
         {
             Year = a.Year,
@@ -795,7 +813,7 @@ public sealed class CareerGame
         var w = res.Winner; var l = res.Loser;
         bool close = res.IsDraw || res.Method is "SD" or "MD"
                      || (res.Scorecards.Count > 0 && res.Scorecards.All(c => Math.Abs(c.A - c.B) <= 4));
-        _yearBouts.Add(new YearBout(Date.Year, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
+        _yearBouts.Add(new YearBout(Date.Year, Date, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
             res.Method, res.EndRound, title, w?.Overall ?? a.Overall, l?.Overall ?? b.Overall,
             res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass, l is not null ? Standing(l) : ""));
     }
@@ -850,24 +868,24 @@ public sealed class CareerGame
         }
         var foy = acc.Values.Where(a => a.Wins > a.Losses && a.Best is not null)   // must have had a winning year
             .OrderByDescending(a => a.Score).Take(3)
-            .Select(a => new AwardWinner { Name = a.Name, Div = a.Div,
+            .Select(a => new AwardWinner { Name = a.Name, Div = a.Div, Bout = a.Best!.Ref,
                 Detail = $"{a.Wins}-{a.Losses}{(a.Titles > 0 ? $", {a.Titles} title win{(a.Titles == 1 ? "" : "s")}" : "")}",
                 Commentary = $"A standout {year} in {a.Div.DisplayName()} — {a.Wins}-{a.Losses} with {a.Kos} inside the distance{(a.Titles > 0 ? $", including {a.Titles} world-title win{(a.Titles == 1 ? "" : "s")}" : "")}. His best: beating {a.Best!.Loser}{(string.IsNullOrEmpty(a.Best.LoserStanding) ? $" (rated {a.Best.LoserOvr})" : $", {a.Best.LoserStanding},")}{(a.Best.Title ? " for the belt" : "")}." }).ToList();
 
         var upset = bouts.Where(x => !x.Draw && x.WinnerOvr < x.LoserOvr)
             .OrderByDescending(x => (x.LoserOvr - x.WinnerOvr) + (x.Title ? 15 : 0)).Take(3)
-            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div,
+            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div, Bout = x.Ref,
                 Detail = $"beat {x.Loser} ({x.WinnerOvr} vs {x.LoserOvr}){(x.Title ? " · title" : "")}",
                 Commentary = $"Nobody saw it coming: {x.Winner} (rated {x.WinnerOvr}) upset {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? $" (rated {x.LoserOvr})" : $", {x.LoserStanding},")} by {Long(x.Method)}{(x.Title ? " to rip away the world title" : "")} in {x.Div.DisplayName()}." }).ToList();
 
         var ko = bouts.Where(x => x.Method is "KO" or "TKO")
             .OrderByDescending(x => x.LoserOvr + (x.Title ? 12 : 0) + Math.Max(0, 9 - x.Round) * 2 + x.Kds * 3).Take(3)
-            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div,
+            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div, Bout = x.Ref,
                 Detail = $"KO{(x.Round > 0 ? $" rd{x.Round}" : "")} {x.Loser}{(x.Title ? " · title" : "")}",
                 Commentary = $"{x.Winner} flattened {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? "" : $", {x.LoserStanding},")}{(x.Round > 0 ? $" in round {x.Round}" : "")}{(x.Title ? " in a world-title fight" : "")} — the year's most emphatic knockout in {x.Div.DisplayName()}." }).ToList();
 
         var foty = bouts.OrderByDescending(x => Math.Min(x.WinnerOvr, x.LoserOvr) + (x.Title ? 15 : 0) + (x.Close ? 12 : 0) + x.Kds * 4).Take(3)
-            .Select(x => new AwardWinner { Name = $"{x.Winner} vs {x.Loser}", Div = x.Div,
+            .Select(x => new AwardWinner { Name = $"{x.Winner} vs {x.Loser}", Div = x.Div, Bout = x.Ref,
                 Detail = $"{(x.Draw ? "draw" : x.Method)}{(x.Title ? " · title" : "")}{(x.Kds > 0 ? $" · {x.Kds} KD" : "")}",
                 Commentary = $"{x.Winner} and {x.Loser} went to war in {x.Div.DisplayName()}{(x.Title ? " with the world title on the line" : "")}{(x.Kds > 0 ? $", trading {x.Kds} knockdown{(x.Kds == 1 ? "" : "s")}" : "")} — settled by {(x.Draw ? "a draw" : Long(x.Method))}." }).ToList();
 
@@ -1450,6 +1468,18 @@ public sealed class CareerGame
     /// <summary>How much a young fighter over-performs his current rating — most of the ceiling he's
     /// still to realise. A can't-miss prospect (huge gap to a high ceiling) already handles lesser men
     /// with ease, so a journeyman almost never upsets a future great. Zero once he's at/past his peak.</summary>
+    /// <summary>Turn an award's reference back into something watchable: the two men, and the bout line as it
+    /// stands in the winner's record. Returns null if either man has left the world or the night is no longer
+    /// on his record.</summary>
+    public (Boxer Owner, Boxer Foe, BoutLine Line)? FindBout(BoutRef r)
+    {
+        var owner = FindByName(r.Winner);
+        var foe = FindByName(r.Loser);
+        if (owner is null || foe is null) return null;
+        var line = owner.History.FirstOrDefault(h => h.Date == r.Date && h.Opponent == r.Loser);
+        return line is null ? null : (owner, foe, line);
+    }
+
     /// <summary>Find a fighter anywhere in the world by name — active, retired or enshrined. Bout lines record
     /// only an opponent's name, so replaying an old fight has to look the other man back up.</summary>
     public Boxer? FindByName(string name)

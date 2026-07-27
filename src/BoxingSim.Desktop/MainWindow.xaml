@@ -1239,7 +1239,15 @@
                             <TextBlock Text="{Binding Commentary}" FontSize="13.5" LineHeight="21"
                                        Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,16,0,0"
                                        Visibility="{Binding HasCommentary, Converter={StaticResource BoolVis}}" />
-                            <Grid Margin="0,22,0,0">
+                            <!-- An award is a claim about a night. The night itself is one click away, rebuilt
+                                 asking for the most dramatic version that still fits the record — so a fight
+                                 named Fight of the Year plays like one. -->
+                            <Button Content="▶  Watch this fight" Style="{StaticResource PrimaryButton}"
+                                    HorizontalAlignment="Left" Margin="0,20,0,0"
+                                    AutomationProperties.Name="Watch this fight"
+                                    Visibility="{Binding CanWatch, Converter={StaticResource BoolVis}}"
+                                    Command="{Binding DataContext.WatchAward, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            <Grid Margin="0,16,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="10" />

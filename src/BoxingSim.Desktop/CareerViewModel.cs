@@ -47,7 +47,8 @@ public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyLi
 public sealed record NewsRow(string Date, string Text, string Kind, bool PlayerBout);
 public sealed record AwardRow(string Category, int Year, IReadOnlyList<AwardPlace> Places);
 public sealed record AwardPlace(string Position, string Name, string Division, string Detail, bool Winner,
-                                string Category = "", int Year = 0, string Commentary = "");
+                                string Category = "", int Year = 0, string Commentary = "",
+                                BoutRef? Bout = null);
 
 /// <summary>An award opened out — the citation in full, and a way through to the man who won it when the
 /// name resolves to a single fighter (a "Fight of the Year" names two, so it doesn't).</summary>
@@ -63,6 +64,11 @@ public sealed class AwardDetail
     public Boxer? Fighter { get; init; }
     public bool CanOpenFighter => Fighter is not null;
     public string OpenFighterLabel => Fighter is not null ? $"See {Fighter.Name}'s card" : "";
+
+    /// <summary>The fight the honour was given for. An award is a claim about a night, and the night should be
+    /// watchable rather than only described.</summary>
+    public BoutRef? Bout { get; init; }
+    public bool CanWatch => Bout is not null;
     public bool HasCommentary => !string.IsNullOrWhiteSpace(Commentary);
 }
 public sealed record LedgerRow(string Date, string Result, string Opponent, string Detail, bool Win, bool Loss,
@@ -143,6 +149,7 @@ public sealed class CareerViewModel : Observable
         ShowFight = new Cmd(OnShowFight);
         WatchFight = new Cmd(OnWatchFight);
         ShowAward = new Cmd(OnShowAward);
+        WatchAward = new Cmd(OnWatchAward);
         CloseAward = new Cmd(() => { SelectedAward = null; });
         OpenAwardFighter = new Cmd(() =>
         {
@@ -370,6 +377,9 @@ public sealed class CareerViewModel : Observable
     /// <summary>Replay a fight from the record books, blow by blow.</summary>
     public Cmd WatchFight { get; }
     public Cmd ShowAward { get; }
+
+    /// <summary>Play the fight an honour was given for.</summary>
+    public Cmd WatchAward { get; }
     public Cmd CloseAward { get; }
     public Cmd OpenAwardFighter { get; }
     public Cmd CloseFight { get; }
@@ -1263,7 +1273,7 @@ public sealed class CareerViewModel : Observable
                 if (_awardCategory != AllAwards && cat != _awardCategory) return;
                 var places = list.Select((w, i) => new AwardPlace(
                     i == 0 ? "1st" : i == 1 ? "2nd" : "3rd",
-                    w.Name, w.Div.DisplayName(), w.Detail, i == 0, cat, yr.Year, w.Commentary)).ToList();
+                    w.Name, w.Div.DisplayName(), w.Detail, i == 0, cat, yr.Year, w.Commentary, w.Bout)).ToList();
                 Awards.Add(new AwardRow(cat, yr.Year, places));
             }
             Add("Fighter of the Year", yr.FighterOfYear);
@@ -1296,8 +1306,24 @@ public sealed class CareerViewModel : Observable
             Detail = a.Detail,
             Commentary = a.Commentary,
             Winner = a.Winner,
-            Fighter = FindFighter(a.Name)
+            Fighter = FindFighter(a.Name),
+            Bout = a.Bout
         };
+    }
+
+    /// <summary>Watch the fight an award was given for. Rebuilt asking for the best of several matching nights
+    /// rather than the first that fits, so a fight named Fight of the Year plays like one — this is the whole
+    /// point of an award pointing at a bout instead of just describing it.</summary>
+    private void OnWatchAward()
+    {
+        if (Game is null || SelectedAward?.Bout is not BoutRef r) return;
+        if (Game.FindBout(r) is not (Boxer owner, Boxer foe, BoutLine line))
+        {
+            WatchUnavailable = "That fight is no longer on the record.";
+            return;
+        }
+        SelectedAward = null;
+        _ = WatchAsync(owner, foe, line, notable: true);
     }
 
     /// <summary>Resolve an award's name to a live fighter. A "Fight of the Year" names both men, so it won't

@@ -87,7 +87,15 @@ public sealed class AwardWinner
     public required string Detail { get; init; }
     public WeightClass Div { get; init; }
     public string Commentary { get; init; } = "";   // a fuller sentence for the hover tooltip
+
+    /// <summary>The fight this honour was given for, so it can be opened and watched rather than only read
+    /// about. Null for Fighter of the Year, which is awarded for a whole season rather than one night - it
+    /// points at the best win of that season instead.</summary>
+    public BoutRef? Bout { get; init; }
 }
+
+/// <summary>Enough to find a bout again in either man's record: both names and the date it happened.</summary>
+public sealed record BoutRef(string Winner, string Loser, DateOnly Date);
 
 /// <summary>The end-of-year honours: the top three in each category.</summary>
 public sealed class AwardsYear

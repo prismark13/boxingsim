@@ -46,6 +46,10 @@ public sealed class AwardWinnerSave
     public string Detail { get; set; } = "";
     public string Div { get; set; } = "";
     public string Commentary { get; set; } = "";
+    // The fight the honour was for. Absent on saves written before awards carried one.
+    public string? BoutWinner { get; set; }
+    public string? BoutLoser { get; set; }
+    public string? BoutDate { get; set; }
 }
 
 public sealed class HallOfFamerSave
