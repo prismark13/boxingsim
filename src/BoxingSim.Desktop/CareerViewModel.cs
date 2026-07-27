@@ -555,10 +555,12 @@ public sealed class CareerViewModel : Observable
         switch (line.Event)
         {
             case CallEvent.RoundBell: Sfx.Bell(); break;
-            case CallEvent.Knockdown: Sfx.Knockdown_(); break;
-            case CallEvent.Stoppage: Sfx.FinalBellSound(); break;
+            case CallEvent.HardPunch: Sfx.Thud(); break;
+            case CallEvent.Hurt: Sfx.Ooh(); break;                    // the intake of breath, not a cheer
+            case CallEvent.Cut: Sfx.Ooh(); break;
+            case CallEvent.Knockdown: Sfx.Thud(1.6); Sfx.Roar(); break;   // the shot AND the reaction, layered
+            case CallEvent.Stoppage: Sfx.Roar(); Sfx.FinalBell(); break;
         }
-        if (line.IsCrowd) Sfx.CrowdRoar();
     }
 
     private bool _skipping;
@@ -567,7 +569,13 @@ public sealed class CareerViewModel : Observable
     public bool SoundOn
     {
         get => _soundOn;
-        private set { _soundOn = value; Sfx.Enabled = value; Raise(); Raise(nameof(SoundLabel)); }
+        private set
+        {
+            _soundOn = value;
+            Sfx.Enabled = value;
+            if (value && IsPlayingBack && _svc.LastResult is { } r) Sfx.StartBed(OccasionOf(r));
+            Raise(); Raise(nameof(SoundLabel));
+        }
     }
     public string SoundLabel => _soundOn ? "Sound on" : "Sound off";
 
@@ -664,11 +672,25 @@ public sealed class CareerViewModel : Observable
         PushState(new CallLine("", "", CallKind.Action));
 
         if (_call.Count == 0) { PlaybackFinished = true; IsPlayingBack = true; return; }
+
+        // How big the night is, so a four-rounder in a club room doesn't sound like a unification.
         PlaybackFinished = false;
         IsPaused = false;
         IsPlayingBack = true;
+        if (SoundOn) Sfx.StartBed(OccasionOf(res));
         _playbackTimer.Interval = TimeSpan.FromMilliseconds(420 / Math.Max(0.1, _speed));
         _playbackTimer.Start();
+    }
+
+    /// <summary>Read the occasion from the bout itself: a title fight fills a arena, a six-rounder against a
+    /// journeyman fills a hall.</summary>
+    private Occasion OccasionOf(FightResult res)
+    {
+        var o = Game?.Offer;
+        if (o?.TitleFight == true)
+            return o.Belt is "Undisputed" or "unification" ? Occasion.Unification : Occasion.Title;
+        int opp = (res.A.Id == Game?.Player.Id ? res.B : res.A).Overall;
+        return res.ScheduledRounds >= 10 || opp >= 74 ? Occasion.Ranked : Occasion.Club;
     }
 
     private void RevealNextRound()
@@ -702,7 +724,7 @@ public sealed class CareerViewModel : Observable
             for (; _fed < _call.Count; _fed++) Feed(_call[_fed]);
             _skipping = false;
             PlaybackFinished = true;
-            if (SoundOn) Sfx.FinalBellSound();   // one bell for the end, not one per skipped line
+            if (SoundOn) Sfx.FinalBell();   // one bell for the end, not one per skipped line
             return;
         }
         IsPlayingBack = false;

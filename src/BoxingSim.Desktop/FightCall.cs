@@ -8,7 +8,7 @@ public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern, Corne
 
 /// <summary>What actually HAPPENED on a line, independent of how it was worded. Sound and effects key off this,
 /// never off the prose — the phrasing rotates, so matching on words silently missed half the knockdowns.</summary>
-public enum CallEvent { None, RoundBell, Knockdown, Stoppage, Cut, Hurt }
+public enum CallEvent { None, RoundBell, Knockdown, Stoppage, Cut, Hurt, HardPunch }
 
 /// <summary>One line of the fight being called, carrying the state of the fight AT that moment so the scoreboard
 /// can move with the call rather than sitting still while text scrolls past.</summary>
@@ -113,9 +113,9 @@ public static class FightCall
                     new(t.Clock, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis, ev);
 
                 if (bigMine && punchMine is not null)
-                    lines.Add(Line(caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big));
+                    lines.Add(Line(caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big, CallEvent.HardPunch));
                 if (bigHis && punchHis is not null)
-                    lines.Add(Line(caller.Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big));
+                    lines.Add(Line(caller.Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big, CallEvent.HardPunch));
 
                 if (rockHis >= 2) hurtHis = true;
                 if (rockMine >= 2) hurtMine = true;
