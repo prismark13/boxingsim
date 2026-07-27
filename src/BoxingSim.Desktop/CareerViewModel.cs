@@ -102,13 +102,6 @@ public sealed record StatRow(string Label, string Value, string Note);
 /// <summary>One attribute in the tale of the tape. The fractions drive the bar widths.</summary>
 public sealed record TapeRow(string Attribute, int Mine, int Theirs, double MineWidth, double TheirsWidth, bool IAmBetter);
 
-/// <summary>One round as the playback reveals it, with the round's own commentary lines.</summary>
-public sealed record PlaybackRow(int Round, string Score, string Landed, bool Knockdown, bool Stoppage,
-                                 IReadOnlyList<string> Commentary)
-{
-    public bool HasCommentary => Commentary.Count > 0;
-}
-
 /// <summary>The drill-down card for any fighter in any list.</summary>
 public sealed record CardStat(string Name, int Value, double Width);
 public sealed class FighterCard
@@ -134,7 +127,6 @@ public sealed class CareerViewModel : Observable
     private readonly DesktopCareerService _svc = new();
     private readonly Random _rng = new();
     private readonly DispatcherTimer _playbackTimer;
-    private List<PlaybackRow> _pending = new();
 
     public CareerViewModel()
     {
@@ -383,7 +375,6 @@ public sealed class CareerViewModel : Observable
     public ObservableCollection<NewsRow> News { get; } = new();
     public ObservableCollection<LedgerRow> Ledger { get; } = new();
     public ObservableCollection<TapeRow> Tape { get; } = new();
-    public ObservableCollection<PlaybackRow> Playback { get; } = new();
     public ObservableCollection<StatRow> Stats { get; } = new();
 
     // ---- the dashboard: career mode's hub ----
@@ -410,9 +401,22 @@ public sealed class CareerViewModel : Observable
         _ => (70, 84)
     };
 
-    private void Start()
+    /// <summary>Run slow work off the UI thread with the app visibly busy. Simulating a world, or advancing it
+    /// to fight night, can take seconds — done inline it froze the window with no cursor change and no sign of
+    /// life, which reads as a hang.</summary>
+    private async Task BusyAsync(string what, Action work)
     {
+        BusyMessage = what;
         Busy = true;
+        try { await Task.Run(work); }
+        finally { Busy = false; }
+    }
+
+    private string _busyMessage = "";
+    public string BusyMessage { get => _busyMessage; private set { _busyMessage = value; Raise(); } }
+
+    private async void Start()
+    {
         try
         {
             var (lo, hi) = TalentRange(Talent);
@@ -424,36 +428,43 @@ public sealed class CareerViewModel : Observable
                 : Divisions.Where(d => d.FoundedYear() <= SetupYear)
                            .OrderByDescending(d => (int)d)
                            .DefaultIfEmpty(WeightClass.Heavyweight).First();
-            _svc.Start(name, Country, SetupYear, potential, div, FullHistory);
+            await BusyAsync(FullHistory ? "Simulating a full history — this takes a moment…" : "Building the world…",
+                            () => _svc.Start(name, Country, SetupYear, potential, div, FullHistory));
             _viewDivision = div;
         }
-        finally { Busy = false; }
+        catch (Exception ex) { BusyMessage = ex.Message; return; }
         SelectedNav = Nav[0];
         RefreshAll();
     }
 
-    private void Continue()
+    private async void Continue()
     {
-        if (_svc.Load()) { _viewDivision = _svc.Game!.Player.WeightClass; SelectedNav = Nav[0]; RefreshAll(); }
+        bool ok = false;
+        await BusyAsync("Loading your career…", () => ok = _svc.Load());
+        if (ok) { _viewDivision = _svc.Game!.Player.WeightClass; SelectedNav = Nav[0]; RefreshAll(); }
         else { ContinueCareer.Refresh(); Raise(nameof(HasSave)); }
     }
 
-    private void Take()
+    private async void Take()
     {
-        _svc.Take();
+        await BusyAsync("Fight night…", () => _svc.Take());
         RefreshAll();
         StartPlayback();
     }
 
-    private void Decline() { _svc.Decline(); RefreshAll(); }
-    private void DoMoveUp() { _svc.MoveUp(); RefreshAll(); }
+    private async void Decline() { await BusyAsync("Waiting for the next offer…", () => _svc.Decline()); RefreshAll(); }
+    private async void DoMoveUp() { await BusyAsync("Moving up…", () => _svc.MoveUp()); RefreshAll(); }
     private void Abandon() { EndPlayback(); SelectedCard = null; SelectedFight = null; SelectedAward = null; _svc.Abandon(); RefreshAll(); }
 
     public static bool HasSave => DesktopCareerService.HasSave;
     public string? SaveError => _svc.LastSaveError;
     public string SaveLocation => DesktopCareerService.SavePath;
 
-    // ---- round-by-round playback ----
+    // ---- FIGHT NIGHT ----
+    //
+    // The fight is the point of the app, so it gets called rather than tabulated. FightCall reads the engine's
+    // 15-second ticks — the punch thrown, the combination, the counter, the man who got hurt — and turns them
+    // into commentary; this streams it out with pacing so a fight plays as an event.
 
     private bool _isPlayingBack;
     public bool IsPlayingBack
@@ -462,11 +473,19 @@ public sealed class CareerViewModel : Observable
         private set { _isPlayingBack = value; Raise(); Raise(nameof(ShowResultBanner)); }
     }
 
-    /// <summary>The verdict banner stays hidden behind the playback overlay — showing it there would give the
-    /// result away before a single round had been watched.</summary>
+    /// <summary>The verdict banner stays hidden behind the fight night — showing it there would give the
+    /// result away before a punch had been thrown.</summary>
     public bool ShowResultBanner => HasResult && !IsPlayingBack;
 
-    public string PlaybackTitle { get; private set; } = "";
+    public ObservableCollection<CallLine> Feed { get; } = new();
+    private List<CallLine> _call = new();
+    private int _fed;
+
+    public string FightNightHome { get; private set; } = "";
+    public string FightNightAway { get; private set; } = "";
+    public string FightNightHomeRecord { get; private set; } = "";
+    public string FightNightAwayRecord { get; private set; } = "";
+    public string FightNightBillLine { get; private set; } = "";
     public string PlaybackVerdict { get; private set; } = "";
 
     private bool _playbackFinished;
@@ -478,9 +497,6 @@ public sealed class CareerViewModel : Observable
 
     public string PlaybackButtonLabel => PlaybackFinished ? "Continue" : "Skip to the verdict";
 
-    /// <summary>Reveal the bout a round at a time rather than jumping to the verdict. Only the player's own
-    /// fights carry round-by-round detail — the NPC resolver doesn't produce it — so a bout without rounds
-    /// simply shows its result.</summary>
     private void StartPlayback()
     {
         var res = _svc.LastResult;
@@ -489,65 +505,52 @@ public sealed class CareerViewModel : Observable
         bool iAmA = res.A.Id == me.Id;
         var them = iAmA ? res.B : res.A;
 
-        // The engine already writes a line of commentary for every notable moment and a recap of each round;
-        // it was only ever visible afterwards, in the fight card. Split it back out by round so the playback
-        // reads like someone calling the fight instead of a column of numbers.
-        var byRound = CommentaryByRound(Game.Player.History.LastOrDefault()?.Commentary);
-
-        Playback.Clear();
-        _pending = res.Rounds.Select(r =>
-        {
-            int myScore = iAmA ? r.ScoreA : r.ScoreB;
-            int theirScore = iAmA ? r.ScoreB : r.ScoreA;
-            int myLanded = iAmA ? r.LandedA : r.LandedB;
-            int theirLanded = iAmA ? r.LandedB : r.LandedA;
-            int kds = r.KnockdownsA + r.KnockdownsB;
-            return new PlaybackRow(r.Round, $"{myScore}–{theirScore}", $"{myLanded} / {theirLanded}",
-                                   kds > 0,
-                                   r.Round == res.EndRound && res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout,
-                                   byRound.GetValueOrDefault(r.Round) ?? (IReadOnlyList<string>)Array.Empty<string>());
-        }).ToList();
-
-        PlaybackTitle = $"{me.Name}  vs  {them.Name}";
+        FightNightHome = me.Name;
+        FightNightAway = them.Name;
+        FightNightHomeRecord = me.Record.ToString();
+        FightNightAwayRecord = them.Record.ToString();
+        FightNightBillLine = Game.Offer is { } o && o.TitleFight ? $"{o.Belt} TITLE" : $"{res.ScheduledRounds} rounds";
         PlaybackVerdict = ResultHeadline;
-        Raise(nameof(PlaybackTitle));
+        foreach (var n in new[] { nameof(FightNightHome), nameof(FightNightAway), nameof(FightNightHomeRecord),
+                                  nameof(FightNightAwayRecord), nameof(FightNightBillLine), nameof(PlaybackVerdict) })
+            Raise(n);
 
-        if (_pending.Count == 0) { PlaybackFinished = true; Raise(nameof(PlaybackVerdict)); IsPlayingBack = true; return; }
+        Feed.Clear();
+        _call = FightCall.Build(res, me).ToList();
+        _fed = 0;
 
+        if (_call.Count == 0) { PlaybackFinished = true; IsPlayingBack = true; return; }
         PlaybackFinished = false;
-        Raise(nameof(PlaybackVerdict));
         IsPlayingBack = true;
+        _playbackTimer.Interval = TimeSpan.FromMilliseconds(420);
         _playbackTimer.Start();
-    }
-
-    /// <summary>Commentary arrives as flat lines tagged with their round ("R3 — he STOPS him!"). Group them by
-    /// round and drop the tag, since the playback already shows which round you're looking at.</summary>
-    private static Dictionary<int, IReadOnlyList<string>> CommentaryByRound(IReadOnlyList<string>? lines)
-    {
-        var byRound = new Dictionary<int, List<string>>();
-        foreach (var line in lines ?? Array.Empty<string>())
-        {
-            var m = System.Text.RegularExpressions.Regex.Match(line, @"^R(\d+)\s*[^\w]\s*(.+)$");
-            if (!m.Success || !int.TryParse(m.Groups[1].Value, out int rd)) continue;
-            if (!byRound.TryGetValue(rd, out var list)) byRound[rd] = list = new List<string>();
-            list.Add(m.Groups[2].Value.Trim());
-        }
-        return byRound.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value);
     }
 
     private void RevealNextRound()
     {
-        if (Playback.Count >= _pending.Count) { _playbackTimer.Stop(); PlaybackFinished = true; return; }
-        Playback.Add(_pending[Playback.Count]);
+        if (_fed >= _call.Count) { _playbackTimer.Stop(); PlaybackFinished = true; return; }
+        var line = _call[_fed++];
+        Feed.Add(line);
+        // Let the big moments hang before the next line lands; rattle through the routine ones.
+        _playbackTimer.Interval = TimeSpan.FromMilliseconds(
+            line.Kind switch
+            {
+                CallKind.Round => 700,
+                CallKind.Drama => 950,
+                CallKind.Verdict => 1100,
+                CallKind.Score => 800,
+                CallKind.Big => 500,
+                _ => 380
+            });
     }
 
     /// <summary>Skip to the verdict, or dismiss it once shown.</summary>
     private void EndPlayback()
     {
         _playbackTimer.Stop();
-        if (!PlaybackFinished && Playback.Count < _pending.Count)
+        if (!PlaybackFinished && _fed < _call.Count)
         {
-            for (int i = Playback.Count; i < _pending.Count; i++) Playback.Add(_pending[i]);
+            for (; _fed < _call.Count; _fed++) Feed.Add(_call[_fed]);
             PlaybackFinished = true;
             return;
         }
@@ -651,6 +654,21 @@ public sealed class CareerViewModel : Observable
         private set { _selectedFight = value; Raise(); Raise(nameof(HasFight)); }
     }
     public bool HasFight => _selectedFight is not null;
+
+    /// <summary>A stored bout keeps its commentary as flat lines tagged with their round ("R3 — he STOPS him!").
+    /// Group them by round and drop the tag, since the card already shows which round you're looking at.</summary>
+    private static Dictionary<int, IReadOnlyList<string>> CommentaryByRound(IReadOnlyList<string>? lines)
+    {
+        var byRound = new Dictionary<int, List<string>>();
+        foreach (var line in lines ?? Array.Empty<string>())
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(line, @"^R(\d+)\s*[^\w]\s*(.+)$");
+            if (!m.Success || !int.TryParse(m.Groups[1].Value, out int rd)) continue;
+            if (!byRound.TryGetValue(rd, out var list)) byRound[rd] = list = new List<string>();
+            list.Add(m.Groups[2].Value.Trim());
+        }
+        return byRound.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value);
+    }
 
     private void OnShowFight(object? param)
     {

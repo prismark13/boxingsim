@@ -6,6 +6,18 @@
         Background="{StaticResource Bg}" TextOptions.TextFormattingMode="Ideal"
         FontFamily="Segoe UI" UseLayoutRounding="True">
 
+    <!-- The app says when it is thinking: the pointer becomes a wait cursor and a banner names the work. -->
+    <Window.Style>
+        <Style TargetType="Window">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Busy}" Value="True">
+                    <Setter Property="Cursor" Value="Wait" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Style>
+
+
     <!-- Keyboard is the fastest way around a shell like this. Ctrl+1..8 jump straight to a page, Alt+Left goes
          back, Escape backs out of an overlay, Enter takes the fight you're being offered. -->
     <Window.InputBindings>
@@ -178,8 +190,9 @@
                     <TextBlock Text="Reading the fighter roster…" FontSize="12"
                                Foreground="{StaticResource Accent}" Margin="0,14,0,0" HorizontalAlignment="Center"
                                Visibility="{Binding Loading, Converter={StaticResource BoolVis}}" />
-                    <TextBlock Text="Simulating the world — this can take a moment." FontSize="12"
+                    <TextBlock Text="{Binding BusyMessage}" FontSize="12"
                                Foreground="{StaticResource Accent}" Margin="0,14,0,0" HorizontalAlignment="Center"
+                               TextWrapping="Wrap" TextAlignment="Center"
                                Visibility="{Binding Busy, Converter={StaticResource BoolVis}}" />
                     <TextBlock Text="{Binding SaveLocation, StringFormat=Saves to {0}}" FontSize="11"
                                Foreground="{StaticResource Faint}" Margin="0,18,0,0" TextWrapping="Wrap" />
@@ -870,84 +883,117 @@
                 </local:PageHost>
             </Grid>
 
-            <!-- ============ ROUND-BY-ROUND PLAYBACK (overlay) ============ -->
-            <Grid Grid.ColumnSpan="2"
+            <!-- ============ FIGHT NIGHT ============ -->
+            <!-- The fight takes the whole window and is CALLED, line by line, rather than tabulated. -->
+            <Grid Grid.ColumnSpan="2" Panel.ZIndex="9"
                   Visibility="{Binding IsPlayingBack, Converter={StaticResource BoolVis}}">
-                <Border Background="#D8060A10" />
-                <Border Style="{StaticResource Card}" Width="620" MaxHeight="720" Padding="0"
-                        VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <StackPanel Margin="24,20,24,14">
-                            <TextBlock Text="{Binding PlaybackTitle}" FontSize="17" FontWeight="Light"
-                                       Foreground="{StaticResource Text}" TextWrapping="Wrap" />
-                            <TextBlock Text="ROUND BY ROUND" Style="{StaticResource Label}" Margin="0,6,0,0" />
-                        </StackPanel>
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,8">
-                            <ItemsControl ItemsSource="{Binding Playback}">
+                <Border Background="#F2050810" />
+                <Grid Margin="0,26,0,26" MaxWidth="980">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Margin="0,0,0,18">
+                        <TextBlock Text="{Binding FightNightBillLine}" Style="{StaticResource Label}"
+                                   HorizontalAlignment="Center" Foreground="{StaticResource Gold}" />
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel HorizontalAlignment="Right" Margin="0,0,26,0">
+                                <TextBlock Text="{Binding FightNightHome}" FontSize="27" FontWeight="Light"
+                                           Foreground="{StaticResource Text}" TextAlignment="Right" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding FightNightHomeRecord}" FontSize="13"
+                                           Foreground="{StaticResource Muted}" TextAlignment="Right" Margin="0,4,0,0" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="vs" FontSize="15" Foreground="{StaticResource Faint}"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="26,0,0,0">
+                                <TextBlock Text="{Binding FightNightAway}" FontSize="27" FontWeight="Light"
+                                           Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding FightNightAwayRecord}" FontSize="13"
+                                           Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Style="{StaticResource Card}" Background="#0A0E15">
+                        <ScrollViewer x:Name="FeedScroll" VerticalScrollBarVisibility="Hidden" Padding="30,22,30,22">
+                            <ItemsControl ItemsSource="{Binding Feed}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="24,7">
+                                        <Grid Margin="0,0,0,7">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="52" />
-                                                <ColumnDefinition Width="66" />
-                                                <ColumnDefinition Width="82" />
+                                                <ColumnDefinition Width="58" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Round, StringFormat=R{0}}" FontSize="11.5"
-                                                       Foreground="{StaticResource Faint}" VerticalAlignment="Top"
-                                                       Margin="0,1,0,0" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Score}" FontSize="14"
-                                                       FontWeight="SemiBold" Foreground="{StaticResource Text}"
-                                                       VerticalAlignment="Top" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Landed}" FontSize="11.5"
-                                                       Foreground="{StaticResource Muted}" VerticalAlignment="Top"
-                                                       Margin="0,2,0,0" />
-                                            <!-- What the engine actually said about this round. -->
-                                            <ItemsControl Grid.Column="3" ItemsSource="{Binding Commentary}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding}" FontSize="12.5" TextWrapping="Wrap"
-                                                                   Margin="0,0,0,3">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                                                                    <Style.Triggers>
-                                                                        <!-- The loud moments read louder. -->
-                                                                        <DataTrigger Binding="{Binding Converter={StaticResource Shout}}" Value="True">
-                                                                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                            <Setter Property="FontWeight" Value="SemiBold" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                                            <TextBlock Text="{Binding Clock}" FontSize="11" FontFamily="Consolas"
+                                                       Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap"
+                                                       FontSize="14.5" Foreground="{StaticResource Muted}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsRound}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                                                <Setter Property="FontSize" Value="15" />
+                                                                <Setter Property="FontWeight" Value="Bold" />
+                                                                <Setter Property="Margin" Value="0,16,0,6" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsBig}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsDrama}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                <Setter Property="FontSize" Value="19" />
+                                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsVerdict}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                                                <Setter Property="FontSize" Value="22" />
+                                                                <Setter Property="FontWeight" Value="Bold" />
+                                                                <Setter Property="Margin" Value="0,8,0,8" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsScore}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource Faint}" />
+                                                                <Setter Property="FontSize" Value="12.5" />
+                                                                <Setter Property="FontStyle" Value="Italic" />
+                                                                <Setter Property="Margin" Value="0,4,0,2" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
-                        <StackPanel Grid.Row="2" Margin="24,10,24,22">
-                            <Border Height="1" Background="{StaticResource Line}" Margin="0,0,0,14" />
-                            <TextBlock Text="{Binding PlaybackVerdict}" FontSize="15" TextWrapping="Wrap"
-                                       Foreground="{StaticResource Text}" Margin="0,0,0,14"
-                                       Visibility="{Binding PlaybackFinished, Converter={StaticResource BoolVis}}" />
-                            <!-- Content and AutomationProperties.Name are set together: a Button whose content is
-                                 a styled TextBlock exposes no name to accessibility tools or UI automation. -->
-                            <Button Command="{Binding FinishPlayback}" Style="{StaticResource PrimaryButton}"
-                                    Content="{Binding PlaybackButtonLabel}"
-                                    AutomationProperties.Name="{Binding PlaybackButtonLabel}" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
+                    </Border>
+
+                    <StackPanel Grid.Row="2" Margin="0,18,0,0">
+                        <TextBlock Text="{Binding PlaybackVerdict}" FontSize="19" TextWrapping="Wrap"
+                                   Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,0,0,14"
+                                   Visibility="{Binding PlaybackFinished, Converter={StaticResource BoolVis}}" />
+                        <Button Command="{Binding FinishPlayback}" Style="{StaticResource PrimaryButton}"
+                                Content="{Binding PlaybackButtonLabel}" Padding="30,12"
+                                AutomationProperties.Name="{Binding PlaybackButtonLabel}"
+                                HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
             </Grid>
+
+            <!-- A banner while the world is being simulated, so a pause is never silent. -->
+            <Border Grid.ColumnSpan="2" Panel.ZIndex="20" VerticalAlignment="Top" HorizontalAlignment="Center"
+                    Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
+                    BorderThickness="1" CornerRadius="0,0,10,10" Padding="20,10"
+                    Visibility="{Binding Busy, Converter={StaticResource BoolVis}}">
+                <TextBlock Text="{Binding BusyMessage}" FontSize="12.5" Foreground="#CFE4FF" />
+            </Border>
 
             <!-- ============ AWARD CITATION (overlay) ============ -->
             <Grid Grid.ColumnSpan="2" Panel.ZIndex="11"
