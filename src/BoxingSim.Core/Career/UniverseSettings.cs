@@ -43,7 +43,13 @@ public sealed record WorldBout(DateOnly Date, WeightClass Division, string Regio
                                string Winner, string Loser, string Method, int Round,
                                bool Draw, string? Title)
 {
-    public bool IsTitle => Title is not null;
+    /// <summary>A belt was on the line. The tag also carries fights that are not for a title but are still the
+    /// night's reason to be there - a superfight, an eliminator, a return - so the tag being present is not
+    /// enough on its own; a title is a title.</summary>
+    public bool IsTitle => Title is not null && Title.EndsWith("title", StringComparison.Ordinal);
+
+    /// <summary>What this fight is, if it is anything: a belt, a superfight, an eliminator, a return.</summary>
+    public string? Tag => Title;
 
     /// <summary>The result in one line. A draw has no winner, so it must not be written as though it did —
     /// "X beat Y, drew with" is the sort of thing that gets built when a winner is assumed.</summary>

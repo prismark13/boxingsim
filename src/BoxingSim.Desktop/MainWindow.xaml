@@ -1155,11 +1155,33 @@
                                                                                            Visibility="{Binding DataContext.UniverseManyDivisions, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}" />
 
                                                                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                                                    <Border Background="{StaticResource GoldSoft}" CornerRadius="4"
-                                                                                            Padding="6,1" Margin="0,0,8,0" VerticalAlignment="Center"
-                                                                                            Visibility="{Binding IsTitle, Converter={StaticResource BoolVis}}">
-                                                                                        <TextBlock Text="{Binding Title}" FontSize="10" FontWeight="SemiBold"
-                                                                                                   Foreground="{StaticResource Gold}" />
+                                                                                    <!-- Gold is for a belt. A superfight, an eliminator or a return is
+                                                                                         still why the night exists, so it is marked - just not in gold. -->
+                                                                                    <Border CornerRadius="4" Padding="6,1" Margin="0,0,8,0"
+                                                                                            VerticalAlignment="Center"
+                                                                                            Visibility="{Binding Tag, Converter={StaticResource EmptyVis}}">
+                                                                                        <Border.Style>
+                                                                                            <Style TargetType="Border">
+                                                                                                <Setter Property="Background" Value="{StaticResource Panel2}" />
+                                                                                                <Style.Triggers>
+                                                                                                    <DataTrigger Binding="{Binding IsTitle}" Value="True">
+                                                                                                        <Setter Property="Background" Value="{StaticResource GoldSoft}" />
+                                                                                                    </DataTrigger>
+                                                                                                </Style.Triggers>
+                                                                                            </Style>
+                                                                                        </Border.Style>
+                                                                                        <TextBlock Text="{Binding Tag}" FontSize="10" FontWeight="SemiBold">
+                                                                                            <TextBlock.Style>
+                                                                                                <Style TargetType="TextBlock">
+                                                                                                    <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                                                    <Style.Triggers>
+                                                                                                        <DataTrigger Binding="{Binding IsTitle}" Value="True">
+                                                                                                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                                                        </DataTrigger>
+                                                                                                    </Style.Triggers>
+                                                                                                </Style>
+                                                                                            </TextBlock.Style>
+                                                                                        </TextBlock>
                                                                                     </Border>
                                                                                     <Button Style="{StaticResource LinkName}" Content="{Binding Winner}"
                                                                                             CommandParameter="{Binding Winner}"

@@ -78,7 +78,8 @@ public sealed class Universe
                 g.Key,
                 g.GroupBy(b => string.IsNullOrEmpty(b.Country) ? "—" : b.Country)
                  .Select(c => new CountryCard(c.Key,
-                     c.OrderByDescending(x => x.IsTitle).ThenBy(x => x.Division).ToList()))
+                     c.OrderByDescending(x => x.IsTitle).ThenByDescending(x => x.Tag is not null)
+                      .ThenBy(x => x.Division).ToList()))
                  .OrderByDescending(c => c.Bouts.Count(x => x.IsTitle)).ThenByDescending(c => c.Bouts.Count)
                  .ToList()))
             .OrderByDescending(r => r.TitleBouts).ThenByDescending(r => r.Bouts)
