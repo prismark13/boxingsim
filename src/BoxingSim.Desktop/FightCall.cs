@@ -232,8 +232,20 @@ public static class FightCall
                 // who caused it, rather than being noticed later once the blood had built up.
                 bool openedHis = iAmA ? t.CutOpenB : t.CutOpenA;
                 bool openedMine = iAmA ? t.CutOpenA : t.CutOpenB;
-                if (!cutHis && openedHis) { cutHis = true; lines.Add(Line(caller.CutOpened(my, his), CallKind.Drama, CallEvent.Cut, 0)); }
-                if (!cutMine && openedMine) { cutMine = true; lines.Add(Line(caller.CutOpened(his, my), CallKind.Drama, CallEvent.Cut, 1)); }
+                bool worseHis = iAmA ? t.CutWorseB : t.CutWorseA;
+                bool worseMine = iAmA ? t.CutWorseA : t.CutWorseB;
+                string? locHis = iAmA ? t.CutLocB : t.CutLocA;
+                string? locMine = iAmA ? t.CutLocA : t.CutLocB;
+                string? sevHis = iAmA ? t.CutSevB : t.CutSevA;
+                string? sevMine = iAmA ? t.CutSevA : t.CutSevB;
+                if (!cutHis && openedHis)
+                { cutHis = true; lines.Add(Line(caller.CutOpened(my, his, locHis, sevHis), CallKind.Drama, CallEvent.Cut, 0)); }
+                if (!cutMine && openedMine)
+                { cutMine = true; lines.Add(Line(caller.CutOpened(his, my, locMine, sevMine), CallKind.Drama, CallEvent.Cut, 1)); }
+                // A cut getting worse is its own moment, and can be called more than once — it is the story of
+                // the rest of the fight for a man who is bleeding badly.
+                if (worseHis) lines.Add(Line(caller.CutWorse(his, locHis, sevHis), CallKind.Drama, CallEvent.Cut, 1));
+                if (worseMine) lines.Add(Line(caller.CutWorse(my, locMine, sevMine), CallKind.Drama, CallEvent.Cut, 0));
                 if (!cutHis && cutH >= 0.4) { cutHis = true; lines.Add(Line(caller.Cut(his), CallKind.Drama, CallEvent.Cut)); }
                 if (!cutMine && cutM >= 0.4) { cutMine = true; lines.Add(Line(caller.Cut(my), CallKind.Drama, CallEvent.Cut)); }
 
@@ -350,12 +362,54 @@ public static class FightCall
             $"Good feet from {who} — he's back in the middle of the ring.",
             $"{who} slides out and resets.");
 
-        /// <summary>A cut opened by a shot, called as it happens and pinned on the man who threw it.</summary>
-        public string CutOpened(string att, string tgt) => Rotate("cutOpen",
-            $"That has opened {tgt} up — there is blood.",
-            $"{att} has cut him! {tgt} is bleeding.",
-            $"And that shot has split {tgt} — the blood is coming.",
-            $"{tgt} is cut, and it was that punch that did it.");
+        /// <summary>A cut opened by a shot: who did it, where it is, and how bad. The engine has always known
+        /// the location and the severity — sixteen sites, from a nick on the hairline to a gash over an eye —
+        /// and none of it was reaching the reader, so every cut was just "he is cut".</summary>
+        public string CutOpened(string att, string tgt, string? where, string? how)
+        {
+            string sev = how ?? "a cut";
+            if (where is null)
+                return Rotate("cutOpenPlain",
+                    $"That has opened {tgt} up — there is blood.",
+                    $"{att} has cut him! {tgt} is bleeding.");
+            bool eye = where.Contains("eye") || where.Contains("brow") || where.Contains("eyelid");
+            bool bad = how is "a deep cut" or "a horrible gash";
+
+            // Over an eye is the one that ends fights, and only there does the vision line make sense.
+            if (eye)
+                return bad
+                    ? Rotate("cutEyeBad",
+                        $"{att} has opened {sev} {where} — and that is the worst place to carry one.",
+                        $"That is {sev} {where}. {tgt} is going to have to see through that.",
+                        $"{tgt} has been split {where}, badly, and the blood is running into his eye.")
+                    : Rotate("cutEye",
+                        $"{att} has nicked him {where}.",
+                        $"There is a graze {where} on {tgt} — the corner will want to watch that one.",
+                        $"{tgt} has been marked {where}.");
+
+            // Anywhere else is blood rather than danger, and a nick is not a gash.
+            return bad
+                ? Rotate("cutFaceBad",
+                    $"{att} has opened {sev} {where} — {tgt}'s face is a mess.",
+                    $"That is {sev} {where}, and it is pouring.",
+                    $"{tgt} has been split {where}. There is blood everywhere.")
+                : Rotate("cutFace",
+                    $"{att} has opened him {where}.",
+                    $"A trickle of blood {where} from {tgt}.",
+                    $"{tgt} is marked {where} — nothing serious yet.");
+        }
+
+        /// <summary>An existing cut worked over for three minutes. The corner has a job now.</summary>
+        public string CutWorse(string who, string? where, string? how)
+        {
+            string sev = how ?? "the cut";
+            string at = where is null ? "" : " " + where;
+            return Rotate("cutWorse",
+                $"{who}'s cut{at} has opened up further — it is {sev} now.",
+                $"They have been working that cut{at}, and it is worse. {who} is wearing a mask of blood.",
+                $"That is {sev}{at} on {who} now — the corner will have their work cut out.",
+                $"More blood from {who}{at}. The referee has had a look at it.");
+        }
 
         public string Power(string att, string tgt, string punch, bool body, int combo, bool counter)
         {

@@ -113,6 +113,7 @@ public sealed class FightEngine
         }
 
         bool countedOut = false, toBodyKd = false, cutOpened = false;
+        string? cutLoc = null, cutSev = null;
         if (pd.Body)
         {
             target.BodyDmg = Math.Min(1.3, target.BodyDmg + force * 0.028);
@@ -129,7 +130,7 @@ public sealed class FightEngine
             {
                 if (target.CutLoc is null) { var c = Pick(CutLocs); target.CutLoc = c.Loc; target.CutEye = c.Eye; }
                 target.Cut = Math.Min(1.0, target.Cut + 0.14 + _rng.NextDouble() * 0.22);
-                cutOpened = true;
+                cutOpened = true; cutLoc = target.CutLoc; cutSev = CutType(target.Cut);
             }
             target.Damage = Math.Min(1.3, target.Damage + force * 0.029);
             target.Swell = Math.Min(1.0, target.Swell + 0.02 + force * 0.005);
@@ -137,7 +138,7 @@ public sealed class FightEngine
             if (_rng.NextDouble() < force * 0.019 * (0.5 + target.Damage)) countedOut = Knockdown(target, body: false);
         }
         bool staggered = !pd.Body && !countedOut && force >= 1.6 && _rng.NextDouble() < Math.Clamp((force - 1.5) * 0.17, 0, 0.24);
-        return new Blow(true, pd.Body, handHurt, countedOut, toBodyKd, staggered, PunchName(punch), cutOpened);
+        return new Blow(true, pd.Body, handHurt, countedOut, toBodyKd, staggered, PunchName(punch), cutOpened, cutLoc, cutSev);
     }
 
     /// <summary>The ring effect of a reach differential (in inches). The longer man controls distance and
@@ -249,11 +250,12 @@ public sealed class FightEngine
         public bool ComboBody;    // the combination went to the body as well as the head
         // The defender's counter, fired when the attacker misses.
         public bool CutOpened, CounterCutOpened;
+        public string? CutLoc, CutSev, CounterCutLoc, CounterCutSev;
         public bool CounterLanded, CounterBig, CounterBody, CounterCountedOut, CounterToBodyKd;
         public string? CounterType;
     }
 
-    private readonly record struct Blow(bool Big, bool Body, bool HandHurt, bool CountedOut, bool ToBodyKd, bool Staggered, string? Type, bool CutOpened = false);
+    private readonly record struct Blow(bool Big, bool Body, bool HandHurt, bool CountedOut, bool ToBodyKd, bool Staggered, string? Type, bool CutOpened = false, string? CutLoc = null, string? CutSev = null);
 
     public FightResult Simulate(Boxer a, Boxer b, int scheduledRounds)
     {
@@ -355,8 +357,13 @@ public sealed class FightEngine
 
             if (stoppage is null)
             {
-                ApplyCuts(sa, sb);
-                ApplyCuts(sb, sa);
+                bool worseA = ApplyCuts(sa, sb);
+                bool worseB = ApplyCuts(sb, sa);
+                // A cut getting worse is a round-end event, so it is written onto the closing tick where the
+                // call will find it alongside everything else that happened late in the round.
+                var closing = ticks[TicksPerRound - 1];
+                if (worseA) { closing.CutWorseA = true; closing.CutLocA = sa.CutLoc; closing.CutSevA = CutType(sa.Cut); touched[TicksPerRound - 1] = true; }
+                if (worseB) { closing.CutWorseB = true; closing.CutLocB = sb.CutLoc; closing.CutSevB = CutType(sb.Cut); touched[TicksPerRound - 1] = true; }
                 roundFoul = ResolveFouls(sa, sb, ref deductA, ref deductB, out bool dq, out int dqWinner);
                 if (roundFoul is not null)
                 {
@@ -535,7 +542,7 @@ public sealed class FightEngine
                 var c = ApplyPower(def, att, cp, wcKo, isCounter: true);
                 hit.CounterLanded = true; hit.CounterBig = c.Big; hit.CounterBody = c.Body;
                 hit.CounterType = c.Type; hit.CounterCountedOut = c.CountedOut; hit.CounterToBodyKd = c.ToBodyKd;
-                hit.CounterCutOpened = c.CutOpened;
+                hit.CounterCutOpened = c.CutOpened; hit.CounterCutLoc = c.CutLoc; hit.CounterCutSev = c.CutSev;
             }
             return hit;
         }
@@ -557,7 +564,7 @@ public sealed class FightEngine
         var blow = ApplyPower(att, def, PickPowerPunch(att), wcKo, isCounter: false, forceScale: weight);
         hit.Big = blow.Big; hit.Body = blow.Body; hit.Type = blow.Type;
         hit.HandHurt = blow.HandHurt; hit.CountedOut = blow.CountedOut; hit.ToBodyKd = blow.ToBodyKd;
-        hit.CutOpened = blow.CutOpened;
+        hit.CutOpened = blow.CutOpened; hit.CutLoc = blow.CutLoc; hit.CutSev = blow.CutSev;
 
         // In rhythm and in range — a fast, busy fighter strings the shot into a short combination.
         // Follow-up punches land cleaner (he's set) but carry less than a loaded single shot.
@@ -624,7 +631,8 @@ public sealed class FightEngine
         return false;
     }
 
-    private void ApplyCuts(State victim, State attacker)
+    /// <returns>True if an existing cut was worked over and got worse.</returns>
+    private bool ApplyCuts(State victim, State attacker)
     {
         // Opening a cut is now the punch's business (see ApplyPower). What is left here is the grinding: an
         // existing cut worked over for three minutes gets worse whether or not one shot did it.
@@ -632,7 +640,9 @@ public sealed class FightEngine
         if (victim.Cut >= 0.3 && _rng.NextDouble() < exposure * 0.9)
         {
             victim.Cut = Math.Min(1.0, victim.Cut + 0.08 + _rng.NextDouble() * 0.12); // an existing cut worsens
+            return true;
         }
+        return false;
     }
 
     /// <summary>Between rounds the cutman works a cut and swelling down — a fighter can come out looking
@@ -825,16 +835,16 @@ public sealed class FightEngine
                 if (hit.HandHurt) t.HandA = true;
                 if (hit.ToBodyKd) t.DownBodyB = true;
                 if (hit.Staggered) t.StaggerB = true;       // A wobbled B and teed off
-                if (hit.CutOpened) t.CutOpenB = true;       // that punch opened B up
-                if (hit.CounterCutOpened) t.CutOpenA = true;
+                if (hit.CutOpened) { t.CutOpenB = true; t.CutLocB = hit.CutLoc; t.CutSevB = hit.CutSev; }
+                if (hit.CounterCutOpened) { t.CutOpenA = true; t.CutLocA = hit.CounterCutLoc; t.CutSevA = hit.CounterCutSev; }
                 t.RockB = Math.Max(t.RockB, RockLevel(sb));
             }
             else
             {
                 if (hit.Big) { t.BigB = true; t.PunchB = hit.Type; t.BodyShotB = hit.Body; }
                 if (hit.ComboLen > 1) { t.ComboB = hit.ComboLen; t.ComboBodyB = hit.ComboBody; }
-                if (hit.CutOpened) t.CutOpenA = true;
-                if (hit.CounterCutOpened) t.CutOpenB = true;
+                if (hit.CutOpened) { t.CutOpenA = true; t.CutLocA = hit.CutLoc; t.CutSevA = hit.CutSev; }
+                if (hit.CounterCutOpened) { t.CutOpenB = true; t.CutLocB = hit.CounterCutLoc; t.CutSevB = hit.CounterCutSev; }
                 if (hit.HandHurt) t.HandB = true;
                 if (hit.ToBodyKd) t.DownBodyA = true;
                 if (hit.Staggered) t.StaggerA = true;

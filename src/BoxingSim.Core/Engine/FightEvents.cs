@@ -24,6 +24,13 @@ public sealed class FightTick
     /// <summary>A cut was OPENED by the punch in this segment. Cuts used to be resolved once a round from the
     /// round's total work, so one could never be attributed to the shot that caused it.</summary>
     public bool CutOpenA, CutOpenB;
+    /// <summary>An existing cut was worked over and got worse this segment.</summary>
+    public bool CutWorseA, CutWorseB;
+    /// <summary>Where the cut is — "over the left eye", "on the bridge of the nose". The engine has always
+    /// known; without it on the tick the call could only say a man was cut, never where.</summary>
+    public string? CutLocA, CutLocB;
+    /// <summary>How bad it is in words: a nick, a cut, a deep cut, a horrible gash.</summary>
+    public string? CutSevA, CutSevB;
     /// <summary>Where the fight is being fought: 0 is centre ring, +1 is B pinned on the ropes with A on top
     /// of him, -1 the reverse. Carries across rounds — a man being walked down stays walked down.</summary>
     public double Ring;
