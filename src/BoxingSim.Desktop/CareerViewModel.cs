@@ -94,7 +94,13 @@ public sealed class AwardDetail
     public bool HasCommentary => !string.IsNullOrWhiteSpace(Commentary);
 }
 public sealed record LedgerRow(string Date, string Result, string Opponent, string Detail, bool Win, bool Loss,
-                               BoutLine? Bout = null, string? OwnerName = null, bool Notable = false);
+                               BoutLine? Bout = null, string? OwnerName = null, bool Notable = false,
+                               string Title = "")
+{
+    /// <summary>A title fight is the thing you scan a record FOR, so it gets its own mark rather than being
+    /// buried in the middle of a detail line.</summary>
+    public bool IsTitleFight => !string.IsNullOrEmpty(Title);
+}
 
 /// <summary>One round of a stored bout, from the owning fighter's point of view, with what was said about it.</summary>
 public sealed record FightRoundRow(string Round, string Score, string Landed, string Knockdowns,
@@ -115,6 +121,16 @@ public sealed class FightDetail
     public string Verdict { get; init; } = "";
     public string Note { get; init; } = "";
     public string Cards { get; init; } = "";
+
+    /// <summary>The three judges, broken out. A decision used to be a bare string - "116-112 · 115-113 ·
+    /// 114-114" - which is the raw data rather than the story of the fight. Split up, you can see at a glance
+    /// that two had it close and one had it wide, or that a man was a point from a draw.</summary>
+    public IReadOnlyList<JudgeCard> Judges { get; init; } = Array.Empty<JudgeCard>();
+    public bool HasJudges => Judges.Count > 0;
+
+    /// <summary>The belt that was on the line, if any.</summary>
+    public string Title { get; init; } = "";
+    public bool IsTitleFight => !string.IsNullOrEmpty(Title);
     public bool Win { get; init; }
     public bool Loss { get; init; }
     public IReadOnlyList<FightRoundRow> Rounds { get; init; } = Array.Empty<FightRoundRow>();
@@ -134,6 +150,9 @@ public sealed record TapeRow(string Attribute, int Mine, int Theirs, double Mine
 
 /// <summary>The drill-down card for any fighter in any list.</summary>
 public sealed record CardStat(string Name, int Value, double Width);
+
+/// <summary>One judge's card, read from the owning fighter's side.</summary>
+public sealed record JudgeCard(string Judge, string Score, string Verdict, bool ForMe, bool Level);
 
 /// <summary>One punch's share of a fighter's arsenal, with the colour it is drawn in.</summary>
 public sealed record ArsenalSlice(string Name, int Percent, double Width, string Colour);
@@ -1101,6 +1120,27 @@ public sealed class CareerViewModel : Observable
         Bar("Cut resistance", r.CutResistance), Bar("Aggression", r.Aggression), Bar("Heart", r.Heart),
     };
 
+    /// <summary>Break "116-112 · 115-113 · 114-114" into three judges, each with who he had winning. The
+    /// scores are stored from the owning fighter's point of view, so the first number is always his.</summary>
+    private static IReadOnlyList<JudgeCard> JudgesFrom(string? cards)
+    {
+        var outp = new List<JudgeCard>();
+        if (string.IsNullOrWhiteSpace(cards)) return outp;
+        string[] names = { "Judge 1", "Judge 2", "Judge 3" };
+        int i = 0;
+        foreach (var part in cards.Split('·', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var bits = part.Trim().Split('-');
+            if (bits.Length != 2 || !int.TryParse(bits[0], out int mine) || !int.TryParse(bits[1], out int his)) continue;
+            outp.Add(new JudgeCard(i < names.Length ? names[i] : $"Judge {i + 1}",
+                                   $"{mine}–{his}",
+                                   mine == his ? "level" : mine > his ? "for him" : "against him",
+                                   mine > his, mine == his));
+            i++;
+        }
+        return outp;
+    }
+
     private static LedgerRow ToLedger(BoutLine h, string? owner = null)
     {
         string detail = h.Method + (h.Round > 0 && h.Method is "KO" or "TKO" or "cut" ? $" rd{h.Round}" : "");
@@ -1117,7 +1157,8 @@ public sealed class CareerViewModel : Observable
         // so the night it comes back with is the best of several rather than the first that fits.
         bool notable = h.Note is string note && note.Contains("title", StringComparison.OrdinalIgnoreCase);
         return new LedgerRow(h.Date.ToString("d MMM yyyy"), h.Result.ToString(), h.Opponent, detail,
-                             h.Result == 'W', h.Result == 'L', h, owner, notable);
+                             h.Result == 'W', h.Result == 'L', h, owner, notable,
+                             notable && h.Note is string tt ? tt : "");
     }
 
     // ---- a single fight, opened out ----
@@ -1183,6 +1224,8 @@ public sealed class CareerViewModel : Observable
                       + (h.Round > 0 && h.Method is "KO" or "TKO" or "cut" ? $", round {h.Round}" : ""),
             Note = h.Note ?? "",
             Cards = h.Cards ?? "",
+            Judges = JudgesFrom(h.Cards),
+            Title = h.Note is string tn && tn.Contains("title", StringComparison.OrdinalIgnoreCase) ? tn : "",
             Win = h.Result == 'W',
             Loss = h.Result == 'L',
             Commentary = unplaced,

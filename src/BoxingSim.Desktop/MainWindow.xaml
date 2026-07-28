@@ -127,8 +127,18 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="{Binding Opponent}" FontSize="13" Foreground="{StaticResource Text}"
-                                   TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Opponent}" FontSize="13" Foreground="{StaticResource Text}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <!-- The belt that was on the line. Gold, because that is what a record is read for. -->
+                            <Border Background="{StaticResource GoldSoft}" BorderBrush="{StaticResource GoldLine}"
+                                    BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding IsTitleFight, Converter={StaticResource BoolVis}}">
+                                <TextBlock Text="{Binding Title}" FontSize="8.5" FontWeight="Bold"
+                                           Foreground="{StaticResource Gold}" />
+                            </Border>
+                        </StackPanel>
                         <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource Muted}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -1540,10 +1550,45 @@
                                     </ItemsControl>
                                 </StackPanel>
 
-                                <StackPanel Visibility="{Binding HasCards, Converter={StaticResource BoolVis}}">
-                                    <TextBlock Text="JUDGES" Style="{StaticResource PanelHeader}" Margin="24,14,24,4" />
-                                    <TextBlock Text="{Binding Cards}" FontSize="13" Margin="24,0,24,4"
-                                               Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                <!-- The three cards broken out. A bare "116-112 · 115-113 · 114-114" is the raw
+                                     data; split up you can see that two had it close and one had it wide, or
+                                     that a man was a single point from a draw. -->
+                                <StackPanel Visibility="{Binding HasJudges, Converter={StaticResource BoolVis}}">
+                                    <TextBlock Text="THE CARDS" Style="{StaticResource PanelHeader}" Margin="24,14,24,4" />
+                                    <ItemsControl ItemsSource="{Binding Judges}" Margin="24,0,24,6">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,3">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="74" />
+                                                        <ColumnDefinition Width="78" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Judge}" FontSize="11.5"
+                                                               Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Score}" FontSize="14"
+                                                               FontFamily="Consolas" VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ForMe}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Level}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Verdict}" FontSize="11"
+                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
 
                                 <StackPanel Visibility="{Binding HasCommentary, Converter={StaticResource BoolVis}}">
