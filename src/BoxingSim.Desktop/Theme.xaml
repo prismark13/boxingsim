@@ -2,12 +2,17 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:local="clr-namespace:BoxingSim.Desktop">
 
-    <!-- The web build's palette, so the desktop app is recognisably the same product. -->
-    <Color x:Key="BgColor">#080A0D</Color>
-    <Color x:Key="PanelColor">#12161D</Color>
-    <Color x:Key="Panel2Color">#1A202A</Color>
-    <Color x:Key="LineColor">#232A35</Color>
-    <Color x:Key="Line2Color">#333C4A</Color>
+    <!-- SURFACES.
+         These used to be four shades of the same cold blue-grey, a few points of lightness apart, so every
+         panel sat at the same depth and the whole app read as an admin dashboard that happened to be about
+         boxing. They are now warm and properly spaced: a dark room with the ring lit in it. The hue is low
+         saturation on the warm side, which is the colour of everything a fight actually happens under —
+         canvas, ropes, house lights — without tipping into brown. -->
+    <Color x:Key="BgColor">#0A0908</Color>
+    <Color x:Key="PanelColor">#14120F</Color>
+    <Color x:Key="Panel2Color">#1E1A15</Color>
+    <Color x:Key="LineColor">#2B261F</Color>
+    <Color x:Key="Line2Color">#3D362C</Color>
 
     <SolidColorBrush x:Key="Bg" Color="{StaticResource BgColor}" />
     <SolidColorBrush x:Key="Panel" Color="{StaticResource PanelColor}" />
@@ -15,23 +20,32 @@
     <SolidColorBrush x:Key="Line" Color="{StaticResource LineColor}" />
     <SolidColorBrush x:Key="Line2" Color="{StaticResource Line2Color}" />
 
-    <SolidColorBrush x:Key="Text" Color="#EEF1F6" />
-    <SolidColorBrush x:Key="Muted" Color="#828D9F" />
-    <SolidColorBrush x:Key="Faint" Color="#565F70" />
-    <SolidColorBrush x:Key="Accent" Color="#3D9BFF" />
-    <SolidColorBrush x:Key="AccentSoft" Color="#16283D" />
-    <SolidColorBrush x:Key="Gold" Color="#F0B73E" />
-    <SolidColorBrush x:Key="GoldSoft" Color="#2A2415" />
-    <SolidColorBrush x:Key="GoldLine" Color="#6B551F" />
-    <SolidColorBrush x:Key="Win" Color="#43D17F" />
-    <SolidColorBrush x:Key="Loss" Color="#FF6F6F" />
+    <SolidColorBrush x:Key="Text" Color="#F3EFE9" />
+    <SolidColorBrush x:Key="Muted" Color="#9C9285" />
+    <SolidColorBrush x:Key="Faint" Color="#6C6357" />
+
+    <!-- ROLES. One colour, one meaning. The blue used to do six different jobs — selected nav, headings,
+         links, buttons, the player's bars, the shape-of-the-round lines — and a colour that means everything
+         signals nothing. It now means exactly one thing: YOU. Against warm surfaces it also finally reads as
+         a colour rather than as the app's general tint. -->
+    <SolidColorBrush x:Key="Accent" Color="#4FA3FF" />      <!-- your corner, and your actions -->
+    <SolidColorBrush x:Key="AccentSoft" Color="#12233A" />
+    <SolidColorBrush x:Key="Gold" Color="#FFC24D" />        <!-- titles, belts, honours -->
+    <SolidColorBrush x:Key="GoldSoft" Color="#2C2413" />
+    <SolidColorBrush x:Key="GoldLine" Color="#6E571F" />
+    <SolidColorBrush x:Key="Win" Color="#4FD98B" />
+    <SolidColorBrush x:Key="Loss" Color="#FF6B6B" />
 
     <!-- The other man. Boxing already solved this: the player fights out of the blue corner, so his opponent
          gets the red one. Anything grey reads as an absence rather than a fighter — an opponent's best
          attribute drawn in the same colour as an empty track looks like nothing is there at all. Deliberately
          warmer and more orange than Loss, which means a defeat and would put a verdict on a man who has not
          fought yet. -->
-    <SolidColorBrush x:Key="Foe" Color="#FF8355" />
+    <SolidColorBrush x:Key="Foe" Color="#FF7A47" />
+
+    <!-- Neutral emphasis: what nav, links and headings use now that the blue is spoken for. Hierarchy comes
+         from weight and brightness instead of from spending the one colour that means something. -->
+    <SolidColorBrush x:Key="Quiet" Color="#B8AE9F" />
 
     <!-- Type -->
     <Style x:Key="Label" TargetType="TextBlock">
@@ -90,7 +104,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="b" Property="Background" Value="#232C39" />
+                            <Setter TargetName="b" Property="Background" Value="#2A241D" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="b" Property="Opacity" Value="0.4" />
@@ -237,13 +251,13 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border x:Name="t" Background="#2C3648" CornerRadius="3" Margin="2,0" />
+                    <Border x:Name="t" Background="#332C24" CornerRadius="3" Margin="2,0" />
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="t" Property="Background" Value="#44526B" />
+                            <Setter TargetName="t" Property="Background" Value="#463D31" />
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
-                            <Setter TargetName="t" Property="Background" Value="#5B6C8C" />
+                            <Setter TargetName="t" Property="Background" Value="#5C5142" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -327,12 +341,15 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="b" Property="Background" Value="#141A23" />
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource Panel2}" />
                             <Setter TargetName="t" Property="Foreground" Value="{StaticResource Text}" />
                         </Trigger>
+                        <!-- Where you are is not who you are. This used to be painted in the player's blue,
+                             which spent the one colour that means "you" on a piece of furniture. Neutral
+                             surface, gold marker, weight for emphasis. -->
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="b" Property="Background" Value="{StaticResource AccentSoft}" />
-                            <Setter TargetName="bar" Property="Background" Value="{StaticResource Accent}" />
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource Panel2}" />
+                            <Setter TargetName="bar" Property="Background" Value="{StaticResource Gold}" />
                             <Setter TargetName="t" Property="Foreground" Value="{StaticResource Text}" />
                             <Setter TargetName="t" Property="FontWeight" Value="SemiBold" />
                         </Trigger>

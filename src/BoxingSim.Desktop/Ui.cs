@@ -9,13 +9,16 @@ namespace BoxingSim.Desktop;
 /// <summary>Presentation helpers. Same rating tiers and country codes as the web build, expressed as WPF brushes.</summary>
 public static class Ui
 {
-    /// <summary>A 1–15 rating's colour, tiered by class: gold for the elite, then cyan, blue and slate.</summary>
+    /// <summary>A 1-15 rating's colour, tiered by class. It runs warm-to-cool DOWN the scale rather than
+    /// through the player's blue: blue now means "you" everywhere else in the app, and a badge on a stranger's
+    /// name reading in it said the wrong thing. Gold at the top, and the tiers below cool and fade toward the
+    /// surfaces, so a fringe fighter's number recedes and a great one's does not.</summary>
     public static Brush Ovr(int v) =>
-        v >= 13 ? Freeze("#F0B73E") :   // all-time great / champion gold
-        v >= 11 ? Freeze("#2FD0D8") :   // cyan (contender)
-        v >= 8 ? Freeze("#3D9BFF") :    // accent blue (national/solid)
-        v >= 6 ? Freeze("#8AA0BD") :    // steel (journeyman)
-                 Freeze("#727F93");     // slate (fringe)
+        v >= 13 ? Freeze("#FFC24D") :   // all-time great / champion gold
+        v >= 11 ? Freeze("#E8A05A") :   // burnished (contender)
+        v >= 8 ? Freeze("#B99B79") :    // brass (national / solid)
+        v >= 6 ? Freeze("#8A7F70") :    // pewter (journeyman)
+                 Freeze("#6C6357");     // faint (fringe)
 
     private static readonly Dictionary<string, Brush> Cache = new();
     private static Brush Freeze(string hex)
@@ -130,9 +133,9 @@ public sealed class EmptyToVisibilityConverter : IValueConverter
 /// The parameter picks the corner: "mine" for the player's blue, anything else for the opponent's red.</summary>
 public sealed class GasBrushConverter : IValueConverter
 {
-    private static readonly Color Blue = Color.FromRgb(0x3D, 0x9B, 0xFF);
-    private static readonly Color Red = Color.FromRgb(0xFF, 0x83, 0x55);
-    private static readonly Color Warn = Color.FromRgb(0xF0, 0xB7, 0x3E);
+    private static readonly Color Blue = Color.FromRgb(0x4F, 0xA3, 0xFF);
+    private static readonly Color Red = Color.FromRgb(0xFF, 0x7A, 0x47);
+    private static readonly Color Warn = Color.FromRgb(0xFF, 0xC2, 0x4D);
     private static readonly Color Spent = Color.FromRgb(0xFF, 0x4D, 0x4D);
 
     private static Color Mix(Color a, Color b, double t)

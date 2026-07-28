@@ -212,7 +212,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- ============ SIDEBAR ============ -->
-            <Border Background="#0B0F15" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+            <Border Background="#110F0C" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -309,7 +309,7 @@
                         <Border Style="{StaticResource Card}" Padding="0" Margin="0,6,0,14"
                                 Visibility="{Binding HasOffer, Converter={StaticResource BoolVis}}">
                             <StackPanel>
-                                <Border Background="#0F141C" CornerRadius="14,14,0,0" Padding="22,14">
+                                <Border Background="#12100D" CornerRadius="14,14,0,0" Padding="22,14">
                                     <TextBlock Style="{StaticResource Label}">
                                         <Run Text="YOUR NEXT FIGHT · " /><Run Text="{Binding OfferDateLabel, Mode=OneWay}" />
                                         <Run Text=" · " /><Run Text="{Binding OfferContext, Mode=OneWay}" />
@@ -361,7 +361,7 @@
                                             <Grid Margin="18,14,18,10">
                                                 <TextBlock Text="RECENT FORM" Style="{StaticResource Label}" />
                                                 <TextBlock Text="my record ›" FontSize="11" HorizontalAlignment="Right"
-                                                           Foreground="{StaticResource Accent}" />
+                                                           Foreground="{StaticResource Quiet}" />
                                             </Grid>
                                         </Button>
                                         <ItemsControl ItemsSource="{Binding RecentForm}"
@@ -381,7 +381,7 @@
                                             <Grid Margin="18,14,18,10">
                                                 <TextBlock Text="YOUR DIVISION" Style="{StaticResource Label}" />
                                                 <TextBlock Text="full rankings ›" FontSize="11" HorizontalAlignment="Right"
-                                                           Foreground="{StaticResource Accent}" />
+                                                           Foreground="{StaticResource Quiet}" />
                                             </Grid>
                                         </Button>
                                         <ItemsControl ItemsSource="{Binding DivisionTop}"
@@ -398,7 +398,7 @@
                                     <Grid Margin="18,14,18,10">
                                         <TextBlock Text="AROUND THE SPORT" Style="{StaticResource Label}" />
                                         <TextBlock Text="all news ›" FontSize="11" HorizontalAlignment="Right"
-                                                   Foreground="{StaticResource Accent}" />
+                                                   Foreground="{StaticResource Quiet}" />
                                     </Grid>
                                 </Button>
                                 <ItemsControl ItemsSource="{Binding HeadlineNews}">
@@ -463,7 +463,7 @@
                         <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,16"
                                 Visibility="{Binding HasOffer, Converter={StaticResource BoolVis}}">
                             <StackPanel>
-                                <Border Background="#0F141C" CornerRadius="14,14,0,0" Padding="24,16">
+                                <Border Background="#12100D" CornerRadius="14,14,0,0" Padding="24,16">
                                     <TextBlock Style="{StaticResource Label}">
                                         <Run Text="FIGHT NIGHT · " /><Run Text="{Binding OfferDateLabel, Mode=OneWay}" />
                                         <Run Text=" · " /><Run Text="{Binding OfferContext, Mode=OneWay}" />
@@ -536,7 +536,7 @@
                                                     </Border>
                                                     <TextBlock Text="{Binding Mine}" FontSize="10.5" Margin="0,0,7,0"
                                                                HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                               Foreground="#04121F" FontWeight="Bold" />
+                                                               Foreground="#06121C" FontWeight="Bold" />
                                                 </Grid>
                                                 <TextBlock Grid.Column="1" Text="{Binding Attribute}" FontSize="10.5"
                                                            FontWeight="SemiBold" Foreground="{StaticResource Muted}"
@@ -823,7 +823,7 @@
                                                                    Foreground="{StaticResource Muted}" TextWrapping="Wrap"
                                                                    Margin="0,5,0,0" />
                                                         <TextBlock Text="read the citation ›" FontSize="10.5"
-                                                                   Foreground="{StaticResource Accent}" Margin="0,7,0,0" />
+                                                                   Foreground="{StaticResource Quiet}" Margin="0,7,0,0" />
                                                     </StackPanel>
                                                 </Border>
                                               </Button>
@@ -872,7 +872,7 @@
                                             </TextBlock.Style>
                                         </TextBlock>
                                         <TextBlock Grid.Column="2" Text="watch ›" FontSize="10.5" Margin="12,0,0,0"
-                                                   VerticalAlignment="Center" Foreground="{StaticResource Accent}"
+                                                   VerticalAlignment="Center" Foreground="{StaticResource Gold}"
                                                    Visibility="{Binding CanWatch, Converter={StaticResource BoolVis}}" />
                                     </Grid>
                                 </Button>
@@ -960,7 +960,7 @@
                 <!-- Opaque, not 95%. A translucent overlay let the whole dashboard - the sidebar, the date,
                      the news list - ghost through behind the commentary, and reading a fight through a layer
                      of unrelated text was the single worst thing about the screen. -->
-                <Border Background="#050810" />
+                <Border Background="#080706" />
                 <Grid Margin="0,26,0,26" MaxWidth="980">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -1075,7 +1075,7 @@
                         </Grid>
                     </StackPanel>
 
-                    <Border Grid.Row="1" Style="{StaticResource Card}" Background="#0A0E15">
+                    <Border Grid.Row="1" Style="{StaticResource Card}" Background="#100E0B">
                         <ScrollViewer x:Name="FeedScroll" VerticalScrollBarVisibility="Auto" Padding="30,22,30,22"
                                       ScrollChanged="FeedScroll_ScrollChanged">
                             <!-- Bottom-aligned: with finished rounds folded away the call is short, and
@@ -1109,13 +1109,34 @@
                                                     <DataTemplate>
                                                 <Grid Margin="0,0,0,7">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="58" />
+                                                        <ColumnDefinition Width="3" />
+                                                        <ColumnDefinition Width="10" />
+                                                        <ColumnDefinition Width="52" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Clock}" FontSize="11" FontFamily="Consolas"
+                                                    <!-- Whose work this line is, without spending a word on it.
+                                                         A thin mark in the man's corner colour lets you follow
+                                                         one fighter down the feed at a glance. -->
+                                                    <Border Grid.Column="0" CornerRadius="1.5" Margin="0,1">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsMine}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource Accent}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsHis}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource Foe}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                    </Border>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Clock}" FontSize="11"
+                                                               FontFamily="Consolas"
                                                                Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap"
-                                                               FontSize="14.5" Foreground="{StaticResource Muted}"
+                                                    <TextBlock Grid.Column="3" Text="{Binding Text}" TextWrapping="Wrap"
+                                                               FontSize="14.5" Foreground="{StaticResource Quiet}"
                                                                RenderTransformOrigin="0,0.5">
                                                         <TextBlock.RenderTransform>
                                                             <TranslateTransform x:Name="tt" X="0" />
@@ -1160,7 +1181,7 @@
                                                                         <Setter Property="Margin" Value="0,7,0,5" />
                                                                     </DataTrigger>
                                                                     <DataTrigger Binding="{Binding IsCrowd}" Value="True">
-                                                                        <Setter Property="Foreground" Value="#B08CFF" />
+                                                                        <Setter Property="Foreground" Value="#E0A574" />
                                                                         <Setter Property="FontSize" Value="15" />
                                                                         <Setter Property="FontStyle" Value="Italic" />
                                                                     </DataTrigger>
@@ -1173,7 +1194,7 @@
                                                                     <!-- Where the fight is being fought. Sits between the plain action lines and the
                                                                          big shots: it is not an event, it is the shape the round is taking. -->
                                                                     <DataTrigger Binding="{Binding IsPosition}" Value="True">
-                                                                        <Setter Property="Foreground" Value="#8FA6C8" />
+                                                                        <Setter Property="Foreground" Value="#C0B49F" />
                                                                         <Setter Property="FontSize" Value="14" />
                                                                         <Setter Property="Margin" Value="0,4,0,2" />
                                                                     </DataTrigger>

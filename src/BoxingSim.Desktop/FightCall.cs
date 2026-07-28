@@ -12,11 +12,15 @@ public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern, Corne
 public enum CallEvent { None, RoundBell, Knockdown, Stoppage, Cut, Hurt, HardPunch }
 
 /// <summary>One line of the fight being called, carrying the state of the fight AT that moment so the scoreboard
-/// can move with the call rather than sitting still while text scrolls past.</summary>
+/// can move with the call rather than sitting still while text scrolls past.
+///
+/// <c>Actor</c> is 0 for the player's man, 1 for his opponent and -1 for neither. It drives a thin
+/// corner-coloured marker down the edge of the line, so you can see whose work a line describes without
+/// having to read the name in it.</summary>
 public sealed record CallLine(string Clock, string Text, CallKind Kind,
                               int Round = 0, int MyLanded = 0, int HisLanded = 0,
                               int MyHurt = 0, int HisHurt = 0, CallEvent Event = CallEvent.None,
-                              double MyGas = 1, double HisGas = 1)
+                              double MyGas = 1, double HisGas = 1, int Actor = -1)
 {
     public bool IsRound => Kind == CallKind.Round;
     public bool IsDrama => Kind == CallKind.Drama;
@@ -27,6 +31,8 @@ public sealed record CallLine(string Clock, string Text, CallKind Kind,
     public bool IsCorner => Kind == CallKind.Corner;
     public bool IsCrowd => Kind == CallKind.Crowd;
     public bool IsPosition => Kind == CallKind.Position;
+    public bool IsMine => Actor == 0;
+    public bool IsHis => Actor == 1;
     /// <summary>The moments that deserve to stop the room.</summary>
     public bool IsMoment => Kind is CallKind.Drama or CallKind.Verdict;
 }
@@ -67,14 +73,33 @@ public sealed class RoundBlock : Observable
 /// a commentator would notice.</summary>
 public static class FightCall
 {
+    /// <summary>What to call a man through the fight. His surname, unless both men share one — two Daniels in
+    /// the ring is exactly when a surname stops identifying anybody, so then they keep their full names.</summary>
+    private static string Short(string name, string other)
+    {
+        string Last(string n)
+        {
+            int sp = n.LastIndexOf(' ');
+            return sp < 0 ? n : n[(sp + 1)..];
+        }
+        string mine = Last(name);
+        return mine.Length < 3 || mine == Last(other) ? name : mine;
+    }
+
     public static IReadOnlyList<CallLine> Build(FightResult res, Boxer me)
     {
         bool iAmA = res.A.Id == me.Id;
-        string my = me.Name;
-        string his = (iAmA ? res.B : res.A).Name;
+        // Surnames after the first mention. Over ten lines the full names appeared seven times between them,
+        // and a block of text where every line opens with the same two words cannot be scanned - the eye has
+        // nothing to catch on. A commentator says "Daniels", not "Tommy Daniels", forty times a fight.
+        string my = Short(me.Name, (iAmA ? res.B : res.A).Name);
+        string his = Short((iAmA ? res.B : res.A).Name, me.Name);
         var caller = new Caller();
         var lines = new List<CallLine>();
 
+        // The clock repeated down the column - four consecutive "1:50"s - which is noise the eye stops
+        // reading. It is shown only when it changes.
+        string lastClock = "";
         int myTotal = 0, hisTotal = 0;
         // Where the fight is being fought carries across rounds, so the call does too: -1 means I am the one
         // on the ropes, +1 means he is, 0 means neither. Only CHANGES get spoken.
@@ -83,6 +108,7 @@ public static class FightCall
         {
             lines.Add(new CallLine("", $"ROUND {rd.Round}", CallKind.Round, rd.Round, myTotal, hisTotal, Event: CallEvent.RoundBell));
             caller.NewRound();
+            lastClock = "";
 
             int prevKdMine = 0, prevKdHis = 0;
             bool cutMine = false, cutHis = false, hurtCalled = false, staggerCalled = false;
@@ -118,8 +144,13 @@ public static class FightCall
                 int liveHis = hisTotal + (iAmA ? t.LandedB : t.LandedA);
                 double gasMine = iAmA ? t.GasA : t.GasB;
                 double gasHis = iAmA ? t.GasB : t.GasA;
-                CallLine Line(string text, CallKind kind, CallEvent ev = CallEvent.None) =>
-                    new(t.Clock, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis, ev, gasMine, gasHis);
+                CallLine Line(string text, CallKind kind, CallEvent ev = CallEvent.None, int actor = -1)
+                {
+                    string shown = t.Clock == lastClock ? "" : t.Clock;
+                    lastClock = t.Clock;
+                    return new(shown, text, kind, rd.Round, liveMine, liveHis, rockMine, rockHis, ev,
+                               gasMine, gasHis, actor);
+                }
 
                 // Ring position, from my side: positive means I have him backed up. Hysteresis on purpose —
                 // it takes a firm 0.34 to call a man trapped but a drop below 0.16 to call him free, so a
@@ -128,23 +159,23 @@ public static class FightCall
                 int nowState = ring >= 0.34 ? 1 : ring <= -0.34 ? -1 : Math.Abs(ring) <= 0.16 ? 0 : ringState;
                 if (nowState != ringState)
                 {
-                    if (nowState == 1) lines.Add(Line(caller.Trapped(my, his), CallKind.Position));
-                    else if (nowState == -1) lines.Add(Line(caller.Trapped(his, my), CallKind.Position));
+                    if (nowState == 1) lines.Add(Line(caller.Trapped(my, his), CallKind.Position, actor: 0));
+                    else if (nowState == -1) lines.Add(Line(caller.Trapped(his, my), CallKind.Position, actor: 1));
                     else lines.Add(Line(caller.Escaped(ringState == 1 ? his : my), CallKind.Position));
                     ringState = nowState;
                 }
 
                 if (bigMine && punchMine is not null)
-                    lines.Add(Line(caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big, CallEvent.HardPunch));
+                    lines.Add(Line(caller.Power(my, his, punchMine, bodyMine, comboMine, counterMine), CallKind.Big, CallEvent.HardPunch, 0));
                 if (bigHis && punchHis is not null)
-                    lines.Add(Line(caller.Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big, CallEvent.HardPunch));
+                    lines.Add(Line(caller.Power(his, my, punchHis, bodyHis, comboHis, counterHis), CallKind.Big, CallEvent.HardPunch, 1));
 
                 if (rockHis >= 2) hurtHis = true;
                 if (rockMine >= 2) hurtMine = true;
                 if (!hurtCalled && rockHis >= 2)
-                { lines.Add(Line(caller.Hurt(my, his), CallKind.Drama, CallEvent.Hurt)); lines.Add(Line(caller.Crowd(true), CallKind.Crowd)); hurtCalled = true; }
+                { lines.Add(Line(caller.Hurt(my, his), CallKind.Drama, CallEvent.Hurt, 1)); lines.Add(Line(caller.Crowd(true), CallKind.Crowd)); hurtCalled = true; }
                 else if (!hurtCalled && rockMine >= 2)
-                { lines.Add(Line(caller.Hurt(his, my), CallKind.Drama, CallEvent.Hurt)); hurtCalled = true; }
+                { lines.Add(Line(caller.Hurt(his, my), CallKind.Drama, CallEvent.Hurt, 0)); hurtCalled = true; }
 
                 // Once a round: the engine flags a stagger on every tick a man stays wobbled, and calling it
                 // each time turned the drama into a stuck record.
@@ -294,17 +325,20 @@ public static class FightCall
                     $"{tgt} walks onto {shot}.");
             if (combo > 1)
                 return Rotate("combo",
-                    $"{att} lets his hands go, finishing with {shot}!",
-                    $"A burst from {att}, capped by {shot}!",
-                    $"{att} strings them together and ends it with {shot}!",
-                    $"Combination from {att} — {shot} on the end of it!");
+                    $"{att} lets his hands go, finishing with {shot}.",
+                    $"A burst from {att}, capped by {shot}.",
+                    $"{att} strings them together and ends it with {shot}.",
+                    $"Combination from {att} — {shot} on the end of it.");
 
+            // Ordinary work ends on a full stop. When every routine punch shouted, five lines in ten carried an
+            // exclamation mark and the knockdown three lines later had nothing left to raise its voice with;
+            // "!" is now spent on the drama and the verdict, so it means something when it arrives.
             return Rotate("power",
-                $"{att} lands {shot}{to}!",
-                $"{att} gets through with {shot}{to}!",
-                $"{att} cracks him with {shot}{to}!",
-                $"Good {bare}{to} from {att}!",   // bare: "Good right cross", never "Good a right cross"
-                $"{att} finds the mark with {shot}{to}!");
+                $"{att} lands {shot}{to}.",
+                $"{att} gets through with {shot}{to}.",
+                $"{att} cracks him with {shot}{to}.",
+                $"Good {bare}{to} from {att}.",   // bare: "Good right cross", never "Good a right cross"
+                $"{att} finds the mark with {shot}{to}.");
         }
 
         public string Hurt(string att, string tgt) => Rotate("hurt",
