@@ -1746,6 +1746,25 @@ public sealed class CareerGame
             if (pick.Count > 0) opp = pick[_rng.Next(pick.Count)];
         }
 
+        // Before he is world-ranked, the OPPOSITION'S experience climbs with his own. A man was picked purely
+        // by ranking position and rating, so a debutant could draw a fighter in his prime while a nineteen-fight
+        // prospect got a raw kid. A real record is built the other way about: you start against green boys and
+        // faded old pros who cannot hurt you, move on to men still coming through, and only then meet fighters
+        // at their peak.
+        if (!WorldRanked(Player))
+        {
+            int sofar = ProFights(Player);
+            var want = sofar <= 6
+                ? new[] { CareerStage.Starter, CareerStage.End }                              // green, or finished
+                : sofar <= 13
+                    ? new[] { CareerStage.Starter, CareerStage.PrePrime, CareerStage.PostPrime }
+                    : new[] { CareerStage.PrePrime, CareerStage.Prime, CareerStage.PostPrime };
+            var band = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr
+                                      && want.Contains(CareerStages.Of(b))
+                                      && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
+            if (band.Count > 0) opp = NearOne(band, opp.Overall);
+        }
+
         // ABSOLUTE final guard, enforcing BOTH hard rules at once. Run as separate passes they each undid the
         // other — the top-15 guard picked a champion, and the champion guard picked a top-15 man.
         //   1. A reigning world champion only ever meets the player with his belt on the line. The NPC world
