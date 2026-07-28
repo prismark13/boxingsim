@@ -14,9 +14,22 @@ namespace BoxingSim.Core.Generation;
 /// without needing to be stored anywhere, and it never shifts under him mid-career.</summary>
 public static class CareerMileage
 {
+    /// <summary>How long careers run and how busy fighters are, as multipliers on the sim's own numbers.
+    ///
+    /// Career mode leaves these at 1 and behaves exactly as it always has. A universe sets them to build a
+    /// different sport — a brutal one where men are used up in twenty fights, or a durable one where they go
+    /// on into their fifties. They are process-wide because the mileage rules are pure functions of a fighter
+    /// and have nowhere to carry a world with them; a universe sets them when it starts and career mode resets
+    /// them, so the two never disagree within a session.</summary>
+    public static double LengthScale { get; set; } = 1.0;
+    public static double ActivityScale { get; set; } = 1.0;
+
+    /// <summary>Put the dials back to what career mode expects.</summary>
+    public static void ResetScales() { LengthScale = 1.0; ActivityScale = 1.0; }
+
     /// <summary>Nobody's career is shorter than this unless an injury ends it — a man who can still fight
     /// keeps getting offers.</summary>
-    public const int MinimumCareer = 28;
+    public static int MinimumCareer => Math.Max(4, (int)Math.Round(28 * LengthScale));
 
     private static int Vary(Boxer b, string salt, int spread)
     {
@@ -30,19 +43,19 @@ public static class CareerMileage
     }
 
     /// <summary>Still learning the trade: a handful of six-rounders.</summary>
-    public static int StarterUntil(Boxer b) => 5 + Vary(b, "st", 4);            // 5–8
+    public static int StarterUntil(Boxer b) => Scaled(5 + Vary(b, "st", 4));            // 5-8, scaled
 
     /// <summary>Coming through: stepping up in class, still improving fight on fight.</summary>
-    public static int PrePrimeUntil(Boxer b) => 21 + Vary(b, "pp", 9);          // 21–29
+    public static int PrePrimeUntil(Boxer b) => Scaled(21 + Vary(b, "pp", 9));          // 21-29, scaled
 
     /// <summary>The best of him. Everything after this is a man spending what he built.</summary>
-    public static int PrimeUntil(Boxer b) => 46 + Vary(b, "pr", 14);            // 46–59
+    public static int PrimeUntil(Boxer b) => Scaled(46 + Vary(b, "pr", 14));            // 46-59, scaled
 
     /// <summary>Still competitive, but the edge has gone.</summary>
-    public static int PostPrimeUntil(Boxer b) => 64 + Vary(b, "po", 12);        // 64–75
+    public static int PostPrimeUntil(Boxer b) => Scaled(64 + Vary(b, "po", 12));        // 64-75, scaled
 
     /// <summary>Nobody goes beyond this. Long careers, but not endless ones.</summary>
-    public static int CareerLimit(Boxer b) => 80 + Vary(b, "end", 11);          // 80–90
+    public static int CareerLimit(Boxer b) => Scaled(80 + Vary(b, "end", 11));          // 80-90, scaled
 
     public static int Fights(Boxer b) => b.Record.Wins + b.Record.Losses + b.Record.Draws;
 
@@ -53,7 +66,10 @@ public static class CareerMileage
     /// four times a year and another makes a single defence and disappears, and the difference is the man, not
     /// the year. This is a trait like the stage boundaries - fixed for life, taken from his own name, so it
     /// costs nothing to store and never shifts under him.</summary>
-    public static double Activity(Boxer b) => 0.55 + Vary(b, "act", 95) / 100.0;   // 0.55 – 1.50
+    public static double Activity(Boxer b) => (0.55 + Vary(b, "act", 95) / 100.0) * ActivityScale;
+
+    /// <summary>Apply the world's career-length dial to a boundary, keeping it at least one bout.</summary>
+    private static int Scaled(int fights) => Math.Max(1, (int)Math.Round(fights * LengthScale));
 
     /// <summary>How far past his best a man is, in bouts. Zero while he is still in it.</summary>
     public static int PastPrime(Boxer b) => Math.Max(0, Fights(b) - PrimeUntil(b));

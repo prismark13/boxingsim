@@ -119,6 +119,42 @@ public sealed class CareerGame
     public int ActiveCount => _roster.Count(b => !b.Retired && b.WeightClass == Division);
     public int UniverseSize => _roster.Count(b => b.WeightClass == Division);
     private IEnumerable<Boxer> ActiveIn(WeightClass wc) => _roster.Where(b => !b.Retired && b.WeightClass == wc);
+
+    /// <summary>Set when a universe is driving this world instead of a career. Null in career mode, where the
+    /// sim uses its own numbers and nothing here applies.</summary>
+    public UniverseSettings? Universe { get; set; }
+
+    // Every bout the world resolves while a universe is watching. Career mode never turns this on, so it costs
+    // nothing there; a universe drains it each week to build its cards.
+    private List<WorldBout>? _watch;
+
+    /// <summary>Start recording every bout the world resolves, for a universe to read back.</summary>
+    public void WatchBouts() => _watch ??= new List<WorldBout>();
+
+    /// <summary>Take everything resolved since the last call.</summary>
+    public IReadOnlyList<WorldBout> DrainBouts()
+    {
+        if (_watch is null) return Array.Empty<WorldBout>();
+        var taken = _watch.ToList();
+        _watch.Clear();
+        return taken;
+    }
+
+    /// <summary>Run the world forward with nobody playing it. Career mode steps a fortnight at a time and stops
+    /// the moment the player retires; a universe has no player to retire and wants a week at a time, because a
+    /// week is what a card is.</summary>
+    public void AdvanceWorld(int days = 7)
+    {
+        var target = Date.AddDays(days);
+        while (Date < target)
+        {
+            var next = Date.AddDays(Math.Min(days, target.DayNumber - Date.DayNumber));
+            bool yearTurned = next.Year != Date.Year;
+            Date = next;
+            if (yearTurned) { ComputeAwardsFor(Date.Year - 1); InjectDebuts(); AgeRetireCrown(); }
+            RunEvent();
+        }
+    }
     private static readonly WeightClass[] AllDivisions = WeightClasses.All;
 
     // ---- read-only views of any division, for the UI's cross-division picture ----
@@ -699,7 +735,9 @@ public sealed class CareerGame
         foreach (var wc in AllDivisions)
         {
             if (!DivisionActive(wc)) continue;
-            int debuts = 14 + _rng.Next(10);
+            int debuts = Universe is { } u
+                ? Math.Max(0, u.EntrantsPerYear + _rng.Next(-3, 4))
+                : 14 + _rng.Next(10);
             for (int i = 0; i < debuts; i++) AddActive(_factory.CreateProspect(wc, GeneratedCap));
         }
     }
@@ -1832,6 +1870,12 @@ public sealed class CareerGame
 
     private void ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null)
     {
+        if (_watch is not null)
+        {
+            var w = res.Winner ?? a; var l = res.Loser ?? b;
+            _watch.Add(new WorldBout(Date, a.WeightClass, RegionOf(a) ?? "Rest of the world", a.Country ?? "",
+                                     w.Name, l.Name, res.Method, res.EndRound, res.IsDraw, note));
+        }
         // Stepping up to the world stage means giving up any national/regional strap you were carrying.
         if (IsWorldTitleNote(note)) { DropRegionals(a); DropRegionals(b); }
 
