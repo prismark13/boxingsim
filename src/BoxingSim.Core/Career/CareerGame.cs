@@ -1756,11 +1756,23 @@ public sealed class CareerGame
             if (ok.Count > 0) opp = NearOne(ok, opp.Overall);
         }
 
-        int rounds = stage == CareerStage.Starter ? 6 : idx <= 5 ? 10 : 8;
+        // The distance a man is trusted with follows his mileage, the way a real career does: four-rounders on
+        // debut, then six, eight, and ten once he is established. It used to come off the career STAGE, which
+        // gave six rounds until his ninth fight and then eight for everything up to about thirty - so a
+        // twenty-one fight professional was still being matched over eight, with no way to a ten-rounder
+        // unless he was already ranked in the top five, and no four-rounders for a debutant at all.
+        int had = ProFights(Player);
+        int rounds = had <= 4 ? 4
+                   : had <= 10 ? 6
+                   : had <= 18 ? 8
+                   : 10;
         string ctx = capped ? "building a record"
                    : target < idx ? (idx <= 5 ? "eliminator" : "step-up")
                    : stage == CareerStage.Starter || stage == CareerStage.PrePrime ? "building a record"
                    : "stay-busy";
+        // A final eliminator at the top of the division is fought over the championship distance — the winner
+        // is going straight to a title shot and has to prove he can last it.
+        if (ctx == "eliminator") rounds = 12;
         return new FightOffer { Opponent = opp, Rounds = rounds, Context = ctx };
     }
 

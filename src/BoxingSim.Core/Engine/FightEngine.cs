@@ -628,17 +628,25 @@ public sealed class FightEngine
     {
         if (s.Cut < 0.1 && s.Swell < 0.05) return false;
         double before = s.Cut;
-        double skill = 0.5 + s.R.CutResistance / 200.0;   // tougher skin / a better corner closes cuts faster
+        // A nick can be worked down between rounds. A deep gash cannot - a corner buys a man rounds with one,
+        // it does not close it. Without this the cutman healed cuts about as fast as they opened, so no cut
+        // ever reached the level a referee would stop a fight at.
+        double skill = (0.5 + s.R.CutResistance / 200.0) * (s.Cut >= 0.5 ? 0.40 : 1.0);
         if (s.Cut > 0.1) s.Cut = Math.Max(0.05, s.Cut - (0.05 + _rng.NextDouble() * 0.12) * skill);
         if (s.Swell > 0.05) s.Swell = Math.Max(0.0, s.Swell - 0.03 * skill);
         return before - s.Cut > 0.06;
     }
 
+    /// <summary>Whether a cut ends it. A bad one over an eye is the referee's business, and the later it
+    /// happens the readier he is to act. The bar used to be so high, and the chance beyond it so small, that
+    /// no fight in three thousand was ever stopped on a cut.</summary>
     private bool TryCutStoppage(State s, int round)
     {
-        if (s.Cut < 0.6) return false;
-        double chance = (s.Cut - 0.5) * 0.25 * (round / 12.0);
-        return _rng.NextDouble() < chance;
+        if (s.Cut < 0.55) return false;
+        // Worse over an eye than across the nose, and more likely as the rounds pile up.
+        double sev = (s.Cut - 0.45) * (s.CutEye ? 1.35 : 1.0);
+        double late = 0.45 + Math.Min(1.0, round / 10.0) * 0.55;
+        return _rng.NextDouble() < sev * 0.42 * late;
     }
 
     private FoulEvent? ResolveFouls(State sa, State sb, ref int deductA, ref int deductB, out bool dq, out int dqWinner)
