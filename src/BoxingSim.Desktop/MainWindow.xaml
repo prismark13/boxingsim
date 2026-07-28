@@ -682,9 +682,27 @@
                                 <TextBlock Text="{Binding OfferRounds}" FontSize="11.5" Foreground="{StaticResource Faint}"
                                            HorizontalAlignment="Center" Margin="0,10,0,0" />
 
+                                <!-- Styles make fights, so they go above the numbers. -->
+                                <Grid Margin="24,18,24,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding MyStyle}" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Text}" TextAlignment="Right" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="vs" FontSize="11" Margin="12,0"
+                                               Foreground="{StaticResource Faint}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding TheirStyle}" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                </Grid>
+                                <TextBlock Text="{Binding StyleRead}" FontSize="11.5" Margin="24,6,24,0"
+                                           Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                                           TextAlignment="Center" HorizontalAlignment="Center" MaxWidth="460" />
+
                                 <!-- Tale of the tape -->
                                 <TextBlock Text="TALE OF THE TAPE · 1–15" Style="{StaticResource Label}"
-                                           Margin="24,20,24,10" HorizontalAlignment="Center" />
+                                           Margin="24,18,24,10" HorizontalAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Tape}" Margin="24,0,24,4">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -1906,6 +1924,19 @@
                                 <TextBlock Text="{Binding Belts}" FontSize="11.5" Foreground="{StaticResource Gold}"
                                            Margin="0,5,0,0" TextWrapping="Wrap"
                                            Visibility="{Binding Belts, Converter={StaticResource EmptyVis}}" />
+                                <!-- What kind of fighter he is. It has driven every exchange he has ever had;
+                                     it should not take reading his attributes to work it out. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                            Visibility="{Binding Style, Converter={StaticResource EmptyVis}}">
+                                    <Border Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
+                                            BorderThickness="1" CornerRadius="4" Padding="7,2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Style}" FontSize="10.5" FontWeight="SemiBold"
+                                                   Foreground="#CFE4FF" />
+                                    </Border>
+                                    <TextBlock Text="{Binding StyleNote}" FontSize="11" Margin="9,0,0,0"
+                                               Foreground="{StaticResource Faint}" TextWrapping="Wrap"
+                                               VerticalAlignment="Center" MaxWidth="330" />
+                                </StackPanel>
                             </StackPanel>
                         </Grid>
 

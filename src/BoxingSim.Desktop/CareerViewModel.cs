@@ -186,6 +186,13 @@ public sealed class FighterCard : Observable
     public int Class { get; init; }
     public string Record { get; init; } = "";
     public string Belts { get; init; } = "";
+
+    /// <summary>What kind of fighter he is, and what that means. The sim has classified every man since it
+    /// was written - style drives the engine's exchanges, how dirty he is, how dangerous he is countering,
+    /// and which punches he throws - but it was never once said out loud on screen.</summary>
+    public string Style { get; init; } = "";
+    public string StyleNote { get; init; } = "";
+
     /// <summary>The fighter himself, so his stats can be recomputed at any point on his arc.</summary>
     public Boxer? Fighter { get; init; }
 
@@ -1201,6 +1208,8 @@ public sealed class CareerViewModel : Observable
                 CareerStages.Label(CareerStages.Of(b)), $"{b.Overall} OVR"
             }),
             Belts = string.Join("  ·  ", belts),
+            Style = StyleClassifier.Of(b).DisplayName(),
+            StyleNote = StyleClassifier.Of(b).Describe(),
             Fighter = b,
             Arc = g.CareerArc(b).Select(p => new ArcRow(p.Stage, p.Fights, p.Ratings, p.IsNow)).ToList(),
             Form = FormOf(b),
@@ -1866,6 +1875,7 @@ public sealed class CareerViewModel : Observable
         if (Game?.Offer is not { } o) return;
         var me = Game.Player.Ratings;
         var them = o.Opponent.Ratings;
+        BuildStyleMatchup(Game.Player, o.Opponent);
         // Both men's attributes on the 1–15 class scale, so the tape reads in the same units as the pills.
         void Row(string name, int rawA, int rawB)
         {
@@ -1879,6 +1889,35 @@ public sealed class CareerViewModel : Observable
         Row("Stamina", me.Stamina, them.Stamina);
         Row("Accuracy", me.Accuracy, them.Accuracy);
         Row("Heart", me.Heart, them.Heart);
+    }
+
+    // ---- the styles, and what they make of each other ----
+    private string _myStyle = "", _theirStyle = "", _styleRead = "";
+    /// <summary>What each man is, above the tape.</summary>
+    public string MyStyle => _myStyle;
+    public string TheirStyle => _theirStyle;
+    /// <summary>What the pairing means. Styles make fights: the swarmer hunts the out-boxer, the out-boxer
+    /// picks the slugger apart, the slugger walks through the swarmer. The sim has always scored this — it is
+    /// in every exchange — so the card may as well say which way it leans before the bell.</summary>
+    public string StyleRead => _styleRead;
+
+    private void BuildStyleMatchup(Boxer me, Boxer them)
+    {
+        var a = StyleClassifier.Of(me);
+        var b = StyleClassifier.Of(them);
+        _myStyle = a.DisplayName();
+        _theirStyle = b.DisplayName();
+
+        double edge = FightingStyles.Advantage(a, b);
+        _styleRead = a == b
+            ? $"Two {a.DisplayName().ToLowerInvariant()}s — neither man's style troubles the other, so it comes down to who is better."
+            : edge >= 0.45 ? $"The matchup is yours: a {a.DisplayName().ToLowerInvariant()} is trouble for a {b.DisplayName().ToLowerInvariant()}."
+            : edge >= 0.15 ? $"The styles lean your way — a {b.DisplayName().ToLowerInvariant()} would rather not be in with a {a.DisplayName().ToLowerInvariant()}."
+            : edge > -0.15 ? $"{a.DisplayName()} against {b.DisplayName()} — nothing in the styles either way."
+            : edge > -0.45 ? $"The styles lean his way: a {b.DisplayName().ToLowerInvariant()} knows what to do with a {a.DisplayName().ToLowerInvariant()}."
+            : $"A bad style night: the {b.DisplayName().ToLowerInvariant()} is exactly the wrong man for a {a.DisplayName().ToLowerInvariant()}.";
+
+        foreach (var n in new[] { nameof(MyStyle), nameof(TheirStyle), nameof(StyleRead) }) Raise(n);
     }
 
     private void BuildStats()

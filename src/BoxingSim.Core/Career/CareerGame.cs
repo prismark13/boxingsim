@@ -211,6 +211,10 @@ public sealed class CareerGame
             yield return (kv.Key.Region, 0);
     }
     public int ActiveCountOf(WeightClass wc) => _roster.Count(b => !b.Retired && b.WeightClass == wc);
+
+    /// <summary>Every fighter this world has ever held, retired or not — for reading the sport as a whole
+    /// rather than one division's standings.</summary>
+    public IReadOnlyList<Boxer> EveryFighter => _roster;
     /// <summary>The top world-ranked fighters in a division (for a rankings view).</summary>
     public IReadOnlyList<Boxer> RankingOf(WeightClass wc, int take = 15) =>
         ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(take).ToList();
