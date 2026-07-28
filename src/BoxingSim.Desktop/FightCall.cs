@@ -248,7 +248,12 @@ public static class FightCall
                 {
                     string w = (fin.Winner == 0) == iAmA ? my : his;
                     string l = w == my ? his : my;
-                    lines.Add(Line(caller.Finish(w, l, fin), CallKind.Verdict, CallEvent.Stoppage));
+                    // The shape of the ending matters to how it is called: a one-punch knockout in the second
+                    // is not the same story as a man being broken down over twelve, and a fighter who has
+                    // already been on the floor twice is not being knocked out "out of nowhere".
+                    bool loserHadBeenDown = (w == my ? kdAgainstHim : kdAgainstMe) > 1;
+                    lines.Add(Line(caller.Finish(w, l, fin, rd.Round, loserHadBeenDown),
+                                   CallKind.Verdict, CallEvent.Stoppage));
                     lines.Add(Line(caller.Crowd(w == my), CallKind.Crowd));
                     endedFight = true;
                 }
@@ -466,30 +471,78 @@ public static class FightCall
             $"{who} is warned for {type}.",
             $"The referee steps in — {type} from {who}.");
 
-        public string Finish(string w, string l, StopInfo fin) => fin.Method switch
+        /// <summary>How a fight ended, told the way it happened. A knockout inside two rounds, a man broken
+        /// down over twelve, one who had already been on the floor twice, a body shot that folded him — these
+        /// are different endings and were all reaching the reader as the same two or three sentences.
+        /// The pools are separated by the shape of the finish so the right kind of line gets picked.</summary>
+        public string Finish(string w, string l, StopInfo fin, int round, bool hadBeenDown)
         {
-            "KO" => Rotate("ko",
-                $"{w} KNOCKS OUT {l}!",
-                $"IT'S ALL OVER — {w} has knocked him cold!",
-                $"{l} is out! {w} has finished it!"),
-            "DQ" => $"{l} is disqualified — it's over.",
-            "cut" => Rotate("cut",
-                $"The doctor takes one look and waves it off — {l} can't continue with that cut.",
-                $"The referee calls the doctor over, and that is that. {l} is out on the cut."),
-            // A stoppage always has somebody who stopped it. Every one of these names him — referee, corner or
-            // doctor — because "STOPS him" on its own leaves you unable to tell what actually happened, and a
-            // third of them used to read exactly that way.
-            _ => fin.Body
-                ? Rotate("tkobody",
+            bool early = round <= 2;
+            bool late = round >= 9;
+
+            if (fin.Method == "DQ") return $"{l} is disqualified — it's over.";
+
+            if (fin.Method == "cut")
+                return Rotate("cut",
+                    $"The doctor takes one look and waves it off — {l} can't continue with that cut.",
+                    $"The referee calls the doctor over, and that is that. {l} is out on the cut.",
+                    $"They can't stem it. The cut has ended {l}'s night.");
+
+            if (fin.Method == "KO")
+            {
+                // A man who has been down before is not caught cold; he is worn down and finally caught.
+                if (hadBeenDown)
+                    return Rotate("koAgain",
+                        $"{l} goes down again — and this time he does not get up. {w} has knocked him out!",
+                        $"He had nothing left to get up with. {w} KNOCKS OUT {l}!",
+                        $"That is the end of it — {l} has been on the floor once too often. {w} wins by knockout!");
+                if (early)
+                    return Rotate("koEarly",
+                        $"OUT OF NOWHERE! {w} has knocked {l} spark out in the {Ord(round)}!",
+                        $"{l} never saw it. {w} KNOCKS HIM OUT in the {Ord(round)}!",
+                        $"One punch — and it is finished. {w} flattens {l} inside {round} round{(round == 1 ? "" : "s")}!");
+                if (late)
+                    return Rotate("koLate",
+                        $"{l} is out on his feet no longer — he is out cold. {w} KNOCKS HIM OUT in the {Ord(round)}!",
+                        $"After all of that, it ends with one shot. {w} KNOCKS OUT {l}!",
+                        $"{l} has been carried into the deep water and drowned there. {w} wins by knockout!");
+                return Rotate("ko",
+                    $"{w} KNOCKS OUT {l}!",
+                    $"IT'S ALL OVER — {w} has knocked him cold!",
+                    $"{l} is out! {w} has finished it!",
+                    $"Flat on his back — the referee does not even begin the count. {w} KNOCKS OUT {l}!",
+                    $"{l} is gone. He was unconscious before he landed. {w} has knocked him out!",
+                    $"Timber! {l} goes over stiff and {w} has his knockout!");
+            }
+
+            if (fin.Body)
+                return Rotate("tkobody",
                     $"{l} turns away from the body shots and the referee jumps straight in! {w} STOPS him!",
                     $"The body work has done it — the referee waves it off! {w} STOPS {l}!",
-                    $"{l} sinks to a knee from the body and the referee has seen enough! {w} wins it!")
-                : Rotate("tko",
-                    $"The referee jumps in to save him! {w} STOPS {l}!",
-                    $"The referee has seen enough — he waves it off! {w} STOPS {l}!",
-                    $"The towel comes in from {l}'s corner! {w} wins it!",
-                    $"That is all — the referee steps between them and saves {l}. {w} STOPS him!")
-        };
+                    $"{l} sinks to a knee, hand on his ribs, and the referee has seen enough! {w} wins it!",
+                    $"That is what all that body work was for. {l} cannot straighten up and it is waved off — {w} wins!");
+
+            if (hadBeenDown)
+                return Rotate("tkoAgain",
+                    $"The referee will not let him take another one. {w} STOPS {l}!",
+                    $"{l} has been down too often and the referee steps in to save him. {w} wins it!",
+                    $"Enough. The referee has seen a man who has stopped defending himself. {w} STOPS {l}!");
+            if (late)
+                return Rotate("tkoLate",
+                    $"He has broken him down over {round} rounds — the referee waves it off! {w} STOPS {l}!",
+                    $"{l} has nothing left to hold him up and the referee saves him in the {Ord(round)}. {w} wins it!",
+                    $"The corner will not send him out again. It is over — {w} beats {l}.");
+            return Rotate("tko",
+                $"The referee jumps in to save him! {w} STOPS {l}!",
+                $"The referee has seen enough — he waves it off! {w} STOPS {l}!",
+                $"The towel comes in from {l}'s corner! {w} wins it!",
+                $"That is all — the referee steps between them and saves {l}. {w} STOPS him!",
+                $"{l} is taking them without answer and the referee has stepped in. {w} STOPS him!");
+        }
+
+        /// <summary>"the 4th", so a round can be named in prose rather than printed as a number.</summary>
+        private static string Ord(int n) => n + (n % 100 is >= 11 and <= 13 ? "th"
+                                                : (n % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" });
 
         /// <summary>Read the shape of a round from its ticks: body investment, a late surge or a fade, a war in
         /// the pocket, a cagey feeling-out, a man content to counter. Returns null when the round had no story
