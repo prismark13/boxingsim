@@ -1,8 +1,13 @@
-name: Deploy Blazor WASM to GitHub Pages
+# DEPRECATED. The Blazor build is no longer the product - development moved to the WPF desktop app, and the
+# web version has not kept up: ring position, the mileage-based career model, the generated commentary, the
+# audio and the whole fight-night screen are desktop-only. It is left buildable rather than deleted because
+# the fighter roster still lives under src/BoxingSim.App/wwwroot/data/fighters.json, which the DESKTOP app
+# embeds - removing the project would take the roster with it.
+#
+# No longer deploys on push. Run it by hand if a web build is ever wanted again.
+name: Deploy Blazor WASM to GitHub Pages (deprecated)
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:

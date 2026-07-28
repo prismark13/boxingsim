@@ -8,6 +8,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>BoxingSim</AssemblyName>
+    <!-- Shipping: one file, no debug symbols beside it, and everything it needs inside. -->
+    <DebugType Condition="'$(Configuration)'=='Release'">none</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <RootNamespace>BoxingSim.Desktop</RootNamespace>
   </PropertyGroup>
 
@@ -15,11 +20,13 @@
     <ProjectReference Include="..\BoxingSim.Core\BoxingSim.Core.csproj" />
   </ItemGroup>
 
-  <!-- Real audio, if any is supplied. Drop files into assets/audio and they override the synthesised layers
-       at runtime; the app works with none, some, or all of them present. -->
+  <!-- Real audio. Copied beside the exe for a normal run so the files can be swapped without a rebuild, and
+       ALSO embedded so a single-file publish carries them: without the embedded copy a shipped build would
+       quietly fall back to synthesised sound the moment the folder was not next to it. -->
   <ItemGroup>
     <None Include="assets/audio/**/*.*" CopyToOutputDirectory="PreserveNewest"
           Link="assets/audio/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="assets/audio/*.wav" LogicalName="audio.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- The roster is BOTH embedded and copied beside the .exe. Embedding keeps a single-file publish genuinely

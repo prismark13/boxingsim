@@ -175,11 +175,17 @@ public static class Sfx
     {
         if (_files.TryGetValue(key, out var cached) && File.Exists(cached)) return cached;
 
+        // A loose file beside the exe wins, so audio can be swapped without a rebuild.
         foreach (var ext in new[] { ".wav", ".mp3", ".ogg" })
         {
             var asset = Path.Combine(AppContext.BaseDirectory, "assets", "audio", key + ext);
             if (File.Exists(asset)) { _files[key] = asset; _real.Add(key); return asset; }
         }
+
+        // Otherwise the copy built into the app. A single-file publish has no folder beside it, and without
+        // this a shipped build would quietly fall back to synthesis and sound worse than the one that was
+        // tested — the recordings travel INSIDE the executable.
+        if (Embedded(key) is string built) { _files[key] = built; _real.Add(key); return built; }
 
         // Nothing supplied — synthesise it once into temp and reuse.
         var dir = Path.Combine(Path.GetTempPath(), "BoxingSim.sfx");
@@ -188,6 +194,28 @@ public static class Sfx
         if (!File.Exists(path)) File.WriteAllBytes(path, make());
         _files[key] = path;
         return path;
+    }
+
+    /// <summary>Unpack a built-in recording to temp once, and hand back the path. MediaPlayer wants a file,
+    /// so a stream is not enough.</summary>
+    private static string? Embedded(string key)
+    {
+        try
+        {
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();
+            using var src = asm.GetManifestResourceStream($"audio.{key}.wav");
+            if (src is null) return null;
+            var dir = Path.Combine(Path.GetTempPath(), "BoxingSim.sfx");
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, key + ".wav");
+            if (!File.Exists(path) || new FileInfo(path).Length != src.Length)
+            {
+                using var dst = File.Create(path);
+                src.CopyTo(dst);
+            }
+            return path;
+        }
+        catch { return null; }
     }
 
     private static readonly HashSet<string> _real = new();

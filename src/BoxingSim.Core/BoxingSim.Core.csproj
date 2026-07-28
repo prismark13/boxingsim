@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- No debug symbols beside a shipped build. -->
+    <DebugType Condition="'$(Configuration)'=='Release'">none</DebugType>
   </PropertyGroup>
 
 </Project>
