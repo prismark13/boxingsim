@@ -1621,6 +1621,81 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
+                                <!-- ARSENAL. Which punches he actually throws. Two men on identical ratings
+                                     fight nothing alike if one lives behind a jab and the other digs to the
+                                     body, and this is the same distribution the engine picks his shots from. -->
+                                <TextBlock Text="ARSENAL" Style="{StaticResource PanelHeader}" Margin="24,14,24,4"
+                                           Visibility="{Binding HasArsenal, Converter={StaticResource BoolVis}}" />
+                                <ItemsControl ItemsSource="{Binding Arsenal}" Margin="24,0,24,4">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="76" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="38" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource Muted}" />
+                                                <Grid x:Name="ATrack" Grid.Column="1" Height="7" VerticalAlignment="Center">
+                                                    <Border Background="{StaticResource Line}" CornerRadius="3.5" />
+                                                    <Border HorizontalAlignment="Left" CornerRadius="3.5"
+                                                            Background="{Binding Colour}">
+                                                        <Border.Width>
+                                                            <MultiBinding Converter="{StaticResource BarWidth}">
+                                                                <Binding Path="Width" />
+                                                                <Binding Path="ActualWidth" ElementName="ATrack" />
+                                                            </MultiBinding>
+                                                        </Border.Width>
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Grid.Column="2" Text="{Binding Percent, StringFormat={}{0}%}"
+                                                           FontSize="11" HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center" Foreground="{StaticResource Text}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- What his attributes ADD UP TO. Killer instinct, durability, recovery,
+                                     pressure and countering are each a blend of several ratings, and they are
+                                     what people actually describe a fighter with. -->
+                                <TextBlock Text="DERIVED · 1–15" Style="{StaticResource PanelHeader}" Margin="24,14,24,4"
+                                           Visibility="{Binding HasSecondary, Converter={StaticResource BoolVis}}" />
+                                <ItemsControl ItemsSource="{Binding Secondary}" Margin="24,0,24,4">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,4,14,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="98" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="30" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource Muted}" />
+                                                <Grid x:Name="STrack" Grid.Column="1" Height="7" VerticalAlignment="Center">
+                                                    <Border Background="{StaticResource Line}" CornerRadius="3.5" />
+                                                    <Border HorizontalAlignment="Left" CornerRadius="3.5"
+                                                            Background="{Binding Value, Converter={StaticResource ClassColour}}">
+                                                        <Border.Width>
+                                                            <MultiBinding Converter="{StaticResource BarWidth}">
+                                                                <Binding Path="Width" />
+                                                                <Binding Path="ActualWidth" ElementName="STrack" />
+                                                            </MultiBinding>
+                                                        </Border.Width>
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Grid.Column="2" Text="{Binding Value}" FontSize="11"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource Text}" FontWeight="SemiBold" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
                                 <!-- What the ledger says, which no 1-15 bar can: how he finishes, whether he
                                      has ever been stopped, and the volume he works at. -->
                                 <TextBlock Text="FORM" Style="{StaticResource PanelHeader}" Margin="24,14,24,4"

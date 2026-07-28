@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using BoxingSim.Core.Analysis;
 using System.Windows.Threading;
 using BoxingSim.Core.Career;
 using BoxingSim.Core.Engine;
@@ -116,6 +117,9 @@ public sealed record TapeRow(string Attribute, int Mine, int Theirs, double Mine
 
 /// <summary>The drill-down card for any fighter in any list.</summary>
 public sealed record CardStat(string Name, int Value, double Width);
+
+/// <summary>One punch's share of a fighter's arsenal, with the colour it is drawn in.</summary>
+public sealed record ArsenalSlice(string Name, int Percent, double Width, string Colour);
 public sealed class FighterCard
 {
     public string Name { get; init; } = "";
@@ -131,6 +135,17 @@ public sealed class FighterCard
     /// finished, and the volume he works at. A 1-15 bar cannot say "he has stopped two thirds of them".</summary>
     public IReadOnlyList<StatRow> Form { get; init; } = Array.Empty<StatRow>();
     public bool HasForm => Form.Count > 0;
+
+    /// <summary>Which punches he actually throws, as a share of everything he lets go. Two men on identical
+    /// ratings fight nothing alike if one lives behind a jab and the other digs to the body all night.</summary>
+    public IReadOnlyList<ArsenalSlice> Arsenal { get; init; } = Array.Empty<ArsenalSlice>();
+    public bool HasArsenal => Arsenal.Count > 0;
+
+    /// <summary>The derived qualities: what his raw attributes ADD UP TO. Killer instinct, durability,
+    /// recovery, pressure and countering are each a blend of several ratings, and they are the things people
+    /// actually describe a fighter with.</summary>
+    public IReadOnlyList<CardStat> Secondary { get; init; } = Array.Empty<CardStat>();
+    public bool HasSecondary => Secondary.Count > 0;
     /// <summary>The division to jump to from the card, so you can follow a fighter to his rankings.</summary>
     public WeightClass? Division { get; init; }
     public string DivisionLink => Division is WeightClass w ? $"See the {w.DisplayName()} rankings" : "";
@@ -897,6 +912,8 @@ public sealed class CareerViewModel : Observable
             }),
             Belts = string.Join("  ·  ", belts),
             Ratings = AttributeBars(b.Ratings),
+            Arsenal = ArsenalOf(b),
+            Secondary = SecondaryOf(b),
             Form = FormOf(b),
             Recent = b.History.OrderByDescending(h => h.Date).Select(h => ToLedger(h, b.Name)).ToList(),
             Division = b.WeightClass
@@ -954,6 +971,34 @@ public sealed class CareerViewModel : Observable
                                  $"taken in a round, best to worst - {cards.Average(x => x.LandedAgainst):0.0} typical"));
         }
         return rows;
+    }
+
+    /// <summary>His punch mix. The engine already computes this to decide what he throws, so what is shown
+    /// here is literally what he will do in the ring rather than a separate cosmetic guess.</summary>
+    private static IReadOnlyList<ArsenalSlice> ArsenalOf(Boxer b)
+    {
+        var d = PunchProfile.Distribution(b);
+        var parts = new[]
+        {
+            ("Jab", d.Jab, "#8A7F70"), ("Cross", d.Cross, "#4FA3FF"), ("Hook", d.Hook, "#FFC24D"),
+            ("Uppercut", d.Uppercut, "#4FD98B"), ("Body", d.Body, "#FF7A47")
+        };
+        int top = Math.Max(1, parts.Max(x => x.Item2));
+        return parts.Select(x => new ArsenalSlice(x.Item1, x.Item2, x.Item2 / (double)top, x.Item3)).ToList();
+    }
+
+    /// <summary>The derived qualities, on the same 1-15 scale as everything else.</summary>
+    private static IReadOnlyList<CardStat> SecondaryOf(Boxer b)
+    {
+        var r = b.Ratings;
+        return new[]
+        {
+            Bar("Killer instinct", SecondaryStats.KillerInstinct(r)),
+            Bar("Durability", SecondaryStats.Durability(r)),
+            Bar("Recovery", SecondaryStats.Recovery(r)),
+            Bar("Pressure", SecondaryStats.Pressure(r)),
+            Bar("Counter", SecondaryStats.Counter(b)),
+        };
     }
 
     private static CardStat Bar(string name, int raw)
