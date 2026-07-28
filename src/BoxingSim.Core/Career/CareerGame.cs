@@ -544,6 +544,7 @@ public sealed class CareerGame
         string? belt = Offer.Belt;
         string? note = belt is not null ? $"{belt} title" : (Offer.Context is "eliminator" ? "eliminator" : null);
         var res = _engine.Simulate(Player, opp, Offer.Rounds);
+        _declined.Clear();
         ApplyOutcome(res, Player, opp, note);
 
         string verb = res.IsDraw ? "drew with" : (res.Winner!.Id == Player.Id ? "beat" : "lost to");
@@ -605,12 +606,24 @@ public sealed class CareerGame
     }
 
     /// <summary>Turn the offer down and wait — the calendar still moves and a new offer comes in.</summary>
+    /// <summary>Turn a fight down. The man you passed on is remembered, so holding out gets you a DIFFERENT
+    /// name rather than the same one again: a fighter who has said no does not keep getting the same offer
+    /// from the same matchmaker week after week.</summary>
     public void DeclineOffer()
     {
         if (Player.Retired) return;
+        if (Offer is { } turned)
+        {
+            _declined.Add(turned.Opponent.Id);
+            while (_declined.Count > 4) _declined.RemoveAt(0);   // he comes back round eventually
+        }
         AdvanceTo(Date.AddDays(21 + _rng.Next(21)));
         Offer = Player.Retired ? null : BuildOffer();
     }
+
+    // Men the player has recently turned down. Cleared when he actually takes a fight - once he is boxing
+    // again the matchmaker has no reason to keep steering round them.
+    private readonly List<int> _declined = new();
 
     /// <summary>Give up the WBC belt rather than defend it — the senior belt (and that reign) stays intact.
     /// Only meaningful for a unified champion; the vacant WBC passes to the leading contender.</summary>
@@ -1470,6 +1483,18 @@ public sealed class CareerGame
         return basis * CareerMileage.Activity(b);
     }
 
+    /// <summary>One of the closest few by rating, rather than always the single closest. Taking the top match
+    /// every time made these passes deterministic: hold a fight out and the same name came straight back,
+    /// because "nearest to 62" has one answer. Men recently turned down are stepped over where there is anyone
+    /// else to take instead.</summary>
+    private Boxer NearOne(List<Boxer> pool, int target)
+    {
+        var wanted = pool.Where(b => !_declined.Contains(b.Id)).ToList();
+        if (wanted.Count == 0) wanted = pool;
+        var near = wanted.OrderBy(b => Math.Abs(b.Overall - target)).Take(5).ToList();
+        return near[_rng.Next(near.Count)];
+    }
+
     /// <summary>Days since a fighter's most recent bout (large if he has no ledger) — stops a champion
     /// from defending too frequently.</summary>
     private int DaysSinceLastBout(Boxer b) => b.History.Count == 0 ? 999 : Date.DayNumber - b.History[^1].Date.DayNumber;
@@ -1681,7 +1706,7 @@ public sealed class CareerGame
         {
             var fresh = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr
                                        && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-            if (fresh.Count > 0) opp = fresh.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
+            if (fresh.Count > 0) opp = NearOne(fresh, opp.Overall);
         }
 
         // A gatekeeper is a SEASONED fighter (15+ bouts) — a mid-rated man with a thin record is a rising prospect,
@@ -1692,7 +1717,7 @@ public sealed class CareerGame
             var seasoned = ranked.Where(b => b.Id != Player.Id && b.Id != opp.Id && b.Overall <= maxOvr
                                           && (ProFights(b) >= 15 || b.Overall <= 55)
                                           && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-            if (seasoned.Count > 0) opp = seasoned.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
+            if (seasoned.Count > 0) opp = NearOne(seasoned, opp.Overall);
         }
 
         // A ranked contender's schedule: NOT a top-10 war every time out, and NEVER fed raw prospects. Most dates
@@ -1728,7 +1753,7 @@ public sealed class CareerGame
             var ok = ranked.Where(b => b.Id != Player.Id && !Barred(b) && b.Overall <= maxOvr
                                     && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
             if (ok.Count == 0) ok = ranked.Where(b => b.Id != Player.Id && !Barred(b)).ToList();
-            if (ok.Count > 0) opp = ok.OrderBy(b => Math.Abs(b.Overall - opp.Overall)).First();
+            if (ok.Count > 0) opp = NearOne(ok, opp.Overall);
         }
 
         int rounds = stage == CareerStage.Starter ? 6 : idx <= 5 ? 10 : 8;
