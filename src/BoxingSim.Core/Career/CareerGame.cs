@@ -1180,9 +1180,9 @@ public sealed class CareerGame
         {
             if (!_regional.TryGetValue((_cursor, region), out var rc) || rc.Id == Player.Id || rc.Retired) continue;
             if (_rng.NextDouble() >= 0.05) continue;
-            var chall = pool.Where(b => RegionOf(b) == region && b.Id != rc.Id && WorldRanked(b))
+            var chall = pool.Where(b => RegionOf(b) == region && b.Id != rc.Id && WorldRanked(b) && ChasesRegional(b))
                             .OrderByDescending(RankScore).Skip(_rng.Next(4)).FirstOrDefault()
-                        ?? pool.FirstOrDefault(b => RegionOf(b) == region && b.Id != rc.Id);
+                        ?? pool.FirstOrDefault(b => RegionOf(b) == region && b.Id != rc.Id && ChasesRegional(b));
             if (chall is null) continue;
             var rres = FastBout(rc, chall, 12);
             ApplyOutcome(rres, rc, chall, $"{region} title");
@@ -1886,6 +1886,22 @@ public sealed class CareerGame
     private readonly Dictionary<(WeightClass Div, string Region), Boxer> _regional = new();   // (division, region) → belt holder
     private static readonly string[] RegionalBelts = { "NABF", "European", "Commonwealth" };
 
+    /// <summary>Whether a fighter would realistically campaign for a regional belt.
+    ///
+    /// These are a rung on the way UP - a man wins the NABF or the European to prove he belongs, and then goes
+    /// after a world title. They were being handed to whoever stood highest in the rankings, which meant former
+    /// world champions kept turning up to contest them, and that is not how the sport works. A man who has held
+    /// a world title does not go back for a regional one unless his career has genuinely collapsed, and even
+    /// then it is rare - it is a rebuilding job, not an ambition.
+    ///
+    /// A reigning world champion never does it at all.</summary>
+    private bool ChasesRegional(Boxer b)
+    {
+        if (IsWorldChampion(b)) return false;
+        if (!_everChampion.Contains(b.Id)) return true;
+        return !WorldRanked(b) && _rng.NextDouble() < 0.10;
+    }
+
     /// <summary>The regional belts the player currently holds (for the UI header).</summary>
     public IEnumerable<string> PlayerRegionalBelts => _regional.Where(kv => kv.Key.Div == Division && kv.Value.Id == Player.Id).Select(kv => kv.Key.Region);
     public Boxer? RegionalChampion(string region) => _regional.GetValueOrDefault((Division, region));
@@ -1965,9 +1981,13 @@ public sealed class CareerGame
             if (_regional.TryGetValue((wc, region), out var cur) && (cur.Retired || cur.WeightClass != wc || RegionOf(cur) != region)) _regional.Remove((wc, region));
             if (!_regional.ContainsKey((wc, region)))
             {
-                var pick = ActiveIn(wc).Where(b => b.Id != Player.Id && RegionOf(b) == region
-                                          && b.Id != champ?.Id && b.Id != wbc?.Id && b.Id != ibf?.Id && WorldRanked(b))
-                                 .OrderByDescending(RankScore).FirstOrDefault();
+                var contenders = ActiveIn(wc).Where(b => b.Id != Player.Id && RegionOf(b) == region
+                                          && b.Id != champ?.Id && b.Id != wbc?.Id && b.Id != ibf?.Id
+                                          && WorldRanked(b) && ChasesRegional(b))
+                                 .OrderByDescending(RankScore).ToList();
+                // Skip the very top of the list where possible: the best contender in a division is already
+                // fighting for a world title, not collecting a regional one on his way past.
+                var pick = contenders.Skip(2).FirstOrDefault() ?? contenders.FirstOrDefault();
                 if (pick is not null)
                 {
                     _regional[(wc, region)] = pick;
