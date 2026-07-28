@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows;
 using BoxingSim.Core.Model;
 
 namespace BoxingSim.Desktop;
@@ -118,4 +119,58 @@ public sealed class EmptyToVisibilityConverter : IValueConverter
             ? System.Windows.Visibility.Collapsed
             : System.Windows.Visibility.Visible;
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
+/// <summary>Paints a stamina bar from how much a man has left. Full, it is his corner's colour; as the tank
+/// empties it warms through amber and finishes red, so a fighter in trouble is obvious from the colour alone
+/// without reading a number. The brush is a gradient rather than a flat fill — the inner end, nearest the
+/// centre of the ring where the two bars meet, is the deeper shade, so the bar reads as draining toward the
+/// middle rather than as a block that happens to be short.
+///
+/// The parameter picks the corner: "mine" for the player's blue, anything else for the opponent's red.</summary>
+public sealed class GasBrushConverter : IValueConverter
+{
+    private static readonly Color Blue = Color.FromRgb(0x3D, 0x9B, 0xFF);
+    private static readonly Color Red = Color.FromRgb(0xFF, 0x83, 0x55);
+    private static readonly Color Warn = Color.FromRgb(0xF0, 0xB7, 0x3E);
+    private static readonly Color Spent = Color.FromRgb(0xFF, 0x4D, 0x4D);
+
+    private static Color Mix(Color a, Color b, double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        return Color.FromRgb((byte)(a.R + (b.R - a.R) * t),
+                             (byte)(a.G + (b.G - a.G) * t),
+                             (byte)(a.B + (b.B - a.B) * t));
+    }
+
+    private static Color Shade(Color c, double by)
+    {
+        by = Math.Clamp(by, 0, 1);
+        return Color.FromRgb((byte)(c.R * by), (byte)(c.G * by), (byte)(c.B * by));
+    }
+
+    public object Convert(object value, Type t, object parameter, CultureInfo c)
+    {
+        double gas = value is double d ? Math.Clamp(d, 0, 1) : 1;
+        bool mine = (parameter as string) == "mine";
+        Color healthy = mine ? Blue : Red;
+
+        // Fresh down to three-quarters is his own colour; below that it warms, and the last of it is red.
+        Color now = gas >= 0.62
+            ? Mix(Warn, healthy, (gas - 0.62) / 0.38)
+            : Mix(Spent, Warn, Math.Max(0, gas - 0.22) / 0.40);
+
+        // Deeper at the end nearest the centre, brighter at the outer end.
+        var g = new LinearGradientBrush
+        {
+            StartPoint = mine ? new Point(1, 0) : new Point(0, 0),
+            EndPoint = mine ? new Point(0, 0) : new Point(1, 0)
+        };
+        g.GradientStops.Add(new GradientStop(Shade(now, 0.72), 0));
+        g.GradientStops.Add(new GradientStop(now, 1));
+        g.Freeze();
+        return g;
+    }
+
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotSupportedException();
 }

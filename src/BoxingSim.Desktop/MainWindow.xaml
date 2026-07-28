@@ -43,6 +43,7 @@
         <local:EmptyToVisibilityConverter x:Key="EmptyVis" />
         <local:EnumToVisibilityConverter x:Key="PageVis" />
         <local:FractionWidthConverter x:Key="BarWidth" />
+        <local:GasBrushConverter x:Key="GasBrush" />
         <local:WeightClassNameConverter x:Key="DivName" />
         <local:ShoutConverter x:Key="Shout" />
         <local:OnOffConverter x:Key="OnOff" />
@@ -180,7 +181,8 @@
                     </Grid>
 
                     <TextBlock Text="TALENT" Style="{StaticResource Label}" Margin="0,18,0,6" />
-                    <ComboBox ItemsSource="{Binding Talents}" SelectedItem="{Binding Talent}" />
+                    <ComboBox ItemsSource="{Binding Talents}" SelectedValue="{Binding Talent}"
+                              SelectedValuePath="Key" DisplayMemberPath="Label" />
 
                     <CheckBox Content="Simulate full history (seeds the Hall of Fame with past greats)"
                               IsChecked="{Binding FullHistory}" Margin="0,20,0,0" />
@@ -1020,61 +1022,20 @@
                                        VerticalAlignment="Center" Margin="18,0,0,0" />
                         </Grid>
 
-                        <Grid Margin="0,8,0,0" Height="9">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="4" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid x:Name="MineShare">
-                                <Border Background="{StaticResource Line}" CornerRadius="4" />
-                                <Border HorizontalAlignment="Right" CornerRadius="4" Background="{StaticResource Accent}">
-                                    <Border.Width>
-                                        <MultiBinding Converter="{StaticResource BarWidth}">
-                                            <Binding Path="LiveMineShare" />
-                                            <Binding Path="ActualWidth" ElementName="MineShare" />
-                                        </MultiBinding>
-                                    </Border.Width>
-                                </Border>
-                            </Grid>
-
-                            <!-- His share is the OTHER fighter, not empty space. In grey on a grey track it was
-                                 barely visible, so the live count read as one man landing and nobody opposite. -->
-                            <Grid x:Name="HisShare" Grid.Column="2">
-                                <Border Background="{StaticResource Line}" CornerRadius="4" />
-                                <Border HorizontalAlignment="Left" CornerRadius="4" Background="{StaticResource Foe}">
-                                    <Border.Width>
-                                        <MultiBinding Converter="{StaticResource BarWidth}">
-                                            <Binding Path="LiveHisShare" />
-                                            <Binding Path="ActualWidth" ElementName="HisShare" />
-                                        </MultiBinding>
-                                    </Border.Width>
-                                </Border>
-                            </Grid>
-                        </Grid>
                         <!-- What each man has left. This is the engine's own fatigue - the thing that actually
                              fades a fighter - so the bar falling IS the reason his output is dropping, not a
                              decoration alongside it. Each man keeps his corner's colour as it drains, and goes
                              red when the tank is genuinely low. -->
-                        <Grid Margin="0,7,0,0" Height="5">
+                        <Grid Margin="0,10,0,0" Height="9">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="4" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Grid x:Name="MineGas">
-                                <Border Background="{StaticResource Line}" CornerRadius="2.5" />
-                                <Border HorizontalAlignment="Right" CornerRadius="2.5">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="{StaticResource Accent}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding MyManGassed}" Value="True">
-                                                    <Setter Property="Background" Value="{StaticResource Loss}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
+                                <Border Background="{StaticResource Line}" CornerRadius="4" />
+                                <Border HorizontalAlignment="Right" CornerRadius="4"
+                                        Background="{Binding LiveMyGas, Converter={StaticResource GasBrush}, ConverterParameter=mine}">
                                     <Border.Width>
                                         <MultiBinding Converter="{StaticResource BarWidth}">
                                             <Binding Path="LiveMyGas" />
@@ -1084,18 +1045,9 @@
                                 </Border>
                             </Grid>
                             <Grid x:Name="HisGas" Grid.Column="2">
-                                <Border Background="{StaticResource Line}" CornerRadius="2.5" />
-                                <Border HorizontalAlignment="Left" CornerRadius="2.5">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="{StaticResource Foe}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HisManGassed}" Value="True">
-                                                    <Setter Property="Background" Value="{StaticResource Loss}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
+                                <Border Background="{StaticResource Line}" CornerRadius="4" />
+                                <Border HorizontalAlignment="Left" CornerRadius="4"
+                                        Background="{Binding LiveHisGas, Converter={StaticResource GasBrush}, ConverterParameter=his}">
                                     <Border.Width>
                                         <MultiBinding Converter="{StaticResource BarWidth}">
                                             <Binding Path="LiveHisGas" />

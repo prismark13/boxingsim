@@ -349,7 +349,17 @@ public sealed class CareerViewModel : Observable
         "Italy", "Argentina", "Cuba", "Nigeria", "Poland"
     };
     public IReadOnlyList<int> Years { get; } = Enumerable.Range(1945, 71).ToList();
-    public IReadOnlyList<string> Talents { get; } = new[] { "elite", "contender", "journeyman", "club", "random915" };
+    /// <summary>What you are starting with, in the app's own 1-15 units and in plain words. The combo used to
+    /// show the raw keys - "random915" and "club" - which told a new player nothing at all. New Star leads
+    /// because it is the one most people want: a real prospect, but with the ceiling left to chance.</summary>
+    public IReadOnlyList<TalentOption> Talents { get; } = new[]
+    {
+        TalentOption.Make("random915", "New Star"),
+        TalentOption.Make("elite", "Elite"),
+        TalentOption.Make("contender", "Contender"),
+        TalentOption.Make("journeyman", "Journeyman"),
+        TalentOption.Make("club", "Club fighter"),
+    };
 
     private string _playerName = "";
     public string PlayerName { get => _playerName; set { _playerName = value; Raise(); } }
@@ -363,7 +373,7 @@ public sealed class CareerViewModel : Observable
     private WeightClass _setupDivision;
     public WeightClass SetupDivision { get => _setupDivision; set { _setupDivision = value; Raise(); } }
 
-    private string _talent = "contender";
+    private string _talent = "random915";   // New Star leads the list, so it is what the screen opens on
     public string Talent { get => _talent; set { _talent = value; Raise(); } }
 
     private bool _fullHistory;
@@ -431,6 +441,17 @@ public sealed class CareerViewModel : Observable
     public string AwayDivisionNote => $"Viewing {ViewDivision.DisplayName()} — not your division";
     public string HomeDivisionLabel => Game is not null ? $"Back to {Game.Player.WeightClass.DisplayName()}" : "";
     public Cmd GoHomeDivision { get; private set; } = null!;
+
+    /// <summary>One pick on the setup screen: the key the sim uses, and what a person reads.</summary>
+    public sealed record TalentOption(string Key, string Label)
+    {
+        public static TalentOption Make(string key, string name)
+        {
+            var (lo, hi) = TalentRange(key);
+            // Shown on the 1-15 class scale, because that is the scale every rating in the app uses.
+            return new TalentOption(key, $"{name}  ({Ratings.ClassFromRaw(lo)}–{Ratings.ClassFromRaw(hi)})");
+        }
+    }
 
     private static (int Lo, int Hi) TalentRange(string t) => t switch
     {

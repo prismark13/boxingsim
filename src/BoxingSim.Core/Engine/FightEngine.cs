@@ -331,6 +331,12 @@ public sealed class FightEngine
                 if (ring > 0) workA += ring; else workB += -ring;
                 Snapshot(t, sa, sb);
                 t.Ring = ring;
+                // What each man has left. Fatigue is what the engine already fades him by, so showing it is
+                // showing the truth rather than a second, decorative number.
+                // Floored rather than allowed to hit zero: a man running on empty is still in there throwing,
+                // and a bar reading nothing at all would say he had stopped.
+                t.GasA = Math.Clamp(1.0 - sa.Fatigue, 0.08, 1);
+                t.GasB = Math.Clamp(1.0 - sb.Fatigue, 0.08, 1);
             }
 
             FoulEvent? roundFoul = null;
