@@ -183,8 +183,21 @@ public sealed class CareerGame
         var champions = ActiveIn(wc).Where(IsWorldChampion).OrderByDescending(RankScore).ToList();
         var champIds = champions.Select(b => b.Id).ToHashSet();
         var contenders = ActiveIn(wc).Where(b => RankedContender(b) && !champIds.Contains(b.Id))
-                                     .OrderByDescending(RankScore);
-        return champions.Concat(contenders).Take(take).ToList();
+                                     .OrderByDescending(RankScore).ToList();
+        var board = champions.Concat(contenders).Take(take).ToList();
+
+        // A board is never half empty. To be a RANKED contender a man needs twenty bouts and a 65% win rate,
+        // and there are stretches - a young world, a generation retiring together - where a division of two
+        // hundred active fighters has only a handful who clear both. Real bodies rank someone regardless, so
+        // the rest of the list is topped up with the best of who is actually there.
+        if (board.Count < take)
+        {
+            var have = board.Select(b => b.Id).ToHashSet();
+            board.AddRange(ActiveIn(wc).Where(b => !have.Contains(b.Id) && ProFights(b) >= 8)
+                                       .OrderByDescending(RankScore)
+                                       .Take(take - board.Count));
+        }
+        return board;
     }
 
     /// <summary>True if the fighter currently holds any world belt (WBA/WBC/IBF) in his division.</summary>
