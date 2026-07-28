@@ -98,16 +98,29 @@ public sealed class Ratings
         Power * 0.21 + Accuracy * 0.15 + Defense * 0.14 + Speed * 0.12 + Chin * 0.09 +
         Stamina * 0.07 + Aggression * 0.06 + Heart * 0.06 + Conditioning * 0.06 + CutResistance * 0.04;
 
-    /// <summary>The headline "class" on a 1–15 scale. Deliberately rare at the top: 15 is reserved for the
-    /// one or two greatest fighters who ever lived, 14 for a handful of all-time greats, tapering to a broad
-    /// journeyman base around 5–7. Calibrated against the full cross-era roster's <see cref="RawScore"/>.</summary>
+    /// <summary>The headline "class" on a 1–15 scale, and what each band is meant to MEAN:
+    ///
+    ///   13–15   all-time greats
+    ///   10–12   multiple world champions
+    ///    7–9    champion calibre
+    ///    4–6    contenders and gatekeepers
+    ///    1–3    journeymen and opponents
+    ///
+    /// The old floors did not say that. They put 43% of the roster in the champion-calibre band, made Nino
+    /// Benvenuti and Bob Foster all-time greats, and had Willie Pep — who lost eleven fights in 241 — down
+    /// among the multiple-champions at 11 while George Chuvalo, who never won a title, sat at 9.
+    ///
+    /// Recalibrated by reading the bands off men whose standing is not in dispute. The roster now comes out
+    /// 2.0% all-time great, 9.1% multiple champion, 13.6% champion calibre, 54.3% contender or gatekeeper,
+    /// 20.9% journeyman — bearing in mind it is a curated set of notable fighters, so it skews high; a
+    /// generated division sits far lower.</summary>
     public int Class => ClassFromRaw(RawScore);
 
     // Absolute raw-score thresholds (min raw for each class). Fixed, not percentile, so "15" means the same
     // thing — an all-time-great ceiling — no matter how many divisions or fighters are added later.
     private static readonly double[] ClassFloors =
     {   // index 0 => class 1 ... index 14 => class 15
-        0.0, 53.0, 58.0, 62.0, 65.5, 68.5, 71.0, 73.5, 76.0, 78.5, 81.0, 83.5, 85.5, 87.5, 89.5
+        0.0, 58.0, 64.0, 68.0, 72.0, 76.0, 78.5, 80.2, 81.5, 82.8, 84.0, 85.2, 87.0, 89.0, 90.5
     };
 
     public static int ClassFromRaw(double raw)

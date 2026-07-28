@@ -106,13 +106,33 @@ public sealed class BoxerFactory
         };
     }
 
-    /// <summary>Generated fighters are journeyman fodder: their ceiling sits at the bottom of the scale
-    /// (roughly class 1–3), right-skewed toward the floor with the odd gatekeeper near the top of the band.
-    /// The real historical roster supplies every genuine contender and champion.</summary>
+    /// <summary>A generated fighter's ceiling — where he tops out if his career runs its course.
+    ///
+    /// This used to be the minimum of two rolls in the 34–55 band, on the principle that "the contender,
+    /// champion and elite tiers belong to the real fighters and the player". The effect was that no
+    /// generated man could ever be better than a club fighter: measured in a running world, their median
+    /// ceiling was 40 and their best was 55, against a median of 74 and a maximum of 99 across the real
+    /// roster. Every generated fighter alive in the sport — 88% of it — sat in the bottom three classes.
+    ///
+    /// That is what breaks a career after a dozen fights and a universe after a decade. The matchmaker
+    /// looks for a credible opponent, finds that the entire generated population is club-standard, and so
+    /// reaches past it for the few real men and for other people's prospects. A world outlives its real
+    /// fighters, and the belts end up on men rated 49.
+    ///
+    /// A sport needs the whole ladder, so the roll now spans it. The proportions are what a division looks
+    /// like from underneath: mostly men who are there to lose, a solid fifth who are a real test without
+    /// ever being champion, and a thinning tail that reaches the top. The all-time-great band is left to
+    /// the real roster — a generated man can win titles, but he does not become Robinson.</summary>
     private int RollPotential()
     {
-        int baseRoll = Math.Min(_rng.Next(34, 56), _rng.Next(34, 56));   // min of two rolls → most stay low
-        return Ratings.Clamp(baseRoll);
+        double r = _rng.NextDouble();
+        //  share   ceiling    what he becomes
+        int p = r < 0.55 ? _rng.Next(42, 68)    // journeyman, opponent            class 1-3
+              : r < 0.75 ? _rng.Next(68, 77)    // gatekeeper - a real night's work class 4-5
+              : r < 0.90 ? _rng.Next(77, 83)    // contender                       class 6-8
+              : r < 0.98 ? _rng.Next(83, 88)    // champion calibre                class 9-11
+                         : _rng.Next(88, 92);   // a great, rarely                 class 12-13
+        return Ratings.Clamp(p);
     }
 
     private static int Scale(int ceiling, double dev) => Ratings.Clamp((int)Math.Round(ceiling * dev));

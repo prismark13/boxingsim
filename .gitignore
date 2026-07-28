@@ -2,3 +2,8 @@ bin/
 obj/
 *.user
 .vs/
+
+# Build output. The publish folder in particular holds a ~70 MB single-file executable, which has no
+# business in the history — it is a release asset, not source.
+out/
+publish/

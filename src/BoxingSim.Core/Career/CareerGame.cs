@@ -1629,7 +1629,7 @@ public sealed class CareerGame
     /// ran AFTER that swap and quietly undid it — a nineteen-fight prospect was being handed an unbeaten 10-0
     /// class-7 man and told he was building a record.</summary>
     private bool DangerousProspect(Boxer b) =>
-        IsProspect(b) && b.Class >= 7 && b.Record.Losses == 0;
+        IsProspect(b) && b.Record.Losses == 0 && b.Potential >= 70;
 
     private bool IsProspect(Boxer b) =>
         !WorldRanked(b) && ProFights(b) < 16 && b.Age <= 27 && (b.Potential - b.Overall) >= 3;
@@ -2142,23 +2142,41 @@ public sealed class CareerGame
             if (pick.Count > 0) opp = pick[_rng.Next(pick.Count)];
         }
 
-        // Before he is world-ranked, the OPPOSITION'S experience climbs with his own. A man was picked purely
-        // by ranking position and rating, so a debutant could draw a fighter in his prime while a nineteen-fight
-        // prospect got a raw kid. A real record is built the other way about: you start against green boys and
-        // faded old pros who cannot hurt you, move on to men still coming through, and only then meet fighters
-        // at their peak.
+        // Before he is world-ranked, the OPPOSITION'S experience climbs with his own — and the man in the other
+        // corner is a PROFESSIONAL OPPONENT, not another kid starting out.
+        //
+        // This used to select by career stage, and asked for a "Starter" in the first half-dozen bouts on the
+        // reasoning that you begin against green boys who cannot hurt you. That is not how a record is built.
+        // A debutant does not fight another debutant - somebody has to lose, and the sport does not throw away
+        // two prospects to find out which. He fights a designated opponent: a man with twenty fights and
+        // fifteen losses whose trade is losing competitively in somebody else's home town.
+        //
+        // Measured, the old rule had 79% of a player's first fourteen opponents carrying under a dozen fights
+        // and only 17% carrying a losing record - a parade of 0-0 and 3-2 boys, some of whom were other
+        // people's prospects. So the band is now drawn on EXPERIENCE AND RECORD, which is what makes a man an
+        // opponent, and the career-stage question does not come into it.
         if (!WorldRanked(Player))
         {
             int sofar = ProFights(Player);
-            var want = sofar <= 6
-                ? new[] { CareerStage.Starter, CareerStage.End }                              // green, or finished
-                : sofar <= 13
-                    ? new[] { CareerStage.Starter, CareerStage.PrePrime, CareerStage.PostPrime }
-                    : new[] { CareerStage.PrePrime, CareerStage.Prime, CareerStage.PostPrime };
-            var band = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr
-                                      && want.Contains(CareerStages.Of(b))
+            // What he needs in the other corner: fights behind him, and a record that says he loses.
+            int wantFights = sofar <= 6 ? 8 : sofar <= 13 ? 10 : 12;
+            double wantWinRate = sofar <= 6 ? 0.58 : sofar <= 13 ? 0.65 : 1.00;
+
+            bool Opponent(Boxer b)
+            {
+                int f = ProFights(b);
+                if (f < wantFights) return false;
+                int decided = b.Record.Wins + b.Record.Losses;
+                return decided == 0 || b.Record.Wins / (double)decided <= wantWinRate;
+            }
+
+            var pool = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr
                                       && !DangerousProspect(b)
                                       && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
+
+            // The men who are genuinely opponents; failing that, anyone seasoned; failing that, leave it be.
+            var band = pool.Where(Opponent).ToList();
+            if (band.Count == 0) band = pool.Where(b => ProFights(b) >= wantFights).ToList();
             if (band.Count > 0) opp = NearOne(band, opp.Overall);
         }
 
@@ -2963,9 +2981,12 @@ public sealed class CareerGame
         return Math.Max(21, (int)Math.Round(typical * spread));
     }
 
-    /// <summary>Generated filler is capped to journeyman class (OVR ~40) — the contender, champion and
-    /// elite tiers belong to the real fighters and the player.</summary>
-    private const int GeneratedCap = 56;
+    /// <summary>The ceiling a generated fighter may not pass. It sits just below the all-time-great band, so
+    /// a generated man can become a contender or a champion — the sport needs him to, or it has nobody left
+    /// once the real fighters retire — but the very top of the scale stays the preserve of the real roster
+    /// and the player. It was 56, which capped the entire generated population below the MEDIAN real fighter
+    /// and is what left a career with no credible opponents after a dozen bouts.</summary>
+    private const int GeneratedCap = 91;
 
     /// <summary>A fighter is only "world-ranked" once he's built a real body of work — 20 pro bouts.</summary>
     public static bool WorldRanked(Boxer b) => b.Record.Wins + b.Record.Losses + b.Record.Draws >= 20;

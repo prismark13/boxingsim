@@ -34,8 +34,18 @@ public sealed class Boxer
     }
 
     /// <summary>Arm reach in inches — a physical frame trait, not a skill. It never feeds Overall/Class;
-    /// it only shapes the range battle in the ring (see the fight engine). Synthesised from frame when unknown.</summary>
-    public int Reach { get; set; }
+    /// it only shapes the range battle in the ring (see the fight engine).
+    ///
+    /// Synthesised from the frame when unknown, which it had always claimed to do and never did: it was a
+    /// plain auto-property, so every fighter the roster has no measurement for carried a reach of zero and
+    /// the tale of the tape read "0″ reach". Derived the same way height is, from the frame and the name, so
+    /// it is stable across sessions and costs nothing to store.</summary>
+    public int Reach
+    {
+        get => _reach > 0 ? _reach : Physique.ReachInchesFor(TopWeight ?? WeightClass, Name);
+        set => _reach = value;
+    }
+    private int _reach;
 
     /// <summary>Height in inches. Derived from the frame and the name, so it costs nothing to store and is
     /// stable across sessions and saves.</summary>
