@@ -59,10 +59,15 @@ public sealed class CareerProgression
         if (fights >= CareerMileage.CareerLimit(b)) return true;
         if (fights < CareerMileage.MinimumCareer) return false;
 
+        // Most fighters do not box on until they are finished - they drift out of the sport somewhere in the
+        // middle of a career, and that drift is what sets the typical length. Retirement pressure therefore
+        // starts building from the minimum rather than waiting for a man to be visibly shot.
         double chance = 0;
+        int overMin = fights - CareerMileage.MinimumCareer;
+        if (overMin > 0) chance += 0.015 + overMin * 0.006;
         int worn = fights - CareerMileage.PostPrimeUntil(b);
-        if (worn > 0) chance += 0.06 + worn * 0.035;
-        else if (CareerMileage.PastPrime(b) > 0) chance += 0.02;
+        if (worn > 0) chance += 0.10 + worn * 0.05;
+        else if (CareerMileage.PastPrime(b) > 0) chance += 0.05;
 
         // A faded fighter, or one who has been stopped repeatedly, goes sooner.
         if (b.Overall < 40) chance += 0.18;
