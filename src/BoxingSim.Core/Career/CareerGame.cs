@@ -1211,10 +1211,18 @@ public sealed class CareerGame
         foreach (var region in RegionalBelts)
         {
             if (!_regional.TryGetValue((_cursor, region), out var rc) || rc.Id == Player.Id || rc.Retired) continue;
-            if (_rng.NextDouble() >= 0.05) continue;
-            var chall = pool.Where(b => RegionOf(b) == region && b.Id != rc.Id && WorldRanked(b) && ChasesRegional(b))
-                            .OrderByDescending(RankScore).Skip(_rng.Next(4)).FirstOrDefault()
-                        ?? pool.FirstOrDefault(b => RegionOf(b) == region && b.Id != rc.Id && ChasesRegional(b));
+            // Regional belts are meant to be DEFENDED - that is the whole point of holding one on the way up.
+            // At a twentieth per card they mostly sat idle on a man's record.
+            if (DaysSinceLastBout(rc) < 84 || _rng.NextDouble() >= 0.11 * CareerMileage.Activity(rc)) continue;
+            var candidates = pool.Where(b => RegionOf(b) == region && b.Id != rc.Id && CredibleForRegional(b))
+                                 .OrderByDescending(RankScore).ToList();
+            // Picking straight down the ranking order meant an established contender always sat above a young
+            // man and the belt only ever passed between men who had already arrived. Roughly one defence in
+            // three now goes to somebody still coming through, which is what these titles are for.
+            var comers = candidates.Where(b => !WorldRanked(b)).ToList();
+            var chall = comers.Count > 0 && _rng.Next(3) == 0
+                ? comers[_rng.Next(comers.Count)]
+                : candidates.Skip(_rng.Next(4)).FirstOrDefault() ?? candidates.FirstOrDefault();
             if (chall is null) continue;
             var rres = FastBout(rc, chall, 12);
             ApplyOutcome(rres, rc, chall, $"{region} title");
@@ -1994,6 +2002,16 @@ public sealed class CareerGame
 
     private readonly Dictionary<(WeightClass Div, string Region), Boxer> _regional = new();   // (division, region) → belt holder
     private static readonly string[] RegionalBelts = { "NABF", "European", "Commonwealth" };
+
+    /// <summary>Who is worth putting in for a regional title. A world-ranked contender obviously, but a good
+    /// unbeaten prospect too - that is exactly what these belts are for, and holding a man back until he has
+    /// twenty bouts means the belt only ever changes hands between established fighters. It is not everybody
+    /// though: a credible challenger has a dozen fights behind him, is rated, and has been winning.</summary>
+    private bool CredibleForRegional(Boxer b) =>
+        ChasesRegional(b)
+        && (WorldRanked(b)
+            || (ProFights(b) >= 9 && b.Class >= 5
+                && b.Record.Wins * 100 >= Math.Max(1, b.Record.Wins + b.Record.Losses) * 70));
 
     /// <summary>Whether a fighter would realistically campaign for a regional belt.
     ///
