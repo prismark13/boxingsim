@@ -667,9 +667,17 @@ public sealed class FightEngine
         dq = false; dqWinner = 0;
         for (int who = 0; who < 2; who++)
         {
-            if (_rng.NextDouble() >= 0.02) continue;
             var foulerS = who == 0 ? sa : sb;
             var victimS = who == 0 ? sb : sa;
+            // Every fighter used to foul at exactly the same rate, so a mauling swarmer who lives on the inside
+            // and a disciplined out-boxer were equally likely to throw a low blow. A man's own dirtiness
+            // decides it now: the clean ones almost never, the chancers several times more often than the old
+            // flat rate, and the average across the roster is about where it was.
+            // Curved rather than straight, so the difference is felt: a genuinely clean fighter almost never
+            // fouls, while a chancer does it several times as often as the flat rate ever allowed.
+            double d = SecondaryStats.Dirtiness(foulerS.Boxer) / 100.0;
+            double rate = 0.002 + Math.Pow(d, 1.7) * 0.062;
+            if (_rng.NextDouble() >= rate) continue;
             string type = Pick(FoulTypes);
             var foul = new FoulEvent { Who = who, Type = type };
 
@@ -680,11 +688,13 @@ public sealed class FightEngine
                 victimS.Cut = Math.Min(1.0, victimS.Cut + 0.12 + _rng.NextDouble() * 0.2);
             }
 
-            if (_rng.NextDouble() < 0.10) // escalates to a point deduction (~1 in 20 fights)
+            // A repeat offender gets less benefit of the doubt from a referee than a man who has never fouled.
+            double punish = 0.06 + SecondaryStats.Dirtiness(foulerS.Boxer) / 100.0 * 0.12;
+            if (_rng.NextDouble() < punish)
             {
                 foul.Deduct = true;
                 if (who == 0) deductA = 1; else deductB = 1;
-                if (_rng.NextDouble() < 0.02) { foul.Dq = true; dq = true; dqWinner = who == 0 ? 1 : 0; }
+                if (_rng.NextDouble() < 0.025) { foul.Dq = true; dq = true; dqWinner = who == 0 ? 1 : 0; }
             }
             return foul; // at most one foul resolved per round
         }

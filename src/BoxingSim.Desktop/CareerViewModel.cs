@@ -26,7 +26,24 @@ public sealed class Cmd : ICommand
     public Cmd(Action run, Func<bool>? can = null) { _run = _ => run(); _can = can; }
     public Cmd(Action<object?> run, Func<bool>? can = null) { _run = run; _can = can; }
     public bool CanExecute(object? p) => _can?.Invoke() ?? true;
-    public void Execute(object? p) => _run(p);
+
+    /// <summary>Every click puts the pointer into a wait cursor for as long as the work takes.
+    ///
+    /// The app only did this for the handful of jobs routed through BusyAsync - starting a world, advancing to
+    /// fight night. Everything else runs synchronously on the UI thread, so opening a card, switching division
+    /// or rebuilding a ranking froze the window for a moment with no sign that anything was happening, which
+    /// reads as a click that did not register. Doing it here covers every command at once rather than needing
+    /// each one to remember. A fast command clears it within a frame and nothing is seen; a slow one shows it.
+    ///
+    /// Work that continues after the command returns (anything awaiting) keeps its own Busy flag, which the
+    /// window style already watches.</summary>
+    public void Execute(object? p)
+    {
+        var previous = System.Windows.Input.Mouse.OverrideCursor;
+        System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+        try { _run(p); }
+        finally { System.Windows.Input.Mouse.OverrideCursor = previous; }
+    }
     public event EventHandler? CanExecuteChanged;
     public void Refresh() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
@@ -1066,6 +1083,8 @@ public sealed class CareerViewModel : Observable
             Bar("Recovery", SecondaryStats.Recovery(r)),
             Bar("Pressure", SecondaryStats.Pressure(r)),
             Bar("Counter", SecondaryStats.Counter(b)),
+            // Worth seeing before you take a fight: a man who mauls is a different night's work.
+            Bar("Dirtiness", SecondaryStats.Dirtiness(b)),
         };
     }
 
