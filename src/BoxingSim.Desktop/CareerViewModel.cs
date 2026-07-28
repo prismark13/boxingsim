@@ -747,7 +747,31 @@ public sealed class CareerViewModel : Observable
     /// <summary>Play any fight, from any man's corner. The player's own bout is just the case where the point
     /// of view is him and the result came straight from the engine; a fight out of the record books arrives
     /// here having been rebuilt, and from this point on nothing downstream can tell the difference.</summary>
-    private void Play(FightResult res, Boxer pov, string billLine, string verdict)
+    /// <summary>A fighter's record as it stood BEFORE a given date, rebuilt from his ledger. The live Record
+    /// object has already been updated by the time anything is watched - the result is applied, then the fight
+    /// is played back - so showing it billed a man at 7-0 while you watched the fight that made him 7-0. It is
+    /// the bout's own date that is excluded, not "today", so a replay from fifteen years ago is billed with the
+    /// record he actually carried into that ring.</summary>
+    private static string RecordAsOf(Boxer b, DateOnly bout)
+    {
+        // Counted BACKWARDS from where he stands now, not forwards from an empty slate. A roster fighter is
+        // seeded with the record he already had when the career began and has no ledger entries behind it, so
+        // adding up his history from zero billed a 21-16 journeyman at 0-0-0. Only the bouts from this night
+        // onward are taken off.
+        var r = b.Record;
+        int w = r.Wins, l = r.Losses, d = r.Draws, ko = r.KnockoutWins;
+        foreach (var h in b.History)
+        {
+            if (h.Date < bout) continue;
+            if (h.Result == 'W') { w--; if (h.Method is "KO" or "TKO") ko--; }
+            else if (h.Result == 'L') l--;
+            else d--;
+        }
+        w = Math.Max(0, w); l = Math.Max(0, l); d = Math.Max(0, d); ko = Math.Max(0, ko);
+        return ko > 0 ? $"{w}-{l}-{d} ({ko} KO)" : $"{w}-{l}-{d}";
+    }
+
+    private void Play(FightResult res, Boxer pov, string billLine, string verdict, DateOnly? bout = null)
     {
         var me = pov;
         bool iAmA = res.A.Id == me.Id;
@@ -755,8 +779,10 @@ public sealed class CareerViewModel : Observable
 
         FightNightHome = me.Name;
         FightNightAway = them.Name;
-        FightNightHomeRecord = me.Record.ToString();
-        FightNightAwayRecord = them.Record.ToString();
+        // Billed as they came in, not as they left.
+        var on = bout ?? (me.History.Count > 0 ? me.History[^1].Date : DateOnly.MaxValue);
+        FightNightHomeRecord = RecordAsOf(me, on);
+        FightNightAwayRecord = RecordAsOf(them, on);
         FightNightBillLine = billLine;
         PlaybackVerdict = verdict;
         foreach (var n in new[] { nameof(FightNightHome), nameof(FightNightAway), nameof(FightNightHomeRecord),
@@ -816,7 +842,7 @@ public sealed class CareerViewModel : Observable
             ? $"DRAW — {res.A.Name} and {res.B.Name}"
             : $"{res.Winner.Name} beat {res.Loser!.Name} by {res.Method}" +
               (res.Method is "KO" or "TKO" ? $", round {res.EndRound}" : "");
-        Play(res, owner, line.Note is string n ? n.ToUpperInvariant() : $"{res.ScheduledRounds} rounds", verdict);
+        Play(res, owner, line.Note is string n ? n.ToUpperInvariant() : $"{res.ScheduledRounds} rounds", verdict, line.Date);
     }
 
     private string _watchUnavailable = "";
