@@ -1545,7 +1545,8 @@ public sealed class CareerGame
         int gap = Math.Max(DaysForStage(CareerStages.Of(Player)), _layoffDays);   // recovery pushes the next bout out
         // A world champion fights on a title schedule — long camps, ~3 defences a year — not a
         // club-show frequency, however young he is.
-        if (Player.IsChampion || WbcChampion?.Id == Player.Id || IbfChampion?.Id == Player.Id) gap = Math.Max(gap, 98 + _rng.Next(42));
+        if (Player.IsChampion || WbcChampion?.Id == Player.Id || IbfChampion?.Id == Player.Id)
+            gap = Math.Max(gap, (int)Math.Round(119 * (0.5 + _rng.NextDouble())));
         _layoffDays = 0;
         OfferDate = Date.AddDays(gap);
         // Hard cap: no more than 8 bouts in a calendar year. Once he's had his eight, the next one waits for the new year.
@@ -2433,15 +2434,25 @@ public sealed class CareerGame
 
     private static string LayoffText(int days) => days >= 60 ? $"out ~{Math.Max(2, days / 30)} months" : $"out ~{Math.Max(1, days / 7)} weeks";
 
-    private int DaysForStage(CareerStage s) => s switch
+    /// <summary>How long until the next fight. The stage sets the typical gap - a club fighter is out every
+    /// couple of months, a champion three times a year after long camps - but nobody's schedule is metronomic.
+    /// Fights fall through, opponents pull out, a cut needs six weeks, something comes up at short notice. The
+    /// spread used to be about a fifth either side of the typical, which made a career read like a timetable;
+    /// it is now half to one and a half times, so gaps genuinely vary.</summary>
+    private int DaysForStage(CareerStage s)
     {
-        CareerStage.Starter => 55 + _rng.Next(25),      // ~8–11 weeks — an active club schedule (~5–6 a year)
-        CareerStage.PrePrime => 62 + _rng.Next(32),     // ~9–13 weeks — still active, stepping up (~4–6 a year)
-        CareerStage.Prime => 84 + _rng.Next(56),        // 12–20 weeks — big fights, long camps (~3–4 a year)
-        CareerStage.PostPrime => 98 + _rng.Next(46),    // 14–20 weeks (~3 a year) — still active
-        CareerStage.End => 126 + _rng.Next(60),         // 18–27 weeks (~2–3 a year), winding down
-        _ => 90
-    };
+        int typical = s switch
+        {
+            CareerStage.Starter => 64,      // ~9 weeks — an active club schedule
+            CareerStage.PrePrime => 78,     // ~11 weeks — still busy, stepping up
+            CareerStage.Prime => 112,       // ~16 weeks — big fights, long camps
+            CareerStage.PostPrime => 120,   // ~17 weeks
+            CareerStage.End => 156,         // ~22 weeks, winding down
+            _ => 90
+        };
+        double spread = 0.5 + _rng.NextDouble();          // half to one and a half
+        return Math.Max(21, (int)Math.Round(typical * spread));   // never inside three weeks
+    }
 
     /// <summary>Generated filler is capped to journeyman class (OVR ~40) — the contender, champion and
     /// elite tiers belong to the real fighters and the player.</summary>
