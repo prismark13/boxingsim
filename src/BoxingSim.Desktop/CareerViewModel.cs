@@ -1145,6 +1145,33 @@ public sealed class CareerViewModel : Observable
     private static string Frame(Boxer b) => $"{b.Height / 12}′{b.Height % 12}″  ·  {b.Reach}″ reach  ·  {b.StartSpeedLabel}";
     public string PlayerFrame => Game is null ? "" : Frame(Game.Player);
     public string OfferOpponentFrame => Game?.Offer is { } o ? Frame(o.Opponent) : "";
+
+    /// <summary>What a man actually does in a round, from his own cards: the punches he lands and the punches
+    /// he takes, worst to best. The tape compares what two fighters ARE - their attributes - but the decision
+    /// to take a fight is also about what they DO, and a man who lands 25 a round is a different night's work
+    /// from one who lands 9 whatever their ratings say. Empty for a fighter with too few kept cards to mean
+    /// anything, rather than shown as a misleading range off two rounds.</summary>
+    private static string Output(Boxer b)
+    {
+        var cards = b.History.Where(h => h.Rounds is { Count: > 0 }).SelectMany(h => h.Rounds!).ToList();
+        if (cards.Count >= 4)
+            return $"lands {cards.Min(x => x.LandedFor)}–{cards.Max(x => x.LandedFor)} a round  ·  " +
+                   $"takes {cards.Min(x => x.LandedAgainst)}–{cards.Max(x => x.LandedAgainst)}";
+
+        // Round cards are only kept for the player's own bouts, title fights and ranked men, so the journeyman
+        // across the ring from a novice - exactly the man you are trying to size up - usually has none at all.
+        // Rather than leave the space blank on the opponent's side of every early-career tape, his output is
+        // ESTIMATED from what drives it in the engine: how much he throws (work-rate and stamina) and how much
+        // of it lands (accuracy). Worded as an expectation, not a measurement, because that is what it is.
+        var r = b.Ratings;
+        double thrown = 14 + r.Aggression * 0.22 + r.Stamina * 0.10;
+        double rate = Math.Clamp(0.22 + (r.Accuracy - 50) / 300.0, 0.15, 0.50);
+        int lo = (int)Math.Round(thrown * 0.85 * rate), hi = (int)Math.Round(thrown * 1.15 * rate);
+        return $"expect {lo}–{hi} landed a round";
+    }
+
+    public string PlayerOutput => Game is null ? "" : Output(Game.Player);
+    public string OfferOpponentOutput => Game?.Offer is { } o ? Output(o.Opponent) : "";
     public string OfferRounds => Game?.Offer is { } o ? $"{o.Rounds} rounds" : "";
     public string OfferContext
     {
@@ -1219,7 +1246,7 @@ public sealed class CareerViewModel : Observable
             nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),
             nameof(OfferOpponentClass), nameof(OfferOpponentRecord), nameof(OfferOpponentMeta),
             nameof(OfferRounds), nameof(OfferContext), nameof(OfferIsTitle),
-            nameof(PlayerFrame), nameof(OfferOpponentFrame),
+            nameof(PlayerFrame), nameof(OfferOpponentFrame), nameof(PlayerOutput), nameof(OfferOpponentOutput),
             nameof(MoveUpLabel), nameof(HasResult), nameof(ResultHeadline), nameof(LastBoutWon),
             nameof(LastBoutLost), nameof(PlayerRetired), nameof(HasSave), nameof(SaveError),
             nameof(ShowResultBanner), nameof(HasLedger), nameof(RankingDivisions),

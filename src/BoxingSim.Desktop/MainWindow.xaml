@@ -496,6 +496,11 @@
                                         <TextBlock Text="{Binding PlayerFrame}" FontSize="11"
                                                    Foreground="{StaticResource Accent}" HorizontalAlignment="Center"
                                                    Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" />
+                                        <!-- What he DOES, not just what he is. -->
+                                        <TextBlock Text="{Binding PlayerOutput}" FontSize="11"
+                                                   Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
+                                                   Margin="0,3,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                                                   Visibility="{Binding PlayerOutput, Converter={StaticResource EmptyVis}}" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="1" Text="vs" FontSize="15" Foreground="{StaticResource Faint}"
                                                VerticalAlignment="Center" Margin="24,0" />
@@ -510,8 +515,12 @@
                                                    Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
                                                    Margin="0,3,0,0" />
                                         <TextBlock Text="{Binding OfferOpponentFrame}" FontSize="11"
-                                                   Foreground="{StaticResource Muted}" HorizontalAlignment="Center"
+                                                   Foreground="{StaticResource Foe}" HorizontalAlignment="Center"
                                                    Margin="0,4,0,0" TextAlignment="Center" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding OfferOpponentOutput}" FontSize="11"
+                                                   Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
+                                                   Margin="0,3,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                                                   Visibility="{Binding OfferOpponentOutput, Converter={StaticResource EmptyVis}}" />
                                     </StackPanel>
                                 </Grid>
 
