@@ -120,6 +120,10 @@ public sealed record CardStat(string Name, int Value, double Width);
 
 /// <summary>One punch's share of a fighter's arsenal, with the colour it is drawn in.</summary>
 public sealed record ArsenalSlice(string Name, int Percent, double Width, string Colour);
+
+/// <summary>One point on a fighter's career arc as the card shows it: what he was, and at what mileage.</summary>
+public sealed record ArcRow(string Stage, string When, int Class, double Width,
+                            int Power, int Speed, int Chin, bool IsNow);
 public sealed class FighterCard
 {
     public string Name { get; init; } = "";
@@ -146,6 +150,11 @@ public sealed class FighterCard
     /// actually describe a fighter with.</summary>
     public IReadOnlyList<CardStat> Secondary { get; init; } = Array.Empty<CardStat>();
     public bool HasSecondary => Secondary.Count > 0;
+
+    /// <summary>What he was at each stage of his career. A thirty-four-year-old ex-champion's ratings today say
+    /// nothing about the fighter who won the title, and that man is usually the one worth seeing.</summary>
+    public IReadOnlyList<ArcRow> Arc { get; init; } = Array.Empty<ArcRow>();
+    public bool HasArc => Arc.Count > 1;
     /// <summary>The division to jump to from the card, so you can follow a fighter to his rankings.</summary>
     public WeightClass? Division { get; init; }
     public string DivisionLink => Division is WeightClass w ? $"See the {w.DisplayName()} rankings" : "";
@@ -938,6 +947,13 @@ public sealed class CareerViewModel : Observable
             }),
             Belts = string.Join("  ·  ", belts),
             Ratings = AttributeBars(b.Ratings),
+            Arc = g.CareerArc(b).Select(p => new ArcRow(
+                      p.Stage,
+                      p.IsNow ? $"now · {p.Fights} fights" : $"{p.Fights} fights",
+                      OnClassScale(p.Ratings.Overall),
+                      OnClassScale(p.Ratings.Overall) / (double)TopClass,
+                      OnClassScale(p.Ratings.Power), OnClassScale(p.Ratings.Speed), OnClassScale(p.Ratings.Chin),
+                      p.IsNow)).ToList(),
             Arsenal = ArsenalOf(b),
             Secondary = SecondaryOf(b),
             Form = FormOf(b),

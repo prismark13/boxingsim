@@ -1621,6 +1621,76 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
+                                <!-- THE ARC. What he was at each stage, measured in fights rather than years,
+                                     because that is what wears a fighter down. Today's ratings on a faded
+                                     champion tell you nothing about the man who won the title. -->
+                                <TextBlock Text="CAREER ARC" Style="{StaticResource PanelHeader}" Margin="24,14,24,4"
+                                           Visibility="{Binding HasArc, Converter={StaticResource BoolVis}}" />
+                                <ItemsControl ItemsSource="{Binding Arc}" Margin="24,0,24,4"
+                                              Visibility="{Binding HasArc, Converter={StaticResource BoolVis}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="80" />
+                                                    <ColumnDefinition Width="92" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="34" />
+                                                    <ColumnDefinition Width="120" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Stage}" FontSize="11.5"
+                                                           VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsNow}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="1" Text="{Binding When}" FontSize="10.5"
+                                                           Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                <Grid x:Name="ArcTrack" Grid.Column="2" Height="7" VerticalAlignment="Center"
+                                                      Margin="0,0,10,0">
+                                                    <Border Background="{StaticResource Line}" CornerRadius="3.5" />
+                                                    <Border HorizontalAlignment="Left" CornerRadius="3.5"
+                                                            Background="{Binding Class, Converter={StaticResource ClassColour}}">
+                                                        <Border.Width>
+                                                            <MultiBinding Converter="{StaticResource BarWidth}">
+                                                                <Binding Path="Width" />
+                                                                <Binding Path="ActualWidth" ElementName="ArcTrack" />
+                                                            </MultiBinding>
+                                                        </Border.Width>
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Grid.Column="3" Text="{Binding Class}" FontSize="11.5"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                           FontWeight="SemiBold" Margin="0,0,10,0"
+                                                           Foreground="{Binding Class, Converter={StaticResource ClassColour}}" />
+                                                <StackPanel Grid.Column="4" Orientation="Horizontal"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <TextBlock Text="PWR " FontSize="9" FontWeight="Bold"
+                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Power}" FontSize="11" Margin="0,0,8,0"
+                                                               Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="SPD " FontSize="9" FontWeight="Bold"
+                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Speed}" FontSize="11" Margin="0,0,8,0"
+                                                               Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="CHN " FontSize="9" FontWeight="Bold"
+                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Chin}" FontSize="11"
+                                                               Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
                                 <!-- ARSENAL. Which punches he actually throws. Two men on identical ratings
                                      fight nothing alike if one lives behind a jab and the other digs to the
                                      body, and this is the same distribution the engine picks his shots from. -->
