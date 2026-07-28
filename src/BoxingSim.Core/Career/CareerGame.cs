@@ -1128,7 +1128,7 @@ public sealed class CareerGame
         // fortnight (which produced impossible back-to-back title bouts days apart). Both men must be rested.
         if (!CursorUnified && Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
             && Champ.Id != Player.Id && Wbc.Id != Player.Id
-            && DaysSinceLastBout(Champ) >= 70 && DaysSinceLastBout(Wbc) >= 70
+            && DaysSinceLastBout(Champ) >= 112 && DaysSinceLastBout(Wbc) >= 112
             && _rng.NextDouble() < UnificationChance(_cursor, 0.006, 0.04))
         {
             Unify();
@@ -1136,7 +1136,7 @@ public sealed class CareerGame
         else if (CursorUnified)
         {
             var c = Champ!;
-            if (c.Id != Player.Id && DaysSinceLastBout(c) >= 70 && _rng.NextDouble() < 0.12)   // ~2–3 defences a year, min ~10 weeks apart
+            if (c.Id != Player.Id && DaysSinceLastBout(c) >= 112 && _rng.NextDouble() < 0.055)   // ~2 defences a year, min 14 weeks apart
             {
                 if (_rng.NextDouble() < 0.10) RelinquishBelt(c);   // ~1 in 10: ducks a mandatory and gives up a belt
                 else UnifiedDefence(c);
@@ -1144,7 +1144,7 @@ public sealed class CareerGame
         }
         else
         {
-            if (Champ is not null && Champ.Id != Player.Id && DaysSinceLastBout(Champ) >= 70 && _rng.NextDouble() < 0.12)   // ~2–3 defences a year, min ~10 weeks apart
+            if (Champ is not null && Champ.Id != Player.Id && DaysSinceLastBout(Champ) >= 112 && _rng.NextDouble() < 0.055)   // ~2 defences a year, min 14 weeks apart
             {
                 var ch = PickChallenger(Champ, Wbc);
                 if (ch is not null)
@@ -1155,7 +1155,7 @@ public sealed class CareerGame
                     else { Defended(_cursor, "WBA", Champ.Id); LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(Champ); }
                 }
             }
-            if (Wbc is not null && Wbc.Id != Player.Id && DaysSinceLastBout(Wbc) >= 70 && _rng.NextDouble() < 0.12)   // ~2–3 defences a year, min ~10 weeks apart
+            if (Wbc is not null && Wbc.Id != Player.Id && DaysSinceLastBout(Wbc) >= 112 && _rng.NextDouble() < 0.055)   // ~2 defences a year, min 14 weeks apart
             {
                 var ch = PickChallenger(Wbc, Champ);
                 if (ch is not null)
@@ -1169,7 +1169,7 @@ public sealed class CareerGame
         }
 
         // IBF title defence — the third belt, contested independently from 1983.
-        if (IbfActive && Ibf is not null && Ibf.Id != Player.Id && DaysSinceLastBout(Ibf) >= 70 && _rng.NextDouble() < 0.12)
+        if (IbfActive && Ibf is not null && Ibf.Id != Player.Id && DaysSinceLastBout(Ibf) >= 112 && _rng.NextDouble() < 0.055)
         {
             var ch = PickChallenger(Ibf, null);
             if (ch is not null)
@@ -1195,7 +1195,12 @@ public sealed class CareerGame
             if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(_cursor, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", RefOf(rres)); }
         }
 
-        int bouts = 2 + _rng.Next(3);
+        // A fortnight's cards across a whole division, scaled to how many men are in it. This used to be a
+        // flat two to four bouts however large the division was, which in a roster of two hundred active
+        // fighters gave each man about ONE fight a year - a contender should be out three or four times.
+        // Sized so a typical fighter gets that, with world-ranked men thinned out separately by
+        // FightChancePerCard because they take fewer, bigger nights.
+        int bouts = Math.Clamp((int)Math.Round(pool.Count * 0.105), 3, 40);
         var used = new HashSet<int>();
         var top20 = Top20Ids(_cursor); var top8 = Top8Ids(_cursor);
         for (int b = 0; b < bouts; b++)
@@ -1445,13 +1450,24 @@ public sealed class CareerGame
 
     /// <summary>Per-card chance a world-ranked fighter takes the bout — tuned so an established man fights ~3–4
     /// times a year (3–4 month gaps) across the season's six cards, easing off further as he ages.</summary>
-    private double FightChancePerCard(Boxer b) => CareerStages.Of(b) switch
+    /// <summary>How likely a fighter is to appear on any given card. Champions and former champions box less
+    /// than contenders do: a titleholder fights on a title schedule with long camps and a mandatory calendar,
+    /// and a man who has held a belt is not taking stay-busy fights for short money. It is the contenders,
+    /// chasing a shot, who are out every couple of months.</summary>
+    private double FightChancePerCard(Boxer b)
     {
-        CareerStage.Prime => 4.0 / 6,
-        CareerStage.PostPrime => 3.0 / 6,
-        CareerStage.End => 2.5 / 6,
-        _ => 4.5 / 6,   // world-ranked but still pre-prime — fairly active
-    };
+        double basis = CareerStages.Of(b) switch
+        {
+            CareerStage.Prime => 4.0 / 6,
+            CareerStage.PostPrime => 3.0 / 6,
+            CareerStage.End => 2.5 / 6,
+            _ => 4.5 / 6,   // world-ranked but still pre-prime — fairly active
+        };
+        // A reigning champion never reaches this pool at all; he is barred from undercards and his year is
+        // his defences. A former champion does, and he is not taking stay-busy fights for short money.
+        if (_everChampion.Contains(b.Id)) return basis * 0.72;
+        return basis;
+    }
 
     /// <summary>Days since a fighter's most recent bout (large if he has no ledger) — stops a champion
     /// from defending too frequently.</summary>
@@ -1542,11 +1558,15 @@ public sealed class CareerGame
 
     private FightOffer BuildOffer()
     {
-        int gap = Math.Max(DaysForStage(CareerStages.Of(Player)), _layoffDays);   // recovery pushes the next bout out
+        int gap = Math.Max(DaysForFights(ProFights(Player)), _layoffDays);   // recovery pushes the next bout out
         // A world champion fights on a title schedule — long camps, ~3 defences a year — not a
         // club-show frequency, however young he is.
+        // A champion fights on a title schedule; a former champion still picks his nights. Both wait longer
+        // between bouts than a contender does.
         if (Player.IsChampion || WbcChampion?.Id == Player.Id || IbfChampion?.Id == Player.Id)
-            gap = Math.Max(gap, (int)Math.Round(119 * (0.5 + _rng.NextDouble())));
+            gap = Math.Max((int)Math.Round(gap * 1.35), (int)Math.Round(112 * (0.5 + _rng.NextDouble())));
+        else if (_everChampion.Contains(Player.Id))
+            gap = (int)Math.Round(gap * 1.18);
         _layoffDays = 0;
         OfferDate = Date.AddDays(gap);
         // Hard cap: no more than 8 bouts in a calendar year. Once he's had his eight, the next one waits for the new year.
@@ -2434,24 +2454,29 @@ public sealed class CareerGame
 
     private static string LayoffText(int days) => days >= 60 ? $"out ~{Math.Max(2, days / 30)} months" : $"out ~{Math.Max(1, days / 7)} weeks";
 
-    /// <summary>How long until the next fight. The stage sets the typical gap - a club fighter is out every
-    /// couple of months, a champion three times a year after long camps - but nobody's schedule is metronomic.
-    /// Fights fall through, opponents pull out, a cut needs six weeks, something comes up at short notice. The
-    /// spread used to be about a fifth either side of the typical, which made a career read like a timetable;
-    /// it is now half to one and a half times, so gaps genuinely vary.</summary>
-    private int DaysForStage(CareerStage s)
+    /// <summary>How long until the next fight, from a man's MILEAGE.
+    ///
+    /// This used to be picked off his career stage, which meant the gap jumped the moment he crossed a
+    /// boundary — a fighter was out every nine weeks and then, on his ninth bout, suddenly every eleven. Wear
+    /// does not arrive in steps. The wait now lengthens smoothly with every fight he has had: a novice boxes
+    /// every couple of months, a man with sixty bouts on him needs a real camp and a real rest between them.
+    ///
+    /// Nobody's schedule is metronomic either. Opponents pull out, purse bids drag, a cut needs six weeks, and
+    /// sometimes a fight comes up at three weeks' notice — so the actual wait is half to one and a half times
+    /// the typical, floored at three weeks because nobody boxes again inside that.</summary>
+    private int DaysForFights(int fights)
     {
-        int typical = s switch
-        {
-            CareerStage.Starter => 64,      // ~9 weeks — an active club schedule
-            CareerStage.PrePrime => 78,     // ~11 weeks — still busy, stepping up
-            CareerStage.Prime => 112,       // ~16 weeks — big fights, long camps
-            CareerStage.PostPrime => 120,   // ~17 weeks
-            CareerStage.End => 156,         // ~22 weeks, winding down
-            _ => 90
-        };
-        double spread = 0.5 + _rng.NextDouble();          // half to one and a half
-        return Math.Max(21, (int)Math.Round(typical * spread));   // never inside three weeks
+        // Shaped to real activity rather than a straight line: a young fighter boxes five or six times a year,
+        // that falls to three or four once he is twenty fights in and matched properly, and it keeps easing off
+        // as the mileage tells. The curve is steepest through the twenties, which is where a career actually
+        // changes from a club schedule to a campaign.
+        double typical =
+            fights <= 10 ? 66                                    // 5–6 a year
+            : fights <= 20 ? 66 + (fights - 10) * 3.0            // ramping toward a real camp
+            : fights <= 40 ? 96 + (fights - 20) * 0.7            // 3–4 a year
+            : 110 + Math.Min(fights - 40, 50) * 0.9;             // winding down
+        double spread = 0.5 + _rng.NextDouble();
+        return Math.Max(21, (int)Math.Round(typical * spread));
     }
 
     /// <summary>Generated filler is capped to journeyman class (OVR ~40) — the contender, champion and
