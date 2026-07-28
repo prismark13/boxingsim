@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:BoxingSim.Desktop"
         Title="BoxingSim" Height="920" Width="1500" MinHeight="660" MinWidth="1120"
+        Icon="{StaticResource AppIcon}"
         Background="{StaticResource Bg}" TextOptions.TextFormattingMode="Ideal"
         FontFamily="Segoe UI" UseLayoutRounding="True">
 
@@ -145,7 +146,20 @@
             <Border Style="{StaticResource Card}" Width="560" Padding="34" Margin="0,48"
                     VerticalAlignment="Top" HorizontalAlignment="Center">
                 <StackPanel>
-                    <TextBlock Text="BOXINGSIM" FontSize="26" FontWeight="Light" Foreground="{StaticResource Text}" />
+                    <StackPanel Orientation="Horizontal">
+                        <!-- The bell, at the size the eye reads it best. -->
+                        <Path Data="{StaticResource BellGeometry}" Stretch="Uniform" Width="34" Height="34"
+                              VerticalAlignment="Center" Margin="0,0,14,0">
+                            <Path.Fill>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#FFD277" Offset="0" />
+                                    <GradientStop Color="#E09A28" Offset="1" />
+                                </LinearGradientBrush>
+                            </Path.Fill>
+                        </Path>
+                        <TextBlock Text="BOXINGSIM" FontSize="26" FontWeight="Light"
+                                   Foreground="{StaticResource Text}" VerticalAlignment="Center" />
+                    </StackPanel>
                     <TextBlock Text="Take a fighter from his debut to the Hall of Fame" FontSize="13"
                                Foreground="{StaticResource Muted}" Margin="0,8,0,26" />
 

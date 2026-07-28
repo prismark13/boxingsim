@@ -43,6 +43,35 @@
          fought yet. -->
     <SolidColorBrush x:Key="Foe" Color="#FF7A47" />
 
+    <!-- THE MARK. A ring bell, drawn rather than drawn ON: vector geometry so it stays sharp from a 16px
+         taskbar icon up to the setup screen, with no image file to ship and nothing to license. The shape is
+         the timekeeper's bell - a mounted dome, a broad rim, and the striker beneath it. -->
+    <GeometryGroup x:Key="BellGeometry" FillRule="Nonzero">
+        <!-- the mounting post and bracket it hangs from -->
+        <RectangleGeometry Rect="11.1,1.4,1.8,2.4" RadiusX="0.6" RadiusY="0.6" />
+        <RectangleGeometry Rect="8.4,3.2,7.2,1.5" RadiusX="0.7" RadiusY="0.7" />
+        <!-- the dome -->
+        <PathGeometry Figures="M12,4.6 C7.4,4.6 4.7,8.3 4.7,13 L4.7,15.6 L19.3,15.6 L19.3,13 C19.3,8.3 16.6,4.6 12,4.6 Z" />
+        <!-- the rim, wider than the body the way a bell flares -->
+        <RectangleGeometry Rect="3.1,15.9,17.8,2.1" RadiusX="1" RadiusY="1" />
+        <!-- the striker -->
+        <EllipseGeometry Center="12,20.6" RadiusX="1.7" RadiusY="1.7" />
+    </GeometryGroup>
+
+    <!-- The window and taskbar icon. Gold on nothing, so it reads on a light or dark shell. -->
+    <DrawingImage x:Key="AppIcon">
+        <DrawingImage.Drawing>
+            <GeometryDrawing Geometry="{StaticResource BellGeometry}">
+                <GeometryDrawing.Brush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#FFD277" Offset="0" />
+                        <GradientStop Color="#E09A28" Offset="1" />
+                    </LinearGradientBrush>
+                </GeometryDrawing.Brush>
+            </GeometryDrawing>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
     <!-- Neutral emphasis: what nav, links and headings use now that the blue is spoken for. Hierarchy comes
          from weight and brightness instead of from spending the one colour that means something. -->
     <SolidColorBrush x:Key="Quiet" Color="#B8AE9F" />
