@@ -121,19 +121,56 @@ public sealed record CardStat(string Name, int Value, double Width);
 /// <summary>One punch's share of a fighter's arsenal, with the colour it is drawn in.</summary>
 public sealed record ArsenalSlice(string Name, int Percent, double Width, string Colour);
 
-/// <summary>One point on a fighter's career arc as the card shows it: what he was, and at what mileage.</summary>
-public sealed record ArcRow(string Stage, string When, int Class, double Width,
-                            int Power, int Speed, int Chin, bool IsNow);
-public sealed class FighterCard
+/// <summary>One point on a fighter's career arc: the stage, the mileage, and the man he was at it. The card's
+/// stage picker binds to these, and selecting one re-reads every rating on the card at that point.</summary>
+public sealed record ArcRow(string Stage, int Fights, Ratings Ratings, bool IsNow)
+{
+    public string Label => IsNow ? $"Now  ·  {Fights} fights" : $"{Stage}  ·  {Fights} fights";
+    public override string ToString() => Label;   // the closed ComboBox falls back to this
+}
+public sealed class FighterCard : Observable
 {
     public string Name { get; init; } = "";
     public string Meta { get; init; } = "";
     public int Class { get; init; }
     public string Record { get; init; } = "";
     public string Belts { get; init; } = "";
-    public IReadOnlyList<CardStat> Ratings { get; init; } = Array.Empty<CardStat>();
+    /// <summary>The fighter himself, so his stats can be recomputed at any point on his arc.</summary>
+    public Boxer? Fighter { get; init; }
+
     public IReadOnlyList<LedgerRow> Recent { get; init; } = Array.Empty<LedgerRow>();
-    public bool HasRatings => Ratings.Count > 0;
+
+    /// <summary>Every point on his career the card can be read at, most recent last.</summary>
+    public IReadOnlyList<ArcRow> Arc { get; init; } = Array.Empty<ArcRow>();
+    public bool HasArc => Arc.Count > 1;
+
+    private ArcRow? _stage;
+    /// <summary>Which point of his career the card is showing. Changing it re-reads the attributes, the
+    /// arsenal and the derived ratings as they were then — a faded champion's card can be wound back to the
+    /// fighter who won the title.</summary>
+    public ArcRow? SelectedStage
+    {
+        get => _stage ??= Arc.LastOrDefault();
+        set
+        {
+            if (value is null || ReferenceEquals(value, _stage)) return;
+            _stage = value;
+            foreach (var n in new[] { nameof(SelectedStage), nameof(Ratings), nameof(Arsenal),
+                                      nameof(Secondary), nameof(HasRatings), nameof(IsHistoric), nameof(StageNote) })
+                Raise(n);
+        }
+    }
+
+    /// <summary>True when the card is wound back, so the screen can say so rather than quietly showing
+    /// numbers that are not the man's current ones.</summary>
+    public bool IsHistoric => SelectedStage is { IsNow: false };
+    public string StageNote => IsHistoric
+        ? $"as he was at {SelectedStage!.Fights} fights — not his ratings today" : "";
+
+    private Ratings? Now => SelectedStage?.Ratings ?? Fighter?.Ratings;
+
+    public IReadOnlyList<CardStat> Ratings => Now is { } r ? CareerViewModel.AttributeBars(r) : Array.Empty<CardStat>();
+    public bool HasRatings => Now is not null;
 
     /// <summary>What the ledger says about him rather than what his ratings do — how he finishes, how he is
     /// finished, and the volume he works at. A 1-15 bar cannot say "he has stopped two thirds of them".</summary>
@@ -142,19 +179,16 @@ public sealed class FighterCard
 
     /// <summary>Which punches he actually throws, as a share of everything he lets go. Two men on identical
     /// ratings fight nothing alike if one lives behind a jab and the other digs to the body all night.</summary>
-    public IReadOnlyList<ArsenalSlice> Arsenal { get; init; } = Array.Empty<ArsenalSlice>();
+    public IReadOnlyList<ArsenalSlice> Arsenal =>
+        Fighter is { } f && Now is { } r ? CareerViewModel.ArsenalOf(f.WithRatings(r)) : Array.Empty<ArsenalSlice>();
     public bool HasArsenal => Arsenal.Count > 0;
 
     /// <summary>The derived qualities: what his raw attributes ADD UP TO. Killer instinct, durability,
     /// recovery, pressure and countering are each a blend of several ratings, and they are the things people
     /// actually describe a fighter with.</summary>
-    public IReadOnlyList<CardStat> Secondary { get; init; } = Array.Empty<CardStat>();
+    public IReadOnlyList<CardStat> Secondary =>
+        Fighter is { } f && Now is { } r ? CareerViewModel.SecondaryOf(f.WithRatings(r)) : Array.Empty<CardStat>();
     public bool HasSecondary => Secondary.Count > 0;
-
-    /// <summary>What he was at each stage of his career. A thirty-four-year-old ex-champion's ratings today say
-    /// nothing about the fighter who won the title, and that man is usually the one worth seeing.</summary>
-    public IReadOnlyList<ArcRow> Arc { get; init; } = Array.Empty<ArcRow>();
-    public bool HasArc => Arc.Count > 1;
     /// <summary>The division to jump to from the card, so you can follow a fighter to his rankings.</summary>
     public WeightClass? Division { get; init; }
     public string DivisionLink => Division is WeightClass w ? $"See the {w.DisplayName()} rankings" : "";
@@ -946,16 +980,8 @@ public sealed class CareerViewModel : Observable
                 CareerStages.Label(CareerStages.Of(b)), $"{b.Overall} OVR"
             }),
             Belts = string.Join("  ·  ", belts),
-            Ratings = AttributeBars(b.Ratings),
-            Arc = g.CareerArc(b).Select(p => new ArcRow(
-                      p.Stage,
-                      p.IsNow ? $"now · {p.Fights} fights" : $"{p.Fights} fights",
-                      OnClassScale(p.Ratings.Overall),
-                      OnClassScale(p.Ratings.Overall) / (double)TopClass,
-                      OnClassScale(p.Ratings.Power), OnClassScale(p.Ratings.Speed), OnClassScale(p.Ratings.Chin),
-                      p.IsNow)).ToList(),
-            Arsenal = ArsenalOf(b),
-            Secondary = SecondaryOf(b),
+            Fighter = b,
+            Arc = g.CareerArc(b).Select(p => new ArcRow(p.Stage, p.Fights, p.Ratings, p.IsNow)).ToList(),
             Form = FormOf(b),
             Recent = b.History.OrderByDescending(h => h.Date).Select(h => ToLedger(h, b.Name)).ToList(),
             Division = b.WeightClass
@@ -981,7 +1007,7 @@ public sealed class CareerViewModel : Observable
     /// <summary>Attributes on the SAME 1–15 scale as the class pills, not the engine's internal 1–100. Two
     /// scales side by side meant nothing: "Power 75" told you nothing about whether 75 was good.</summary>
     private const int TopClass = 15;
-    private static int OnClassScale(int raw) => Ratings.ClassFromRaw(raw);
+    internal static int OnClassScale(int raw) => Ratings.ClassFromRaw(raw);
 
     /// <summary>The part of a fighter that a rating cannot express. His knockout ratio is a fact about what he
     /// does to people; the punches he lands and takes in a round, worst to best, is the shape of his nights.
@@ -1017,7 +1043,7 @@ public sealed class CareerViewModel : Observable
 
     /// <summary>His punch mix. The engine already computes this to decide what he throws, so what is shown
     /// here is literally what he will do in the ring rather than a separate cosmetic guess.</summary>
-    private static IReadOnlyList<ArsenalSlice> ArsenalOf(Boxer b)
+    internal static IReadOnlyList<ArsenalSlice> ArsenalOf(Boxer b)
     {
         var d = PunchProfile.Distribution(b);
         var parts = new[]
@@ -1030,7 +1056,7 @@ public sealed class CareerViewModel : Observable
     }
 
     /// <summary>The derived qualities, on the same 1-15 scale as everything else.</summary>
-    private static IReadOnlyList<CardStat> SecondaryOf(Boxer b)
+    internal static IReadOnlyList<CardStat> SecondaryOf(Boxer b)
     {
         var r = b.Ratings;
         return new[]
@@ -1043,13 +1069,13 @@ public sealed class CareerViewModel : Observable
         };
     }
 
-    private static CardStat Bar(string name, int raw)
+    internal static CardStat Bar(string name, int raw)
     {
         int c = OnClassScale(raw);
         return new CardStat(name, c, c / (double)TopClass);
     }
 
-    private static IReadOnlyList<CardStat> AttributeBars(Ratings r) => new[]
+    internal static IReadOnlyList<CardStat> AttributeBars(Ratings r) => new[]
     {
         Bar("Power", r.Power), Bar("Chin", r.Chin), Bar("Speed", r.Speed), Bar("Defence", r.Defense),
         Bar("Stamina", r.Stamina), Bar("Accuracy", r.Accuracy), Bar("Conditioning", r.Conditioning),
