@@ -12,7 +12,8 @@
     <DebugType Condition="'$(Configuration)'=='Release'">none</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- Only legal for a self-contained bundle; it fails the framework-dependent publish outright. -->
+    <EnableCompressionInSingleFile Condition="'$(SelfContained)'=='true'">true</EnableCompressionInSingleFile>
     <RootNamespace>BoxingSim.Desktop</RootNamespace>
   </PropertyGroup>
 
