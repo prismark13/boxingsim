@@ -1538,6 +1538,17 @@ public sealed class CareerGame
     }
 
     /// <summary>A prospect: a young fighter still building a record, unranked, with real headroom left.</summary>
+    /// <summary>A live unbeaten prospect — young, highly rated, and still climbing. Two of these meeting is a
+    /// 50-50 that makes somebody's career, not a night's work for either of them, so one is never offered as a
+    /// record-builder or a stay-busy. He is met when it means something: a step-up or an eliminator, which come
+    /// through the ranked path above and are unaffected by this.
+    ///
+    /// The matchmaker already swapped green fighters out for seasoned ones, but the experience band added later
+    /// ran AFTER that swap and quietly undid it — a nineteen-fight prospect was being handed an unbeaten 10-0
+    /// class-7 man and told he was building a record.</summary>
+    private bool DangerousProspect(Boxer b) =>
+        IsProspect(b) && b.Class >= 7 && b.Record.Losses == 0;
+
     private bool IsProspect(Boxer b) =>
         !WorldRanked(b) && ProFights(b) < 16 && b.Age <= 27 && (b.Potential - b.Overall) >= 3;
 
@@ -1761,6 +1772,7 @@ public sealed class CareerGame
                     : new[] { CareerStage.PrePrime, CareerStage.Prime, CareerStage.PostPrime };
             var band = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr
                                       && want.Contains(CareerStages.Of(b))
+                                      && !DangerousProspect(b)
                                       && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
             if (band.Count > 0) opp = NearOne(band, opp.Overall);
         }
