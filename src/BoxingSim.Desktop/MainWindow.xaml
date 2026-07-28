@@ -152,7 +152,7 @@
     <Grid>
         <!-- ============================ SETUP ============================ -->
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                      Visibility="{Binding InCareer, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                      Visibility="{Binding AtSetup, Converter={StaticResource BoolVis}}">
             <Border Style="{StaticResource Card}" Width="560" Padding="34" Margin="0,48"
                     VerticalAlignment="Top" HorizontalAlignment="Center">
                 <StackPanel>
@@ -170,9 +170,43 @@
                         <TextBlock Text="BOXINGSIM" FontSize="26" FontWeight="Light"
                                    Foreground="{StaticResource Text}" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock Text="Take a fighter from his debut to the Hall of Fame" FontSize="13"
-                               Foreground="{StaticResource Muted}" Margin="0,8,0,26" />
+                    <TextBlock FontSize="13" Foreground="{StaticResource Muted}" Margin="0,8,0,20">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="Take a fighter from his debut to the Hall of Fame" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SetupMode}" Value="Universe">
+                                        <Setter Property="Text" Value="Build a sport and watch it run, week by week" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
+                    <!-- Two ways in. A career is one man's life; a universe is the sport with nobody in it. -->
+                    <UniformGrid Columns="2" Margin="0,0,0,24">
+                        <RadioButton Style="{StaticResource ModeTab}" IsChecked="{Binding SetupIsCareer}"
+                                     AutomationProperties.Name="Career mode">
+                            <StackPanel>
+                                <TextBlock Text="CAREER" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Text}" />
+                                <TextBlock Text="one fighter, your fighter" FontSize="11"
+                                           Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource ModeTab}" IsChecked="{Binding SetupIsUniverse}"
+                                     AutomationProperties.Name="Universe mode">
+                            <StackPanel>
+                                <TextBlock Text="UNIVERSE" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Text}" />
+                                <TextBlock Text="the whole sport, no player" FontSize="11"
+                                           Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+                    </UniformGrid>
+
+                    <!-- ============ CAREER SETUP ============ -->
+                    <StackPanel Visibility="{Binding SetupMode, Converter={StaticResource PageVis}, ConverterParameter=Career}">
                     <TextBlock Text="FIGHTER" Style="{StaticResource Label}" Margin="0,0,0,6" />
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -214,6 +248,75 @@
                     <Button Content="Start career" Command="{Binding StartCareer}"
                             Style="{StaticResource PrimaryButton}" Margin="0,26,0,0" />
                     <Button Content="Continue saved career" Command="{Binding ContinueCareer}" Margin="0,10,0,0" />
+                    </StackPanel>
+
+                    <!-- ============ UNIVERSE SETUP ============ -->
+                    <StackPanel Visibility="{Binding SetupMode, Converter={StaticResource PageVis}, ConverterParameter=Universe}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="START YEAR" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                                <ComboBox ItemsSource="{Binding Years}" SelectedItem="{Binding UniStartYear}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="YEARS OF HISTORY FIRST" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                                <TextBox Text="{Binding UniWarmup, UpdateSourceTrigger=LostFocus}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="DIVISIONS" Style="{StaticResource Label}" Margin="0,18,0,2" />
+                        <TextBlock FontSize="11" Foreground="{StaticResource Faint}" TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="{Binding UniDivisionsLabel, StringFormat=Running {0}. Tick none for the lot — one division is far quicker to follow.}" />
+                        <Border Background="#151210" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                                CornerRadius="4" Padding="10,10,10,12">
+                            <!-- No nested scroller: a box that cuts a division in half reads as a fault, and the
+                                 setup card scrolls perfectly well on its own. -->
+                                <ItemsControl ItemsSource="{Binding UniDivisions}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Content="{Binding Name}" IsChecked="{Binding On}" Margin="0,3" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                        </Border>
+
+                        <TextBlock Text="NEW PROFESSIONALS A YEAR, PER DIVISION" Style="{StaticResource Label}" Margin="0,18,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider Minimum="4" Maximum="40" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding UniEntrants}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding UniEntrants}" Width="34" TextAlignment="Right"
+                                       Foreground="{StaticResource Text}" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <TextBlock Text="CAREER LENGTH" Style="{StaticResource Label}" Margin="0,18,0,6" />
+                        <Slider Minimum="0.3" Maximum="2.5" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                Value="{Binding UniCareerLength}" />
+                        <TextBlock Text="{Binding UniCareerLengthLabel}" FontSize="11"
+                                   Foreground="{StaticResource Faint}" Margin="0,4,0,0" />
+
+                        <TextBlock Text="HOW OFTEN THEY FIGHT" Style="{StaticResource Label}" Margin="0,18,0,6" />
+                        <Slider Minimum="0.3" Maximum="2.5" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                Value="{Binding UniActivity}" />
+                        <TextBlock Text="{Binding UniActivityLabel}" FontSize="11"
+                                   Foreground="{StaticResource Faint}" Margin="0,4,0,0" />
+
+                        <CheckBox Content="Seed the world with real fighters" IsChecked="{Binding UniRealFighters}"
+                                  Margin="0,20,0,0" />
+
+                        <Button Content="Open the universe" Command="{Binding StartUniverse}"
+                                Style="{StaticResource PrimaryButton}" Margin="0,26,0,0" />
+                    </StackPanel>
 
                     <TextBlock Text="Reading the fighter roster…" FontSize="12"
                                Foreground="{StaticResource Accent}" Margin="0,14,0,0" HorizontalAlignment="Center"
@@ -223,13 +326,14 @@
                                TextWrapping="Wrap" TextAlignment="Center"
                                Visibility="{Binding Busy, Converter={StaticResource BoolVis}}" />
                     <TextBlock Text="{Binding SaveLocation, StringFormat=Saves to {0}}" FontSize="11"
-                               Foreground="{StaticResource Faint}" Margin="0,18,0,0" TextWrapping="Wrap" />
+                               Foreground="{StaticResource Faint}" Margin="0,18,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding SetupMode, Converter={StaticResource PageVis}, ConverterParameter=Career}" />
                 </StackPanel>
             </Border>
         </ScrollViewer>
 
         <!-- ============================ APP SHELL ============================ -->
-        <Grid Visibility="{Binding InCareer, Converter={StaticResource BoolVis}}">
+        <Grid Visibility="{Binding InPlay, Converter={StaticResource BoolVis}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="252" />
                 <ColumnDefinition Width="*" />
@@ -248,7 +352,8 @@
                          attributes, his form and his whole record, and the one man you could not look up that
                          way was your own. -->
                     <Button Style="{StaticResource RowButton}" Command="{Binding ShowMyCard}"
-                            AutomationProperties.Name="My fighter card" ToolTip="See your fighter card">
+                            AutomationProperties.Name="My fighter card" ToolTip="See your fighter card"
+                            Visibility="{Binding InCareer, Converter={StaticResource BoolVis}}">
                     <StackPanel Margin="22,26,22,20">
                         <StackPanel Orientation="Horizontal">
                             <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
@@ -283,6 +388,15 @@
                     </StackPanel>
                     </Button>
 
+                    <!-- A universe has no fighter to head the sidebar, so it says what it is instead. -->
+                    <StackPanel Margin="22,26,22,20" Visibility="{Binding InUniverse, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="UNIVERSE" Style="{StaticResource Label}" Foreground="{StaticResource Gold}" />
+                        <TextBlock Text="{Binding UniverseDate}" FontSize="20" FontWeight="Light"
+                                   Foreground="{StaticResource Text}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding UniverseWeekLabel}" FontSize="11.5"
+                                   Foreground="{StaticResource Faint}" Margin="0,3,0,0" />
+                    </StackPanel>
+
                     <!-- Where you're going -->
                     <StackPanel Grid.Row="1">
                         <!-- The glyph is decoration; the accessible name is the plain word. -->
@@ -295,9 +409,14 @@
 
                     <StackPanel Grid.Row="2" Margin="22,0,22,20">
                         <Border Height="1" Background="{StaticResource Line}" Margin="0,0,0,14" />
-                        <TextBlock Text="{Binding DateLabel}" FontSize="12.5" Foreground="{StaticResource Text}" />
+                        <TextBlock Text="{Binding DateLabel}" FontSize="12.5" Foreground="{StaticResource Text}"
+                                   Visibility="{Binding InCareer, Converter={StaticResource BoolVis}}" />
                         <Button Content="Abandon career" Command="{Binding AbandonCareer}" Margin="0,12,0,0"
-                                Padding="10,7" FontSize="11" HorizontalAlignment="Stretch" />
+                                Padding="10,7" FontSize="11" HorizontalAlignment="Stretch"
+                                Visibility="{Binding InCareer, Converter={StaticResource BoolVis}}" />
+                        <Button Content="Close universe" Command="{Binding LeaveUniverse}"
+                                Padding="10,7" FontSize="11" HorizontalAlignment="Stretch"
+                                Visibility="{Binding InUniverse, Converter={StaticResource BoolVis}}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -956,6 +1075,120 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </local:PageHost>
+
+                <!-- ============ THIS WEEK (UNIVERSE) ============ -->
+                <!-- A week of boxing as it is actually followed: not one long list of results, but what
+                     happened in Britain, what happened in Mexico. Region first, because a Tuesday in
+                     Bethnal Green and a Tuesday in Tijuana are not the same sport. -->
+                <local:PageHost Title="THIS WEEK" Subtitle="{Binding UniverseDate}"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Universe}">
+                    <DockPanel Margin="18,4,18,18">
+                        <Border DockPanel.Dock="Top" Background="{StaticResource Panel2}"
+                                BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
+                                Padding="16,12" Margin="0,0,0,14">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding UniverseWeekLabel}" Style="{StaticResource Label}"
+                                               Foreground="{StaticResource Gold}" />
+                                    <TextBlock Text="{Binding UniverseSummary}" FontSize="13"
+                                               Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="Next week" Command="{Binding PlayWeek}"
+                                            Style="{StaticResource PrimaryButton}" Padding="18,8" />
+                                    <Button Content="A month" Command="{Binding PlayMonth}" Margin="8,0,0,0" Padding="14,8" />
+                                    <Button Content="A year" Command="{Binding PlayYear}" Margin="8,0,0,0" Padding="14,8" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock DockPanel.Dock="Top" FontSize="13" Foreground="{StaticResource Faint}"
+                                   Margin="2,10,0,0" Text="Nothing was scheduled anywhere this week."
+                                   Visibility="{Binding UniverseQuiet, Converter={StaticResource BoolVis}}" />
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding UniverseWeek}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,20">
+                                            <Grid Margin="2,0,2,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Region}" FontSize="16" FontWeight="Light"
+                                                           Foreground="{StaticResource Text}" />
+                                                <TextBlock Grid.Column="1" FontSize="11.5" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource Faint}">
+                                                    <Run Text="{Binding Bouts, Mode=OneWay}" />
+                                                    <Run Text="bouts" />
+                                                </TextBlock>
+                                            </Grid>
+
+                                            <ItemsControl ItemsSource="{Binding Countries}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                                                                BorderThickness="1" CornerRadius="10" Margin="0,0,0,8">
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Country}" Style="{StaticResource Label}"
+                                                                           Margin="16,11,0,2" />
+                                                                <ItemsControl ItemsSource="{Binding Bouts}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid Margin="16,5,16,5">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="{Binding DataContext.DivisionColumn, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                    <ColumnDefinition Width="Auto" />
+                                                                                </Grid.ColumnDefinitions>
+
+                                                                                <!-- A title fight is the reason to read the card at all, so it is marked before the names. -->
+                                                                                <TextBlock Text="{Binding Division, Converter={StaticResource DivName}}"
+                                                                                           FontSize="11" Foreground="{StaticResource Faint}"
+                                                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                                                           Visibility="{Binding DataContext.UniverseManyDivisions, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}" />
+
+                                                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                                                    <Border Background="{StaticResource GoldSoft}" CornerRadius="4"
+                                                                                            Padding="6,1" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                                                            Visibility="{Binding IsTitle, Converter={StaticResource BoolVis}}">
+                                                                                        <TextBlock Text="{Binding Title}" FontSize="10" FontWeight="SemiBold"
+                                                                                                   Foreground="{StaticResource Gold}" />
+                                                                                    </Border>
+                                                                                    <Button Style="{StaticResource LinkName}" Content="{Binding Winner}"
+                                                                                            CommandParameter="{Binding Winner}"
+                                                                                            Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                                                    <TextBlock Text="{Binding Joiner}" FontSize="12.5" Margin="6,0"
+                                                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                                                                    <Button Style="{StaticResource LinkName}" Content="{Binding Loser}"
+                                                                                            CommandParameter="{Binding Loser}"
+                                                                                            Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                                                </StackPanel>
+
+                                                                                <TextBlock Grid.Column="2" Text="{Binding Verdict}" FontSize="12"
+                                                                                           Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <Border Height="8" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
                 </local:PageHost>
 
                 <!-- ============ ABOUT ============ -->

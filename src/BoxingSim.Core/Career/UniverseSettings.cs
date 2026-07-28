@@ -47,9 +47,10 @@ public sealed record WorldBout(DateOnly Date, WeightClass Division, string Regio
 
     /// <summary>The result in one line. A draw has no winner, so it must not be written as though it did —
     /// "X beat Y, drew with" is the sort of thing that gets built when a winner is assumed.</summary>
-    public string Headline => Draw
-        ? $"{Winner} drew with {Loser}"
-        : $"{Winner} beat {Loser}";
+    public string Headline => $"{Winner} {Joiner} {Loser}";
+
+    /// <summary>The word between the two names, for a card that shows them separately so each can be clicked.</summary>
+    public string Joiner => Draw ? "drew with" : "beat";
 
     /// <summary>How it ended, on its own.</summary>
     public string Verdict => Draw ? "draw"

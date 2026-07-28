@@ -95,7 +95,13 @@ public sealed class CareerGame
     public bool WbcActive => Year >= 1963;
     public bool IbfActive => Year >= 1983;   // the IBF is the third sanctioning body; no WBO or minor belts
     /// <summary>A division only exists from its founding year (the junior/intermediate classes came later).</summary>
-    private bool DivisionActive(WeightClass wc) => Year >= wc.FoundedYear();
+    /// <summary>Whether a division exists in this world at all. Two things can switch one off: the year (a
+    /// division cannot run before it was founded), and a universe that was asked for a shorter list. The second
+    /// is a real exclusion, not a filter on what is shown - no cards, no seasons, no debuts and no belts happen
+    /// outside the chosen divisions, so a one-division universe is one division of boxing and nothing else.</summary>
+    private bool DivisionActive(WeightClass wc) =>
+        Year >= wc.FoundedYear()
+        && (Universe is null || Universe.Divisions.Count == 0 || Universe.Divisions.Contains(wc));
     /// <summary>True when one man holds both world belts in the player's division.</summary>
     public bool Unified => Champion is not null && WbcChampion is not null && Champion.Id == WbcChampion.Id;
     private bool UnifiedIn(WeightClass wc) => ChampOf(wc) is Boxer a && WbcOf(wc) is Boxer b && a.Id == b.Id;
@@ -312,8 +318,12 @@ public sealed class CareerGame
     public IReadOnlyList<CareerEvent> RecentLog(int n) => _log.Skip(Math.Max(0, _log.Count - n)).ToList();
 
     public CareerGame(int startYear, Boxer player, IEnumerable<Boxer> historicalProtos, Random rng,
-                      WeightClass division = WeightClass.Heavyweight, int warmupYears = 10, bool seedHistory = false)
+                      WeightClass division = WeightClass.Heavyweight, int warmupYears = 10, bool seedHistory = false,
+                      UniverseSettings? universe = null)
     {
+        // Assigned before anything else: the seeding and the warm-up years below both read it, so a universe
+        // set afterwards would build a world under the sim's rules and only then change them.
+        Universe = universe;
         _rng = rng;
         _factory = new BoxerFactory(rng);
         _careers = new CareerProgression(rng);
@@ -348,6 +358,7 @@ public sealed class CareerGame
         foreach (var proto in protos)
         {
             if (proto.DebutYear is not int debutYear) continue;
+            if (Universe is { Divisions.Count: > 0 } uni && !uni.Divisions.Contains(proto.WeightClass)) continue;
             int birth = FirstYear(proto.DateOfBirth);
             int debutAge = birth > 0 ? Math.Clamp(debutYear - birth, 16, 30) : 19;
             int peak = PeakOf(proto, birth);
@@ -1272,7 +1283,10 @@ public sealed class CareerGame
         // fighters gave each man about ONE fight a year - a contender should be out three or four times.
         // Sized so a typical fighter gets that, with world-ranked men thinned out separately by
         // FightChancePerCard because they take fewer, bigger nights.
-        int bouts = Math.Clamp((int)Math.Round(pool.Count * 0.105), 3, 40);
+        // A universe's activity dial has to move this number, not just each man's willingness. How busy the
+        // sport is IS how many bouts get staged; a fighter who wants to be out more often cannot be if there
+        // are no cards for him, which is why turning the dial on its own changed nothing.
+        int bouts = Math.Clamp((int)Math.Round(pool.Count * 0.105 * CareerMileage.ActivityScale), 3, 90);
         var used = new HashSet<int>();
         var top20 = Top20Ids(_cursor); var top8 = Top8Ids(_cursor);
         for (int b = 0; b < bouts; b++)

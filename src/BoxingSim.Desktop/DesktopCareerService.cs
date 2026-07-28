@@ -30,6 +30,28 @@ public sealed class DesktopCareerService
     public CareerGame? Game { get; private set; }
     public FightResult? LastResult { get; private set; }
     public bool HasCareer => Game is not null;
+
+    /// <summary>The universe, when one is running. A universe and a career are alternatives - one has a fighter
+    /// to follow, the other has a whole sport and nobody in it - so only ever one is live.</summary>
+    public Universe? Universe { get; private set; }
+    public bool InUniverse => Universe is not null;
+
+    /// <summary>Open a universe. A fresh copy of the roster each time, because the world ages what it is
+    /// handed, and the career (if any) is put down first.</summary>
+    public void StartUniverse(UniverseSettings settings)
+    {
+        Game = null;
+        LastResult = null;
+        Universe = new Universe(settings, Roster.ToList());
+    }
+
+    /// <summary>Close it, and put the process-wide mileage dials back so a career started afterwards behaves
+    /// like a career again.</summary>
+    public void EndUniverse()
+    {
+        Universe = null;
+        BoxingSim.Core.Career.Universe.Release();
+    }
     public static bool HasSave => File.Exists(SavePath);
 
     /// <summary>The real roster, read from the file shipped beside the executable.</summary>
@@ -68,6 +90,8 @@ public sealed class DesktopCareerService
 
     public void Start(string name, string country, int startYear, int potential, WeightClass division, bool fullHistory)
     {
+        // A career never inherits a universe's dials.
+        EndUniverse();
         var rng = new Random();
         var player = CareerGame.CreatePlayer(rng, name, country, division, potential);
         // A fresh copy each time: CareerGame ages and mutates the roster it is handed.

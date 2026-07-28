@@ -48,7 +48,22 @@ public sealed class Cmd : ICommand
     public void Refresh() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
 
-public enum Page { Dashboard, Career, Rankings, P4P, Champions, Hall, Awards, News, Stats, About }
+public enum SetupMode { Career, Universe }
+
+public enum Page { Dashboard, Career, Rankings, P4P, Champions, Hall, Awards, News, Stats, About, Universe }
+
+/// <summary>One division the universe may or may not run. It reports back when toggled so the summary line
+/// above the list stays honest.</summary>
+public sealed class DivisionChoice : Observable
+{
+    private readonly Action _changed;
+    public DivisionChoice(WeightClass division, string name, Action changed)
+        { Division = division; Name = name; _changed = changed; }
+    public WeightClass Division { get; }
+    public string Name { get; }
+    private bool _on;
+    public bool On { get => _on; set { _on = value; Raise(); _changed(); } }
+}
 
 /// <summary>A sidebar entry. Group headers are not selectable — they only label the section beneath.</summary>
 public sealed record NavItem(Page Page, string Label, bool IsHeader = false, string Shortcut = "")
@@ -248,6 +263,18 @@ public sealed class CareerViewModel : Observable
         ContinueCareer = new Cmd(Continue, () => Ready && DesktopCareerService.HasSave);
         AbandonCareer = new Cmd(Abandon);
         RollName = new Cmd(() => PlayerName = NameGen.Generate(Country, _rng));
+        StartUniverse = new Cmd(DoStartUniverse);
+        PlayWeek = new Cmd(DoPlayWeek);
+        PlayMonth = new Cmd(() => { for (int i = 0; i < 4; i++) DoPlayWeek(); });
+        PlayYear = new Cmd(DoPlayYear);
+        LeaveUniverse = new Cmd(() =>
+        {
+            _svc.EndUniverse();
+            UniverseWeek.Clear();
+            _selectedNav = CareerNav[0];
+            RefreshAll();
+            Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
+        });
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
         ShowMyCard = new Cmd(() => { if (Game is not null) SelectedCard = BuildCard(Game.Player); });
@@ -297,6 +324,9 @@ public sealed class CareerViewModel : Observable
         var divisions = await Task.Run(() => _svc.AvailableDivisions());
         foreach (var d in divisions) Divisions.Add(d);
         SetupDivision = Divisions.FirstOrDefault(WeightClass.Middleweight);
+        UniDivisions.Clear();
+        foreach (var d in Divisions)
+            UniDivisions.Add(new DivisionChoice(d, d.DisplayName(), () => Raise(nameof(UniDivisionsLabel))));
         Ready = true;
     }
 
@@ -308,14 +338,85 @@ public sealed class CareerViewModel : Observable
     }
     public bool Loading => !_ready;
 
-    public CareerGame? Game => _svc.Game;
+    /// <summary>The world every page reads. In a career that is the player's game; in a universe it is the
+    /// sport itself. Everything that shows rankings, champions, news or the Hall of Fame works off this, so
+    /// both modes get those pages from the same code.</summary>
+    public CareerGame? Game => _svc.Game ?? _svc.Universe?.World;
     public bool InCareer => _svc.HasCareer;
+
+    // ---- universe ----
+    public bool InUniverse => _svc.InUniverse;
+    /// <summary>Either mode fills the shell; only the sidebar and the first page differ.</summary>
+    public bool InPlay => _svc.HasCareer || _svc.InUniverse;
+
+    private SetupMode _setupMode = SetupMode.Career;
+    /// <summary>Which of the two the setup screen is offering.</summary>
+    public SetupMode SetupMode { get => _setupMode; set { _setupMode = value; Raise(); } }
+    public bool SetupIsCareer { get => _setupMode == SetupMode.Career; set { if (value) SetupMode = SetupMode.Career; } }
+    public bool SetupIsUniverse { get => _setupMode == SetupMode.Universe; set { if (value) SetupMode = SetupMode.Universe; } }
+    /// <summary>The setup screen shows only when neither a career nor a universe is running.</summary>
+    public bool AtSetup => !_svc.HasCareer && !_svc.InUniverse;
+
+    private int _uniStartYear = 1960;
+    public int UniStartYear { get => _uniStartYear; set { _uniStartYear = value; Raise(); } }
+    private int _uniEntrants = 18;
+    public int UniEntrants { get => _uniEntrants; set { _uniEntrants = Math.Clamp(value, 2, 60); Raise(); } }
+    private double _uniCareerLength = 1.0;
+    public double UniCareerLength { get => _uniCareerLength; set { _uniCareerLength = value; Raise(); Raise(nameof(UniCareerLengthLabel)); } }
+    public string UniCareerLengthLabel => $"{_uniCareerLength:0.0}×  (median ≈ {(int)Math.Round(50 * _uniCareerLength)} fights)";
+    private double _uniActivity = 1.0;
+    public double UniActivity { get => _uniActivity; set { _uniActivity = value; Raise(); Raise(nameof(UniActivityLabel)); } }
+    /// <summary>Stated as cards rather than bouts-per-man, because the dial scales the number of cards exactly
+    /// and the per-fighter figure that follows from it is not linear.</summary>
+    public string UniActivityLabel => _uniActivity == 1.0
+        ? "1.0×  (the sim's own pace — a contender is out three or four times a year)"
+        : $"{_uniActivity:0.0}×  ({(_uniActivity < 1 ? "quieter" : "busier")} — {_uniActivity:0.0}× as many cards)";
+    private int _uniWarmup = 8;
+    public int UniWarmup { get => _uniWarmup; set { _uniWarmup = Math.Clamp(value, 0, 30); Raise(); } }
+    private bool _uniRealFighters = true;
+    public bool UniRealFighters { get => _uniRealFighters; set { _uniRealFighters = value; Raise(); } }
+
+    /// <summary>Which divisions the universe runs. All of them is the default — a sport, not a division —
+    /// but a single-division world is much faster and much easier to follow.</summary>
+    public ObservableCollection<DivisionChoice> UniDivisions { get; } = new();
+    public string UniDivisionsLabel
+    {
+        get
+        {
+            var on = UniDivisions.Where(d => d.On).ToList();
+            return on.Count == 0 || on.Count == UniDivisions.Count ? "every division"
+                 : on.Count <= 3 ? string.Join(", ", on.Select(d => d.Name))
+                 : $"{on.Count} divisions";
+        }
+    }
+
+    /// <summary>The week just played, region by region.</summary>
+    public ObservableCollection<RegionCard> UniverseWeek { get; } = new();
+
+    public string UniverseDate => _svc.Universe is { } u ? u.Date.ToString("d MMMM yyyy") : "";
+    public string UniverseWeekLabel => _svc.Universe is { } u ? $"WEEK {u.Week}" : "";
+    /// <summary>Whether the division is worth naming on every row. In a one-division universe it is the same
+    /// word 17 times down the page.</summary>
+    public bool UniverseManyDivisions => _svc.Universe is null || _svc.Universe.Settings.Divisions.Count != 1;
+
+    /// <summary>The width the division column needs — none at all when there is only one.</summary>
+    public System.Windows.GridLength DivisionColumn =>
+        new(UniverseManyDivisions ? 126 : 0, System.Windows.GridUnitType.Pixel);
+
+    /// <summary>A week where nothing was on anywhere. It happens, and an empty page with no explanation
+    /// looks like a bug rather than a quiet week.</summary>
+    public bool UniverseQuiet => _svc.Universe is not null && UniverseWeek.Count == 0;
+
+    public string UniverseSummary => _svc.Universe is null ? ""
+        : $"{UniverseWeek.Sum(r => r.Bouts)} bouts · {UniverseWeek.Sum(r => r.TitleBouts)} for a title";
 
     // ---- navigation ----
     // Career mode is the app; the boards are reference you dip into. The sidebar says so — your own two screens
     // first, then the sport, then the record books — rather than eight peers where "Fight night" and "Career"
     // sounded like the same thing.
-    public IReadOnlyList<NavItem> Nav { get; } = new[]
+    public IReadOnlyList<NavItem> Nav => InUniverse ? UniverseNav : CareerNav;
+
+    private static readonly NavItem[] CareerNav =
     {
         new NavItem(Page.Dashboard, "Dashboard", Shortcut: "Ctrl+1"),
         new NavItem(Page.Career, "Next fight", Shortcut: "Ctrl+2"),
@@ -330,6 +431,22 @@ public sealed class CareerViewModel : Observable
         new NavItem(Page.Awards, "Awards", Shortcut: "Ctrl+9"),
         // Not a feature — the crowd recordings are CC-BY, and that licence obliges the app itself to carry the
         // credit, not just the repository.
+        new NavItem(Page.About, "About", Shortcut: "Ctrl+0"),
+    };
+
+    // A universe has no player, so the three screens about one are gone. What is left is the sport, which in
+    // career mode is the reference section and here is the whole thing.
+    private static readonly NavItem[] UniverseNav =
+    {
+        new NavItem(Page.Universe, "This week", Shortcut: "Ctrl+1"),
+        new NavItem(Page.Dashboard, "THE SPORT", IsHeader: true),
+        new NavItem(Page.Rankings, "Rankings", Shortcut: "Ctrl+2"),
+        new NavItem(Page.P4P, "Pound-for-pound", Shortcut: "Ctrl+3"),
+        new NavItem(Page.Champions, "Champions", Shortcut: "Ctrl+4"),
+        new NavItem(Page.News, "News", Shortcut: "Ctrl+5"),
+        new NavItem(Page.Dashboard, "THE RECORD BOOKS", IsHeader: true),
+        new NavItem(Page.Hall, "Hall of Fame", Shortcut: "Ctrl+6"),
+        new NavItem(Page.Awards, "Awards", Shortcut: "Ctrl+7"),
         new NavItem(Page.About, "About", Shortcut: "Ctrl+0"),
     };
 
@@ -375,7 +492,7 @@ public sealed class CareerViewModel : Observable
         {
             _viewDivision = division;
             Raise(nameof(ViewDivision));
-            SelectedNav = Nav.First(n => n.IsPage && n.Page == page);
+            SelectedNav = Nav.FirstOrDefault(n => n.IsPage && n.Page == page) ?? SelectedNav;
             BuildRankings();
             Raise(nameof(RankingsSubtitle));
             Raise(nameof(IsAwayDivision));
@@ -394,7 +511,7 @@ public sealed class CareerViewModel : Observable
             string s when Enum.TryParse<Page>(s, out var p) => p,
             _ => Page.Career
         };
-        SelectedNav = Nav.First(n => n.IsPage && n.Page == page);
+        SelectedNav = Nav.FirstOrDefault(n => n.IsPage && n.Page == page) ?? SelectedNav;
     }
 
     /// <summary>Show a given division's rankings — the cross-link from the champions board and a fighter's card,
@@ -410,7 +527,7 @@ public sealed class CareerViewModel : Observable
         } ?? ViewDivision;
         ViewDivision = wc;
         SelectedCard = null;
-        SelectedNav = Nav.First(n => n.IsPage && n.Page == Page.Rankings);
+        SelectedNav = Nav.FirstOrDefault(n => n.IsPage && n.Page == Page.Rankings) ?? SelectedNav;
     }
 
     private WeightClass _viewDivision;
@@ -486,6 +603,14 @@ public sealed class CareerViewModel : Observable
     public Cmd ContinueCareer { get; }
     public Cmd AbandonCareer { get; }
     public Cmd RollName { get; }
+    /// <summary>Open a universe with the chosen settings.</summary>
+    public Cmd StartUniverse { get; }
+    /// <summary>Run the sport on: a week, a month, a year.</summary>
+    public Cmd PlayWeek { get; }
+    public Cmd PlayMonth { get; }
+    public Cmd PlayYear { get; }
+    public Cmd LeaveUniverse { get; }
+
     public Cmd ShowFighter { get; }
 
     /// <summary>Open your own fighter card - attributes, form and full record.</summary>
@@ -989,6 +1114,63 @@ public sealed class CareerViewModel : Observable
     public FighterCard? SelectedCard { get => _selectedCard; private set { _selectedCard = value; Raise(); Raise(nameof(HasCard)); } }
     public bool HasCard => _selectedCard is not null;
 
+    private async void DoStartUniverse()
+    {
+        var settings = new UniverseSettings
+        {
+            StartYear = UniStartYear,
+            Divisions = UniDivisions.Where(d => d.On).Select(d => d.Division).ToList(),
+            EntrantsPerYear = UniEntrants,
+            CareerLength = UniCareerLength,
+            Activity = UniActivity,
+            WarmupYears = UniWarmup,
+            UseRealFighters = UniRealFighters
+        };
+        // Warming a world through years of history is the slow part, so it runs off the UI thread.
+        await BusyAsync("Building a world…", () => _svc.StartUniverse(settings));
+        UniverseWeek.Clear();
+        _selectedNav = UniverseNav[0];
+        RefreshAll();
+        Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
+        DoPlayWeek();
+    }
+
+    private void DoPlayWeek()
+    {
+        if (_svc.Universe is not { } u) return;
+        var cards = u.PlayWeek();
+        UniverseWeek.Clear();
+        foreach (var c in cards) UniverseWeek.Add(c);
+        RefreshUniverse();
+    }
+
+    private async void DoPlayYear()
+    {
+        if (_svc.Universe is not { } u) return;
+        IReadOnlyList<RegionCard> last = Array.Empty<RegionCard>();
+        await BusyAsync("A year of the sport…", () =>
+        {
+            for (int i = 0; i < 52; i++) last = u.PlayWeek();
+        });
+        UniverseWeek.Clear();
+        foreach (var c in last) UniverseWeek.Add(c);
+        RefreshUniverse();
+    }
+
+    /// <summary>The world moved, so everything that reads it has to be told — the week's cards, and the
+    /// rankings, champions, news and hall of fame that a universe shares with a career.</summary>
+    private void RefreshUniverse()
+    {
+        foreach (var n in new[] { nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(UniverseQuiet), nameof(UniverseManyDivisions), nameof(DivisionColumn),
+                                  nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav) })
+            Raise(n);
+        BuildRankings();
+        BuildChampions();
+        BuildNews();
+        BuildHof();
+        BuildAwards();
+    }
+
     private void OnShowFighter(object? param)
     {
         if (Game is null) return;
@@ -999,6 +1181,9 @@ public sealed class CareerViewModel : Observable
         }
         if (param is BeltRow belt && belt.Fighter is Boxer bf) SelectedCard = BuildCard(bf);
         if (param is Boxer only) SelectedCard = BuildCard(only);
+        // The universe reports its bouts as names, not objects — a week's card is text, and the men in it are
+        // looked up the same way a reader would look them up.
+        if (param is string name && Game.FindByName(name) is Boxer found) SelectedCard = BuildCard(found);
     }
 
     private FighterCard BuildCard(Boxer b)
@@ -1422,7 +1607,8 @@ public sealed class CareerViewModel : Observable
 
         foreach (var n in new[]
         {
-            nameof(InCareer), nameof(Game), nameof(PlayerHeadline), nameof(PlayerClass), nameof(PlayerRecord),
+            nameof(InCareer), nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav),
+            nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(Game), nameof(PlayerHeadline), nameof(PlayerClass), nameof(PlayerRecord),
             nameof(PlayerIdentity), nameof(PlayerStanding), nameof(PlayerIsChampion),
             nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),
             nameof(OfferOpponentClass), nameof(OfferOpponentRecord), nameof(OfferOpponentMeta),

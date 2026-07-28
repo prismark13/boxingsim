@@ -47,16 +47,17 @@ public sealed class Universe
         // A universe has no player. One is still needed to build the world - the whole sim is written around
         // there being one - so a placeholder is made and retired before the first week, which takes him out of
         // every pool, ranking and card. Nothing ever offers him a fight because nothing ever asks.
-        var ghost = CareerGame.CreatePlayer(_rng, "—", "USA", WeightClass.Heavyweight, 50);
+        // He is retired before anything runs, but he still has to belong to a division this world has, or the
+        // sim is holding a man in a weight class that does not exist here.
+        var home = settings.Divisions.Count > 0 ? settings.Divisions[0] : WeightClass.Heavyweight;
+        var ghost = CareerGame.CreatePlayer(_rng, "—", "USA", home, 50);
         ghost.Retired = true;
 
         var protos = settings.UseRealFighters ? roster : Array.Empty<Boxer>();
         _world = new CareerGame(settings.StartYear, ghost, protos, _rng,
-                                WeightClass.Heavyweight, warmupYears: settings.WarmupYears,
-                                seedHistory: settings.WarmupYears > 0)
-        {
-            Universe = settings
-        };
+                                home, warmupYears: settings.WarmupYears,
+                                seedHistory: settings.WarmupYears > 0,
+                                universe: settings);
         ghost.Retired = true;      // seeding may have revived him; he stays out
         _world.WatchBouts();
     }
