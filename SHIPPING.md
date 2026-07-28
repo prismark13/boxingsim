@@ -30,8 +30,15 @@ Nothing in the code fixes that; it is a matter of code signing.
 - **Unsigned** is fine for people you hand it to directly and can tell to click through. It is not fine for
   strangers downloading from a link.
 
-## Deprecated: the web build
+## Retired: the web build
 
-`src/BoxingSim.App` is a Blazor WASM version that development has moved on from. Its GitHub Pages workflow no
-longer runs on push. **Do not delete the project** — the fighter roster lives at
-`src/BoxingSim.App/wwwroot/data/fighters.json` and the desktop app embeds it from there.
+`src/BoxingSim.App` is a Blazor WASM version that development has moved on from.
+
+The public site at `prismark13.github.io/boxingsim` has been taken down and the Pages configuration removed.
+Note that a Pages site on a public repository cannot be made *private* — private Pages needs GitHub Enterprise
+Cloud — so removing it is the only way to make it non-public. To bring it back: re-enable Pages in the
+repository settings and run the (now manual-only) deploy workflow.
+
+**Do not delete the project.** The fighter roster lives at `src/BoxingSim.App/wwwroot/data/fighters.json` and
+the desktop app embeds it from there, so removing the project would take the roster with it. If the project is
+ever to go properly, move that file somewhere neutral first and repoint both csproj references.
