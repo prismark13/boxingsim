@@ -1,3 +1,4 @@
+using BoxingSim.Core.Generation;
 using BoxingSim.Core.Model;
 
 namespace BoxingSim.Core.Generation;
@@ -9,13 +10,18 @@ public sealed class CareerProgression
 
     public CareerProgression(Random rng) => _rng = rng;
 
-    /// <summary>Advance a fighter one year: improve a developing prospect, decline a veteran.</summary>
+    /// <summary>Advance a fighter one year: improve a developing prospect, decline a worn one.
+    ///
+    /// What decides which is his MILEAGE, not his age. A fighter still short of his prime keeps improving
+    /// however old he is, and one who has had sixty hard fights is on the slide at twenty-eight. That is the
+    /// way round it works: a man is finished by what he has taken, not by how long he has been alive.</summary>
     public void AdvanceOneYear(Boxer b)
     {
         b.Age++;
         var r = b.Ratings;
+        int pastPrime = CareerMileage.PastPrime(b);
 
-        if (b.Age <= b.PeakAge)
+        if (pastPrime <= 0)
         {
             // Climbing toward the ceiling — the further below potential, the faster the growth.
             double room = Math.Max(0, b.Potential - r.Overall);
@@ -24,9 +30,10 @@ public sealed class CareerProgression
         }
         else
         {
-            // Past the peak. Athleticism erodes first and fastest; ring craft lingers.
-            int yearsPast = b.Age - b.PeakAge;
-            double decl = 0.8 + yearsPast * 0.45;
+            // Past his best. Athleticism erodes first and fastest; ring craft lingers. The rate is set by how
+            // far past his prime the mileage has taken him, so a busy fighter falls away faster than a careful
+            // one of the same age.
+            double decl = 0.8 + pastPrime * 0.09;
             r.Speed = Drop(r.Speed, decl * 1.3);
             r.Stamina = Drop(r.Stamina, decl * 1.1);
             r.Power = Drop(r.Power, decl * 0.8);
@@ -43,21 +50,25 @@ public sealed class CareerProgression
         b.Ratings.Chin = Ratings.Clamp(b.Ratings.Chin - _rng.Next(1, 4));
     }
 
+    /// <summary>Whether he hangs them up. Careers end because a man has had enough fights, not because he has
+    /// had enough birthdays — so this counts bouts. Nobody's career is cut short below the minimum unless an
+    /// injury ends it, and nobody goes past his own limit.</summary>
     public bool ShouldRetire(Boxer b)
     {
-        if (b.Age >= 42) return true;
-        double chance = 0;
-        if (b.Age >= 40) chance += 0.55;
-        else if (b.Age >= 37) chance += 0.25;
-        else if (b.Age >= 34) chance += 0.08;
+        int fights = CareerMileage.Fights(b);
+        if (fights >= CareerMileage.CareerLimit(b)) return true;
+        if (fights < CareerMileage.MinimumCareer) return false;
 
-        // Faded fighters and those taking sustained punishment hang them up sooner — but only once
-        // they're past their physical prime; a young fighter rebuilds rather than retires.
-        if (b.Age >= 31)
-        {
-            if (b.Overall < 40) chance += 0.20;
-            if (b.Record.KnockoutLosses >= 4) chance += 0.15;
-        }
+        double chance = 0;
+        int worn = fights - CareerMileage.PostPrimeUntil(b);
+        if (worn > 0) chance += 0.06 + worn * 0.035;
+        else if (CareerMileage.PastPrime(b) > 0) chance += 0.02;
+
+        // A faded fighter, or one who has been stopped repeatedly, goes sooner.
+        if (b.Overall < 40) chance += 0.18;
+        if (b.Record.KnockoutLosses >= 4) chance += 0.14;
+        // And nobody boxes into their forties whatever the mileage says.
+        if (b.Age >= 40) chance += 0.45;
 
         return _rng.NextDouble() < chance;
     }

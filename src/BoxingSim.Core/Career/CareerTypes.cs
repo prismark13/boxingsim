@@ -1,3 +1,4 @@
+using BoxingSim.Core.Generation;
 using BoxingSim.Core.Model;
 
 namespace BoxingSim.Core.Career;
@@ -5,27 +6,21 @@ namespace BoxingSim.Core.Career;
 /// <summary>The five stages of a fighter's career arc (then retirement).</summary>
 public enum CareerStage { Starter, PrePrime, Prime, PostPrime, End }
 
+/// <summary>One point on a fighter's career arc: what he was, and at what age.</summary>
+public sealed record StagePoint(string Stage, int Fights, int Age, Ratings Ratings, bool IsNow)
+{
+    public int Overall => Ratings.Overall;
+    public int Class => Ratings.Class;
+}
+
 public static class CareerStages
 {
-    /// <summary>Where a fighter sits on the career arc, from age relative to their peak (and pro experience).</summary>
-    public static CareerStage Of(Boxer b)
-    {
-        int fights = b.Record.Wins + b.Record.Losses + b.Record.Draws;
-        int d = b.Age - b.PeakAge;
-
-        // An aging fighter is winding down no matter how many bouts he's had.
-        if (d >= 7) return CareerStage.End;
-
-        var byFights =
-            fights <= 6 ? CareerStage.Starter :
-            fights <= 25 ? CareerStage.PrePrime :
-            fights <= 60 ? CareerStage.Prime :
-            fights <= 80 ? CareerStage.PostPrime : CareerStage.End;
-
-        // Past his physical peak he can't still be "prime" on paper.
-        if (d >= 3 && byFights < CareerStage.PostPrime) return CareerStage.PostPrime;
-        return byFights;
-    }
+    /// <summary>Where a fighter sits on the career arc, measured in bouts. It used to be read off his age
+    /// against a notional peak age, with the fight count only ever able to pull him further back - so two
+    /// thirty-year-olds were the same fighter whether one had eighteen bouts behind him or seventy. A boxer is
+    /// worn down by being hit, not by birthdays. See <see cref="CareerMileage"/>, where every boundary is in
+    /// fights and varied per man so no two age on the same schedule.</summary>
+    public static CareerStage Of(Boxer b) => CareerMileage.StageOf(b);
 
     /// <summary>Roughly how many bouts a fighter takes in a year — busy early, picky in the prime, sparse at the end.</summary>
     public static int FightsPerYear(CareerStage s) => s switch

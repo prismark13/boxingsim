@@ -386,6 +386,7 @@ public sealed class CareerGame
         foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _lineal[wc] = c;
         _lastTitleShot = s.LastTitleShot;
         foreach (var h in s.Historical) _historical[h.Id] = (h.Prime.ToRatings(), h.Peak);
+        foreach (var a in s.PlayerArc) _playerArc.Add((a.Fights, a.Age, a.R.ToRatings()));
         foreach (var f in s.Future) _future.Add((f.DebutYear, f.Proto.ToBoxer(), f.DebutAge, f.Peak));
         foreach (var e in s.Log)
         {
@@ -490,6 +491,7 @@ public sealed class CareerGame
             s.Roster.Add(bs);
         }
         foreach (var kv in _historical) s.Historical.Add(new HistoricalSave { Id = kv.Key, Peak = kv.Value.Peak, Prime = RatingsSave.From(kv.Value.Prime) });
+        foreach (var a in _playerArc) s.PlayerArc.Add(new ArcPointSave { Fights = a.Fights, Age = a.Age, R = RatingsSave.From(a.R) });
         foreach (var f in _future) s.Future.Add(new FutureSave { DebutYear = f.DebutYear, DebutAge = f.DebutAge, Peak = f.Peak, Proto = BoxerSave.From(f.Proto) });
         foreach (var e in _log) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString(), BoutWinner = e.Bout?.Winner, BoutLoser = e.Bout?.Loser });
         foreach (var r in _reigns) s.Reigns.Add(new TitleReignSave { Belt = r.Belt, Won = r.Won.ToString("yyyy-MM-dd"), Lost = r.Lost?.ToString("yyyy-MM-dd"), Defenses = r.Defenses });
@@ -693,6 +695,10 @@ public sealed class CareerGame
             b.RankPoints += (World.AbilityAnchor(b.Overall) - b.RankPoints) * 0.28;
 
             // Track Hall-of-Fame credentials: best rating ever reached, and whether he ever held a world belt.
+            // The player's arc has to be recorded as it happens; his year-to-year development is random and
+            // there is no way to reconstruct what he was at 22 once he is 30.
+            if (b.Id == Player.Id && _playerArc.All(x => x.Age != b.Age))
+                _playerArc.Add((CareerMileage.Fights(b), b.Age, b.Ratings.Clone()));
             _peakOverall[b.Id] = Math.Max(_peakOverall.GetValueOrDefault(b.Id), b.Overall);
             _peakClass[b.Id] = Math.Max(_peakClass.GetValueOrDefault(b.Id), b.Class);
             if (ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id)
@@ -2030,11 +2036,82 @@ public sealed class CareerGame
         if (announce) LogEvent($"{b.Name} ({b.Country}) turns pro.", kind: "debut", div: b.WeightClass);
     }
 
+    /// <summary>What a fighter was at each point of his career, so a card can show the arc rather than only
+    /// today's snapshot. A 34-year-old ex-champion's current ratings say nothing about the fighter who won the
+    /// title at 26, and that man is the one worth looking at.
+    ///
+    /// For anyone drawn from the real roster this costs nothing to produce: their ratings are a pure function
+    /// of age against a stored prime, so any age on the arc can simply be evaluated. Fighters invented inside
+    /// the save develop randomly year to year and cannot be rewound, so they have no arc to show - the player
+    /// is the exception, because his own is recorded as he lives it.</summary>
+    public IReadOnlyList<StagePoint> CareerArc(Boxer b)
+    {
+        int now = CareerMileage.Fights(b);
+        var points = new List<StagePoint>();
+
+        if (b.Id == Player.Id)
+        {
+            foreach (var (fights, age, r) in _playerArc.OrderBy(x => x.Fights))
+                points.Add(new StagePoint(StageName(StageAtFights(b, fights)), fights, age, r, false));
+        }
+        else if (_historical.TryGetValue(b.Id, out var h))
+        {
+            // Probe his arc at the end of each stage. The curve is a pure function of mileage, so any point on
+            // it can simply be evaluated - no history has to be stored for anyone off the real roster.
+            foreach (int at in new[] { CareerMileage.StarterUntil(b), CareerMileage.PrePrimeUntil(b),
+                                       (CareerMileage.PrePrimeUntil(b) + CareerMileage.PrimeUntil(b)) / 2,
+                                       CareerMileage.PrimeUntil(b), CareerMileage.PostPrimeUntil(b) })
+            {
+                if (at <= 0 || at >= now) continue;   // not reached yet
+                var was = new Ratings();
+                PlaceOnArc(was, h.Prime, DevelopmentAt(b, at), at <= CareerMileage.PrimeUntil(b));
+                points.Add(new StagePoint(StageName(StageAtFights(b, at)), at, 0, was, false));
+            }
+        }
+        else return points;   // invented inside the save and not the player: nothing to reconstruct
+
+        // Where he is today always closes the arc.
+        points.Add(new StagePoint(StageName(CareerStages.Of(b)), now, b.Age, b.Ratings, true));
+        return points.GroupBy(p => p.Fights).Select(g => g.Last()).OrderBy(p => p.Fights).ToList();
+    }
+
+    /// <summary>The stage a given fighter was in at a given fight count, using HIS boundaries.</summary>
+    private static CareerStage StageAtFights(Boxer b, int fights) =>
+        fights <= CareerMileage.StarterUntil(b) ? CareerStage.Starter :
+        fights <= CareerMileage.PrePrimeUntil(b) ? CareerStage.PrePrime :
+        fights <= CareerMileage.PrimeUntil(b) ? CareerStage.Prime :
+        fights <= CareerMileage.PostPrimeUntil(b) ? CareerStage.PostPrime : CareerStage.End;
+
+    private static string StageName(CareerStage s) => s switch
+    {
+        CareerStage.Starter => "Starter",
+        CareerStage.PrePrime => "Pre-prime",
+        CareerStage.Prime => "Prime",
+        CareerStage.PostPrime => "Post-prime",
+        _ => "Veteran"
+    };
+
+    // The player's own arc. His development is random year to year and cannot be recomputed, so it is recorded
+    // as he lives it - keyed on the mileage he had at the time, which is what the stages are measured in.
+    private readonly List<(int Fights, int Age, Ratings R)> _playerArc = new();
+
+    /// <param name="peak">Kept for the seeding path, which positions a man on his arc before he has a record.
+    /// Once he is in the world his place on it is set by his mileage like everybody else's.</param>
     private static void AgeHistorical(Boxer b, Ratings prime, int peak)
     {
-        double dev = BoxerFactory.Development(b.Age, peak);
-        bool young = b.Age <= peak;
-        var r = b.Ratings;
+        // Fights, not birthdays. A roster fighter who is not being matched does not decay on the calendar.
+        double dev = CareerMileage.Fights(b) > 0
+            ? CareerMileage.Development(b)
+            : BoxerFactory.Development(b.Age, peak);
+        PlaceOnArc(b.Ratings, prime, dev, CareerMileage.PastPrime(b) <= 0);
+    }
+
+    /// <summary>Write a fighter's ratings for a given point on his arc. Split out from <see cref="AgeHistorical"/>
+    /// so the arc can be evaluated at a mileage the man is not currently at, WITHOUT building a stand-in boxer:
+    /// a shallow clone shares his record object, and writing a probe mileage into it would corrupt the real
+    /// fighter's record.</summary>
+    private static void PlaceOnArc(Ratings r, Ratings prime, double dev, bool young)
+    {
         // Young: power/defence/speed are near their ceiling already. Old: they decline normally.
         r.Power = Scale(prime.Power, young ? Lerp(dev, 0.85) : dev);
         r.Speed = Scale(prime.Speed, young ? Lerp(dev, 0.82) : dev);
@@ -2046,6 +2123,18 @@ public sealed class CareerGame
         r.CutResistance = prime.CutResistance;
         r.Aggression = prime.Aggression;
         r.Heart = prime.Heart;
+    }
+
+    /// <summary>The development factor a fighter would have at a given mileage, without touching him.</summary>
+    private static double DevelopmentAt(Boxer b, int fights)
+    {
+        int primeAt = CareerMileage.PrePrimeUntil(b);
+        if (fights <= primeAt)
+        {
+            double t = primeAt <= 0 ? 1 : fights / (double)primeAt;
+            return 0.55 + 0.45 * Math.Clamp(t, 0, 1);
+        }
+        return Math.Max(0.45, 1.0 - Math.Max(0, fights - CareerMileage.PrimeUntil(b)) * 0.010);
     }
 
     private void SeedRecordFor(Boxer b, int yearsActive)

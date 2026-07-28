@@ -17,6 +17,8 @@ public sealed class CareerSave
     public int LastTitleShot { get; set; } = -100;
     public List<BoxerSave> Roster { get; set; } = new();
     public List<HistoricalSave> Historical { get; set; } = new();
+    // The player's own year-by-year arc. Absent on saves written before the card showed one.
+    public List<ArcPointSave> PlayerArc { get; set; } = new();
     public List<FutureSave> Future { get; set; } = new();
     public List<CareerEventSave> Log { get; set; } = new();
     public List<TitleReignSave> Reigns { get; set; } = new();
@@ -204,6 +206,14 @@ public sealed class BoutRoundSave
     public int KdAgainst { get; set; }
     public int ScoreFor { get; set; }
     public int ScoreAgainst { get; set; }
+}
+
+/// <summary>One year of the player's development, kept because it cannot be recomputed.</summary>
+public sealed class ArcPointSave
+{
+    public int Fights { get; set; }
+    public int Age { get; set; }
+    public RatingsSave R { get; set; } = new();
 }
 
 public sealed class HistoricalSave
