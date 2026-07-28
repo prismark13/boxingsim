@@ -73,6 +73,25 @@ public sealed class RoundBlock : Observable
 /// a commentator would notice.</summary>
 public static class FightCall
 {
+    /// <summary>Which band the ring position is in, with real hysteresis: a band is ENTERED at a firm value
+    /// and left only at a distinctly lower one. Without the gap a position hovering on a threshold flips back
+    /// and forth every ten seconds and the call announces a change of position over and over - which is what
+    /// happened, twenty times a fight, before the margins went in.
+    ///
+    /// 2 = he is on the ropes, 1 = he is being walked down, 0 = neither man owns the ring, negatives mirrored.</summary>
+    private static int Band(double v, int current)
+    {
+        const double Pin = 0.30, PinOut = 0.22, Press = 0.16, PressOut = 0.10;
+        double a = Math.Abs(v);
+        int now = Math.Abs(current) switch
+        {
+            2 => a >= PinOut ? 2 : a >= PressOut ? 1 : 0,
+            1 => a >= Pin ? 2 : a >= PressOut ? 1 : 0,
+            _ => a >= Pin ? 2 : a >= Press ? 1 : 0
+        };
+        return now == 0 ? 0 : Math.Sign(v) * now;
+    }
+
     /// <summary>What to call a man through the fight. His surname, unless both men share one — two Daniels in
     /// the ring is exactly when a surname stops identifying anybody, so then they keep their full names.</summary>
     private static string Short(string name, string other)
@@ -152,16 +171,28 @@ public static class FightCall
                                gasMine, gasHis, actor);
                 }
 
-                // Ring position, from my side: positive means I have him backed up. Hysteresis on purpose —
-                // it takes a firm 0.34 to call a man trapped but a drop below 0.16 to call him free, so a
-                // position hovering on the threshold does not flip back and forth in the commentary.
+                // Ring position, from my side: positive means I have him backed up. Three bands, not two.
+                // The old pair only spoke when somebody's back was actually against the ropes, and the
+                // threshold for that sat at the 90th percentile of where the fight ever is - so half of all
+                // fights never mentioned the ring once. Pressure gets called long before a man is pinned,
+                // which is what a commentator does. Hysteresis is kept so a position hovering on a boundary
+                // does not chatter: bands are entered at a firm value and left only on a clear reversal.
                 double ring = iAmA ? t.Ring : -t.Ring;
-                int nowState = ring >= 0.34 ? 1 : ring <= -0.34 ? -1 : Math.Abs(ring) <= 0.16 ? 0 : ringState;
+                int nowState = Band(ring, ringState);
                 if (nowState != ringState)
                 {
-                    if (nowState == 1) lines.Add(Line(caller.Trapped(my, his), CallKind.Position, actor: 0));
-                    else if (nowState == -1) lines.Add(Line(caller.Trapped(his, my), CallKind.Position, actor: 1));
-                    else lines.Add(Line(caller.Escaped(ringState == 1 ? his : my), CallKind.Position));
+                    lines.Add(nowState switch
+                    {
+                        2 => Line(caller.Trapped(my, his), CallKind.Position, actor: 0),
+                        1 => Line(caller.Pressing(my, his), CallKind.Position, actor: 0),
+                        -1 => Line(caller.Pressing(his, my), CallKind.Position, actor: 1),
+                        -2 => Line(caller.Trapped(his, my), CallKind.Position, actor: 1),
+                        // Coming off the ropes is a moment; drifting back to even from mere pressure is not.
+                        _ => Math.Abs(ringState) == 2
+                             ? Line(caller.Escaped(ringState == 2 ? his : my), CallKind.Position,
+                                    actor: ringState == 2 ? 1 : 0)
+                             : Line(caller.Even(), CallKind.Position)
+                    });
                     ringState = nowState;
                 }
 
@@ -281,6 +312,24 @@ public static class FightCall
             $"{tgt} has nowhere to go, and {att} knows it.",
             $"{att} has him pinned, working him over against the ropes.",
             $"{tgt} finds himself trapped along the ropes again.");
+
+        /// <summary>Pressure without a pin. Most of a fight is spent here — one man walking the other down,
+        /// taking the middle, herding him — and calling only the moment somebody's back hits the ropes meant
+        /// half of all fights never mentioned where they were being fought at all.</summary>
+        public string Pressing(string att, string tgt) => Rotate("pressing",
+            $"{att} is walking him down.",
+            $"{att} takes the centre of the ring.",
+            $"{att} is cutting the ring off on him.",
+            $"{tgt} is giving ground now.",
+            $"{att} is backing him up, step by step.",
+            $"{tgt} is on his bike, {att} tracking him.");
+
+        /// <summary>Back to even. Neither man owns the ring.</summary>
+        public string Even() => Rotate("even",
+            "They meet in the middle again.",
+            "Back to centre ring, both circling.",
+            "Neither man is giving up the middle now.",
+            "It has evened out — they are both boxing on the move.");
 
         /// <summary>And back out. Getting off the ropes is the other half of the story.</summary>
         public string Escaped(string who) => Rotate("escaped",
@@ -424,13 +473,22 @@ public static class FightCall
                 $"IT'S ALL OVER — {w} has knocked him cold!",
                 $"{l} is out! {w} has finished it!"),
             "DQ" => $"{l} is disqualified — it's over.",
-            "cut" => $"It's waved off — {l} can't continue with that cut.",
+            "cut" => Rotate("cut",
+                $"The doctor takes one look and waves it off — {l} can't continue with that cut.",
+                $"The referee calls the doctor over, and that is that. {l} is out on the cut."),
+            // A stoppage always has somebody who stopped it. Every one of these names him — referee, corner or
+            // doctor — because "STOPS him" on its own leaves you unable to tell what actually happened, and a
+            // third of them used to read exactly that way.
             _ => fin.Body
-                ? Rotate("tkobody", $"{w} STOPS {l} to the body!", $"The body work has done it — {w} STOPS him!")
+                ? Rotate("tkobody",
+                    $"{l} turns away from the body shots and the referee jumps straight in! {w} STOPS him!",
+                    $"The body work has done it — the referee waves it off! {w} STOPS {l}!",
+                    $"{l} sinks to a knee from the body and the referee has seen enough! {w} wins it!")
                 : Rotate("tko",
-                    $"{w} STOPS {l}!",
-                    $"The referee has seen enough — {w} STOPS him!",
-                    $"{l}'s corner has seen enough. {w} wins it!")
+                    $"The referee jumps in to save him! {w} STOPS {l}!",
+                    $"The referee has seen enough — he waves it off! {w} STOPS {l}!",
+                    $"The towel comes in from {l}'s corner! {w} wins it!",
+                    $"That is all — the referee steps between them and saves {l}. {w} STOPS him!")
         };
 
         /// <summary>Read the shape of a round from its ticks: body investment, a late surge or a fade, a war in

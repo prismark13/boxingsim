@@ -158,10 +158,13 @@ public sealed class GasBrushConverter : IValueConverter
         bool mine = (parameter as string) == "mine";
         Color healthy = mine ? Blue : Red;
 
-        // Fresh down to three-quarters is his own colour; below that it warms, and the last of it is red.
-        Color now = gas >= 0.62
-            ? Mix(Warn, healthy, (gas - 0.62) / 0.38)
-            : Mix(Spent, Warn, Math.Max(0, gas - 0.22) / 0.40);
+        // A man with most of his tank left should look like HIMSELF. The first cut started blending toward
+        // amber the moment he dropped below full, so a fighter at 80% was already drawn in a muddy khaki that
+        // said "in trouble" three rounds before he was. He now holds his corner's colour down to seven-tenths,
+        // warms through the middle of the fight, and only goes red when he is genuinely running on empty.
+        Color now = gas >= 0.70 ? healthy
+            : gas >= 0.40 ? Mix(Warn, healthy, (gas - 0.40) / 0.30)
+            : Mix(Spent, Warn, Math.Max(0, gas - 0.12) / 0.28);
 
         // Deeper at the end nearest the centre, brighter at the outer end.
         var g = new LinearGradientBrush

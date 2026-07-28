@@ -128,7 +128,11 @@ public static class FightScript
         var forWhen = Spread(r.LandedFor, segs, rng);
         var againstWhen = Spread(r.LandedAgainst, segs, rng);
 
-        // Where the fight is being fought drifts toward whoever is landing more.
+        // Where the fight is being fought. It eases toward a target set by the ROUND - who outlanded whom, and
+        // by how much - rather than reacting to each ten seconds. Reacting per tick made it thrash across the
+        // thresholds, because who lands more in any given ten seconds flips constantly, and the call ended up
+        // announcing a change of position twenty times a fight. A man being walked down stays walked down.
+        double target = Math.Clamp((r.LandedFor - r.LandedAgainst) / 26.0, -0.75, 0.75);
         double ring = 0;
         int cumFor = 0, cumAgainst = 0;
 
@@ -143,8 +147,8 @@ public static class FightScript
             if (forWhen[i] > 0) Shot(t, a, sa, rng, mine: true, forWhen[i], notable);
             if (againstWhen[i] > 0) Shot(t, b, sb, rng, mine: false, againstWhen[i], notable);
 
-            ring += (forWhen[i] - againstWhen[i]) * 0.06 + (rng.NextDouble() - 0.5) * 0.05;
-            ring = Math.Clamp(ring * 0.92, -1, 1);
+            ring += (target - ring) * 0.11 + (rng.NextDouble() - 0.5) * 0.025;
+            ring = Math.Clamp(ring, -1, 1);
             t.Ring = ring;
             // The tank empties across the round rather than stepping down at the bell.
             double through = (i + 1) / (double)segs;
