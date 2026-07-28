@@ -155,6 +155,8 @@ public sealed class CareerViewModel : Observable
         AbandonCareer = new Cmd(Abandon);
         RollName = new Cmd(() => PlayerName = NameGen.Generate(Country, _rng));
         ShowFighter = new Cmd(OnShowFighter);
+        // Your own card, from the sidebar. Same card every other fighter gets.
+        ShowMyCard = new Cmd(() => { if (Game is not null) SelectedCard = BuildCard(Game.Player); });
         ShowFight = new Cmd(OnShowFight);
         WatchFight = new Cmd(OnWatchFight);
         ShowAward = new Cmd(OnShowAward);
@@ -391,6 +393,9 @@ public sealed class CareerViewModel : Observable
     public Cmd AbandonCareer { get; }
     public Cmd RollName { get; }
     public Cmd ShowFighter { get; }
+
+    /// <summary>Open your own fighter card - attributes, form and full record.</summary>
+    public Cmd ShowMyCard { get; }
     public Cmd CloseCard { get; }
     public Cmd ShowFight { get; }
 
@@ -451,6 +456,11 @@ public sealed class CareerViewModel : Observable
             // Shown on the 1-15 class scale, because that is the scale every rating in the app uses.
             return new TalentOption(key, $"{name}  ({Ratings.ClassFromRaw(lo)}–{Ratings.ClassFromRaw(hi)})");
         }
+
+        /// <summary>A record's generated ToString prints its whole shape - "TalentOption { Key = random915,
+        /// Label = ... }" - and the ComboBox's closed state fell back to it, so the setup screen was showing
+        /// the type name to the player. The string form of this IS its label.</summary>
+        public override string ToString() => Label;
     }
 
     private static (int Lo, int Hi) TalentRange(string t) => t switch

@@ -220,7 +220,11 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!-- Who you are -->
+                    <!-- Who you are. Clickable: every other fighter in the world has a card showing his
+                         attributes, his form and his whole record, and the one man you could not look up that
+                         way was your own. -->
+                    <Button Style="{StaticResource RowButton}" Command="{Binding ShowMyCard}"
+                            AutomationProperties.Name="My fighter card" ToolTip="See your fighter card">
                     <StackPanel Margin="22,26,22,20">
                         <StackPanel Orientation="Horizontal">
                             <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
@@ -250,7 +254,10 @@
                                    Foreground="{StaticResource Text}" Margin="0,14,0,0" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding PlayerIdentity}" FontSize="11.5" Foreground="{StaticResource Faint}"
                                    Margin="0,3,0,0" TextWrapping="Wrap" />
+                        <TextBlock Text="see your attributes ›" FontSize="10.5" Margin="0,8,0,0"
+                                   Foreground="{StaticResource Quiet}" />
                     </StackPanel>
+                    </Button>
 
                     <!-- Where you're going -->
                     <StackPanel Grid.Row="1">
