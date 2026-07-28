@@ -1262,6 +1262,11 @@ public sealed class CareerViewModel : Observable
     // ---- the offer ----
     public bool HasOffer => Game?.Offer is not null;
     public string OfferOpponent => Game?.Offer?.Opponent.Name ?? "";
+
+    /// <summary>The man himself, so his name can be clicked through to his card. Deciding whether to take a
+    /// fight is exactly when you want to look him up, and his name was the one piece of text on the screen
+    /// that did not lead anywhere.</summary>
+    public Boxer? OfferOpponentFighter => Game?.Offer?.Opponent;
     public int OfferOpponentClass => Game?.Offer?.Opponent.Class ?? 0;
     public string OfferOpponentRecord => Game?.Offer?.Opponent.Record.ToString() ?? "";
     public string OfferOpponentMeta
@@ -1379,7 +1384,7 @@ public sealed class CareerViewModel : Observable
             nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),
             nameof(OfferOpponentClass), nameof(OfferOpponentRecord), nameof(OfferOpponentMeta),
             nameof(OfferRounds), nameof(OfferContext), nameof(OfferIsTitle),
-            nameof(PlayerFrame), nameof(OfferOpponentFrame), nameof(PlayerOutput), nameof(OfferOpponentOutput),
+            nameof(PlayerFrame), nameof(OfferOpponentFrame), nameof(OfferOpponentFighter), nameof(PlayerOutput), nameof(OfferOpponentOutput),
             nameof(MoveUpLabel), nameof(HasResult), nameof(ResultHeadline), nameof(LastBoutWon),
             nameof(LastBoutLost), nameof(PlayerRetired), nameof(HasSave), nameof(SaveError),
             nameof(ShowResultBanner), nameof(HasLedger), nameof(RankingDivisions),

@@ -349,8 +349,14 @@
                                                    Foreground="{Binding OfferOpponentClass, Converter={StaticResource ClassColour}}" />
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource RowButton}" HorizontalAlignment="Left"
+                                                Padding="0" AutomationProperties.Name="{Binding OfferOpponent}"
+                                                ToolTip="See his card"
+                                                Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding OfferOpponentFighter}">
                                         <TextBlock Text="{Binding OfferOpponent}" FontSize="19"
                                                    Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                        </Button>
                                         <TextBlock FontSize="12" Foreground="{StaticResource Muted}" Margin="0,3,0,0">
                                             <Run Text="{Binding OfferOpponentRecord, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding OfferRounds, Mode=OneWay}" />
                                         </TextBlock>
@@ -519,9 +525,15 @@
                                     <TextBlock Grid.Column="1" Text="vs" FontSize="15" Foreground="{StaticResource Faint}"
                                                VerticalAlignment="Center" Margin="24,0" />
                                     <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                        <Button Style="{StaticResource RowButton}" Padding="0"
+                                                AutomationProperties.Name="{Binding OfferOpponent}"
+                                                ToolTip="See his card"
+                                                Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding OfferOpponentFighter}">
                                         <TextBlock Text="{Binding OfferOpponent}" FontSize="21" FontWeight="Light"
                                                    Foreground="{StaticResource Text}" HorizontalAlignment="Center"
                                                    TextWrapping="Wrap" TextAlignment="Center" />
+                                        </Button>
                                         <TextBlock Text="{Binding OfferOpponentRecord}" FontSize="13"
                                                    Foreground="{StaticResource Muted}" HorizontalAlignment="Center"
                                                    Margin="0,5,0,0" />
