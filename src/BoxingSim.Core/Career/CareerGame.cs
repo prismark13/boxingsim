@@ -1128,7 +1128,7 @@ public sealed class CareerGame
         // fortnight (which produced impossible back-to-back title bouts days apart). Both men must be rested.
         if (!CursorUnified && Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
             && Champ.Id != Player.Id && Wbc.Id != Player.Id
-            && DaysSinceLastBout(Champ) >= 112 && DaysSinceLastBout(Wbc) >= 112
+            && DaysSinceLastBout(Champ) >= (int)(112 / CareerMileage.Activity(Champ)) && DaysSinceLastBout(Wbc) >= (int)(112 / CareerMileage.Activity(Wbc))
             && _rng.NextDouble() < UnificationChance(_cursor, 0.006, 0.04))
         {
             Unify();
@@ -1136,7 +1136,7 @@ public sealed class CareerGame
         else if (CursorUnified)
         {
             var c = Champ!;
-            if (c.Id != Player.Id && DaysSinceLastBout(c) >= 112 && _rng.NextDouble() < 0.055)   // ~2 defences a year, min 14 weeks apart
+            if (c.Id != Player.Id && DaysSinceLastBout(c) >= (int)(112 / CareerMileage.Activity(c)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(c))   // ~2 defences a year, min 14 weeks apart
             {
                 if (_rng.NextDouble() < 0.10) RelinquishBelt(c);   // ~1 in 10: ducks a mandatory and gives up a belt
                 else UnifiedDefence(c);
@@ -1144,7 +1144,7 @@ public sealed class CareerGame
         }
         else
         {
-            if (Champ is not null && Champ.Id != Player.Id && DaysSinceLastBout(Champ) >= 112 && _rng.NextDouble() < 0.055)   // ~2 defences a year, min 14 weeks apart
+            if (Champ is not null && Champ.Id != Player.Id && DaysSinceLastBout(Champ) >= (int)(112 / CareerMileage.Activity(Champ)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(Champ))   // ~2 defences a year, min 14 weeks apart
             {
                 var ch = PickChallenger(Champ, Wbc);
                 if (ch is not null)
@@ -1155,7 +1155,7 @@ public sealed class CareerGame
                     else { Defended(_cursor, "WBA", Champ.Id); LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(Champ); }
                 }
             }
-            if (Wbc is not null && Wbc.Id != Player.Id && DaysSinceLastBout(Wbc) >= 112 && _rng.NextDouble() < 0.055)   // ~2 defences a year, min 14 weeks apart
+            if (Wbc is not null && Wbc.Id != Player.Id && DaysSinceLastBout(Wbc) >= (int)(112 / CareerMileage.Activity(Wbc)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(Wbc))   // ~2 defences a year, min 14 weeks apart
             {
                 var ch = PickChallenger(Wbc, Champ);
                 if (ch is not null)
@@ -1169,7 +1169,7 @@ public sealed class CareerGame
         }
 
         // IBF title defence — the third belt, contested independently from 1983.
-        if (IbfActive && Ibf is not null && Ibf.Id != Player.Id && DaysSinceLastBout(Ibf) >= 112 && _rng.NextDouble() < 0.055)
+        if (IbfActive && Ibf is not null && Ibf.Id != Player.Id && DaysSinceLastBout(Ibf) >= (int)(112 / CareerMileage.Activity(Ibf)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(Ibf))
         {
             var ch = PickChallenger(Ibf, null);
             if (ch is not null)
@@ -1465,8 +1465,9 @@ public sealed class CareerGame
         };
         // A reigning champion never reaches this pool at all; he is barred from undercards and his year is
         // his defences. A former champion does, and he is not taking stay-busy fights for short money.
-        if (_everChampion.Contains(b.Id)) return basis * 0.72;
-        return basis;
+        if (_everChampion.Contains(b.Id)) basis *= 0.72;
+        // And no two men keep the same schedule.
+        return basis * CareerMileage.Activity(b);
     }
 
     /// <summary>Days since a fighter's most recent bout (large if he has no ledger) — stops a champion

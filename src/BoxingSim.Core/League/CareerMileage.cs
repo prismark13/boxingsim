@@ -46,6 +46,15 @@ public static class CareerMileage
 
     public static int Fights(Boxer b) => b.Record.Wins + b.Record.Losses + b.Record.Draws;
 
+    /// <summary>How busy a man keeps himself, roughly half to one and a half times a normal schedule.
+    ///
+    /// Averages were right but every fighter sat on them, so every champion defended at the same cadence and
+    /// every contender boxed the same number of times. Real careers are not like that: one champion is out
+    /// four times a year and another makes a single defence and disappears, and the difference is the man, not
+    /// the year. This is a trait like the stage boundaries - fixed for life, taken from his own name, so it
+    /// costs nothing to store and never shifts under him.</summary>
+    public static double Activity(Boxer b) => 0.55 + Vary(b, "act", 95) / 100.0;   // 0.55 – 1.50
+
     /// <summary>How far past his best a man is, in bouts. Zero while he is still in it.</summary>
     public static int PastPrime(Boxer b) => Math.Max(0, Fights(b) - PrimeUntil(b));
 
