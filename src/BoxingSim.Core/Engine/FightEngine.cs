@@ -112,7 +112,7 @@ public sealed class FightEngine
             puncher.HandHurt = true; puncher.HandPen = 0.18 + _rng.NextDouble() * 0.16; handHurt = true;
         }
 
-        bool countedOut = false, toBodyKd = false;
+        bool countedOut = false, toBodyKd = false, cutOpened = false;
         if (pd.Body)
         {
             target.BodyDmg = Math.Min(1.3, target.BodyDmg + force * 0.028);
@@ -121,13 +121,23 @@ public sealed class FightEngine
         }
         else
         {
+            // A cut opens on a PUNCH. It used to be settled once a round out of the round's total work, which
+            // meant a fighter simply arrived at the bell bleeding with nothing to point at - no shot caused it
+            // and the call could never say so. A hard, clean shot to the head is what opens a man up, and a
+            // thin-skinned fighter goes far sooner.
+            if (force >= 0.85 && _rng.NextDouble() < (force - 0.75) * 0.115 * (1.0 - target.R.CutResistance / 135.0))
+            {
+                if (target.CutLoc is null) { var c = Pick(CutLocs); target.CutLoc = c.Loc; target.CutEye = c.Eye; }
+                target.Cut = Math.Min(1.0, target.Cut + 0.14 + _rng.NextDouble() * 0.22);
+                cutOpened = true;
+            }
             target.Damage = Math.Min(1.3, target.Damage + force * 0.029);
             target.Swell = Math.Min(1.0, target.Swell + 0.02 + force * 0.005);
             if (target.SwellLoc is null && target.Swell >= 0.16) { var sw = Pick(SwellLocs); target.SwellLoc = sw.Loc; target.SwellEye = sw.Eye; }
             if (_rng.NextDouble() < force * 0.019 * (0.5 + target.Damage)) countedOut = Knockdown(target, body: false);
         }
         bool staggered = !pd.Body && !countedOut && force >= 1.6 && _rng.NextDouble() < Math.Clamp((force - 1.5) * 0.17, 0, 0.24);
-        return new Blow(true, pd.Body, handHurt, countedOut, toBodyKd, staggered, PunchName(punch));
+        return new Blow(true, pd.Body, handHurt, countedOut, toBodyKd, staggered, PunchName(punch), cutOpened);
     }
 
     /// <summary>The ring effect of a reach differential (in inches). The longer man controls distance and
@@ -238,11 +248,12 @@ public sealed class FightEngine
         public int ComboLen;      // >1 when the landing power shot was strung into a combination
         public bool ComboBody;    // the combination went to the body as well as the head
         // The defender's counter, fired when the attacker misses.
+        public bool CutOpened, CounterCutOpened;
         public bool CounterLanded, CounterBig, CounterBody, CounterCountedOut, CounterToBodyKd;
         public string? CounterType;
     }
 
-    private readonly record struct Blow(bool Big, bool Body, bool HandHurt, bool CountedOut, bool ToBodyKd, bool Staggered, string? Type);
+    private readonly record struct Blow(bool Big, bool Body, bool HandHurt, bool CountedOut, bool ToBodyKd, bool Staggered, string? Type, bool CutOpened = false);
 
     public FightResult Simulate(Boxer a, Boxer b, int scheduledRounds)
     {
@@ -441,7 +452,11 @@ public sealed class FightEngine
         if (stoppage is not null)
         {
             outcome = stoppage.Value;
-            method = stopMethod == "cut" ? "TKO" : stopMethod; // "KO", "TKO" (incl. cut), or "DQ"
+            // A cut stoppage stays a cut stoppage. It used to be flattened to "TKO" here, so although 3.2% of
+            // fights genuinely end on one, no record anywhere ever said so - a fighter could be cut out of four
+            // fights and his ledger would read like four beatings. The commentary always knew, because the tick
+            // carries the real reason; only the record was losing it.
+            method = stopMethod;   // "KO", "TKO", "cut" or "DQ"
         }
         else
         {
@@ -520,6 +535,7 @@ public sealed class FightEngine
                 var c = ApplyPower(def, att, cp, wcKo, isCounter: true);
                 hit.CounterLanded = true; hit.CounterBig = c.Big; hit.CounterBody = c.Body;
                 hit.CounterType = c.Type; hit.CounterCountedOut = c.CountedOut; hit.CounterToBodyKd = c.ToBodyKd;
+                hit.CounterCutOpened = c.CutOpened;
             }
             return hit;
         }
@@ -541,6 +557,7 @@ public sealed class FightEngine
         var blow = ApplyPower(att, def, PickPowerPunch(att), wcKo, isCounter: false, forceScale: weight);
         hit.Big = blow.Big; hit.Body = blow.Body; hit.Type = blow.Type;
         hit.HandHurt = blow.HandHurt; hit.CountedOut = blow.CountedOut; hit.ToBodyKd = blow.ToBodyKd;
+        hit.CutOpened = blow.CutOpened;
 
         // In rhythm and in range — a fast, busy fighter strings the shot into a short combination.
         // Follow-up punches land cleaner (he's set) but carry less than a loaded single shot.
@@ -609,14 +626,10 @@ public sealed class FightEngine
 
     private void ApplyCuts(State victim, State attacker)
     {
+        // Opening a cut is now the punch's business (see ApplyPower). What is left here is the grinding: an
+        // existing cut worked over for three minutes gets worse whether or not one shot did it.
         double exposure = attacker.RoundWeighted / 40.0;
-        double cutChance = exposure * (1.0 - victim.R.CutResistance / 130.0);
-        if (_rng.NextDouble() < cutChance)
-        {
-            if (victim.CutLoc is null) { var c = Pick(CutLocs); victim.CutLoc = c.Loc; victim.CutEye = c.Eye; }
-            victim.Cut = Math.Min(1.0, victim.Cut + 0.15 + _rng.NextDouble() * 0.25);
-        }
-        else if (victim.Cut >= 0.3 && _rng.NextDouble() < exposure * 0.5)
+        if (victim.Cut >= 0.3 && _rng.NextDouble() < exposure * 0.9)
         {
             victim.Cut = Math.Min(1.0, victim.Cut + 0.08 + _rng.NextDouble() * 0.12); // an existing cut worsens
         }
@@ -802,12 +815,16 @@ public sealed class FightEngine
                 if (hit.HandHurt) t.HandA = true;
                 if (hit.ToBodyKd) t.DownBodyB = true;
                 if (hit.Staggered) t.StaggerB = true;       // A wobbled B and teed off
+                if (hit.CutOpened) t.CutOpenB = true;       // that punch opened B up
+                if (hit.CounterCutOpened) t.CutOpenA = true;
                 t.RockB = Math.Max(t.RockB, RockLevel(sb));
             }
             else
             {
                 if (hit.Big) { t.BigB = true; t.PunchB = hit.Type; t.BodyShotB = hit.Body; }
                 if (hit.ComboLen > 1) { t.ComboB = hit.ComboLen; t.ComboBodyB = hit.ComboBody; }
+                if (hit.CutOpened) t.CutOpenA = true;
+                if (hit.CounterCutOpened) t.CutOpenB = true;
                 if (hit.HandHurt) t.HandB = true;
                 if (hit.ToBodyKd) t.DownBodyA = true;
                 if (hit.Staggered) t.StaggerA = true;

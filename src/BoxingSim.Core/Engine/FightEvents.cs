@@ -21,6 +21,9 @@ public sealed class FightTick
     public bool HandA, HandB;                 // a fighter hurt his hand this segment
     public bool StaggerA, StaggerB;           // a fighter was wobbled and got jumped on
     public bool CounterA, CounterB;           // a fighter landed a counter this segment
+    /// <summary>A cut was OPENED by the punch in this segment. Cuts used to be resolved once a round from the
+    /// round's total work, so one could never be attributed to the shot that caused it.</summary>
+    public bool CutOpenA, CutOpenB;
     /// <summary>Where the fight is being fought: 0 is centre ring, +1 is B pinned on the ropes with A on top
     /// of him, -1 the reverse. Carries across rounds — a man being walked down stays walked down.</summary>
     public double Ring;

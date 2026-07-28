@@ -1084,7 +1084,7 @@ public sealed class CareerViewModel : Observable
 
     private static LedgerRow ToLedger(BoutLine h, string? owner = null)
     {
-        string detail = h.Method + (h.Round > 0 && h.Method is "KO" or "TKO" ? $" rd{h.Round}" : "");
+        string detail = h.Method + (h.Round > 0 && h.Method is "KO" or "TKO" or "cut" ? $" rd{h.Round}" : "");
         if (h.Note is not null) detail = $"{h.Note} · {detail}";
         if (h.Rounds is { Count: > 0 } rs)
         {
@@ -1159,8 +1159,9 @@ public sealed class CareerViewModel : Observable
             Source = row,
             Opponent = h.Opponent,
             Date = h.Date.ToString("d MMMM yyyy"),
-            Verdict = (h.Result == 'W' ? "Won" : h.Result == 'L' ? "Lost" : "Drew") + $" by {h.Method}"
-                      + (h.Round > 0 && h.Method is "KO" or "TKO" ? $", round {h.Round}" : ""),
+            Verdict = (h.Result == 'W' ? "Won" : h.Result == 'L' ? "Lost" : "Drew")
+                      + (h.Method == "cut" ? " on a cut" : $" by {h.Method}")
+                      + (h.Round > 0 && h.Method is "KO" or "TKO" or "cut" ? $", round {h.Round}" : ""),
             Note = h.Note ?? "",
             Cards = h.Cards ?? "",
             Win = h.Result == 'W',

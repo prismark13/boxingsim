@@ -228,6 +228,12 @@ public static class FightCall
                     lines.Add(Line(caller.Crowd(false), CallKind.Crowd));
                 }
 
+                // A cut now opens ON a punch, so it is called the moment it happens and attributed to the man
+                // who caused it, rather than being noticed later once the blood had built up.
+                bool openedHis = iAmA ? t.CutOpenB : t.CutOpenA;
+                bool openedMine = iAmA ? t.CutOpenA : t.CutOpenB;
+                if (!cutHis && openedHis) { cutHis = true; lines.Add(Line(caller.CutOpened(my, his), CallKind.Drama, CallEvent.Cut, 0)); }
+                if (!cutMine && openedMine) { cutMine = true; lines.Add(Line(caller.CutOpened(his, my), CallKind.Drama, CallEvent.Cut, 1)); }
                 if (!cutHis && cutH >= 0.4) { cutHis = true; lines.Add(Line(caller.Cut(his), CallKind.Drama, CallEvent.Cut)); }
                 if (!cutMine && cutM >= 0.4) { cutMine = true; lines.Add(Line(caller.Cut(my), CallKind.Drama, CallEvent.Cut)); }
 
@@ -343,6 +349,13 @@ public static class FightCall
             $"{who} gets his feet moving and finds space again.",
             $"Good feet from {who} — he's back in the middle of the ring.",
             $"{who} slides out and resets.");
+
+        /// <summary>A cut opened by a shot, called as it happens and pinned on the man who threw it.</summary>
+        public string CutOpened(string att, string tgt) => Rotate("cutOpen",
+            $"That has opened {tgt} up — there is blood.",
+            $"{att} has cut him! {tgt} is bleeding.",
+            $"And that shot has split {tgt} — the blood is coming.",
+            $"{tgt} is cut, and it was that punch that did it.");
 
         public string Power(string att, string tgt, string punch, bool body, int combo, bool counter)
         {
