@@ -135,7 +135,7 @@ public sealed class Ratings
     // rated 96–99) clear 90%.
     private static readonly (int P, double Ko)[] KoAnchors =
     {
-        (50, 0.10), (60, 0.18), (70, 0.30), (78, 0.45), (85, 0.57), (90, 0.70), (94, 0.83), (96, 0.90), (99, 0.95)
+        (50, 0.06), (60, 0.11), (70, 0.18), (78, 0.28), (85, 0.39), (90, 0.50), (94, 0.64), (96, 0.75), (99, 0.88)
     };
 
     /// <summary>The chance a win comes by knockout: driven mainly by the winner's power, sharpened by the gap to
@@ -151,7 +151,18 @@ public sealed class Ratings
         else for (int i = 1; i < a.Length; i++)
             if (power <= a[i].P) { var (p0, k0) = a[i - 1]; baseKo = k0 + (power - p0) * (a[i].Ko - k0) / (a[i].P - p0); break; }
 
-        double adj = (75 - chin) / 280.0 + Math.Max(0, skillGap) / 130.0;   // weaker chin / a mismatch → more stoppages
+        // A weaker chin and a mismatch both mean more stoppages, but the mismatch term used to be unbounded:
+        // it simply divided the rating gap by 130 and added it. That was survivable while every generated
+        // fighter sat within twenty points of every other, and stopped being survivable the moment the
+        // generated population was allowed to span the whole ladder — gaps of forty and fifty appeared, the
+        // term added a third of a probability on its own, and the sport went from 44.8% of bouts ending
+        // inside the distance to 58.6%. Real boxing runs 35-45%.
+        //
+        // So the mismatch still matters and still has the larger say, but it saturates: past about twenty
+        // points of difference a man is already being outclassed, and being outclassed by forty does not
+        // double it. The chin term is unchanged.
+        double mismatch = 0.18 * (1 - Math.Exp(-Math.Max(0, skillGap) / 16.0));
+        double adj = (75 - chin) / 280.0 + mismatch;
         return Math.Clamp(baseKo + adj, 0.05, 0.97);
     }
 

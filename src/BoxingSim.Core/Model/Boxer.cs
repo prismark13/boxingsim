@@ -112,6 +112,12 @@ public sealed class BoutLine
     public int KdFor { get; init; }
     public int KdAgainst { get; init; }
     public string? Note { get; init; }    // fight type, e.g. "WBA title", "eliminator", "NABF title"
+
+    /// <summary>The weight the fight was made at. A record is not a list of nights at one weight — men move
+    /// up, and a title won at welterweight is a different thing from one won at middleweight — so the bout
+    /// has to remember its own division rather than borrow whatever the fighter happens to weigh now.
+    /// For a superfight across two divisions this is the heavier man's class, which is where it was held.</summary>
+    public WeightClass Division { get; init; }
     public string? Cards { get; init; }   // judges' scorecards for a decision, from this fighter's view
     public IReadOnlyList<BoutRound>? Rounds { get; init; }   // per-round breakdown (full-engine bouts only)
     public IReadOnlyList<string>? Commentary { get; init; }  // key play-by-play moments (full-engine bouts only)

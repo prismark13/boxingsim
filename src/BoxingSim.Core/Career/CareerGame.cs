@@ -2073,16 +2073,21 @@ public sealed class CareerGame
         if (region is not null && proFights >= fightsToRank && idx > 4 && idx <= 25
             && titleCooldownOk && stage is CareerStage.PrePrime or CareerStage.Prime && _rng.Next(2) == 0)
         {
+            // A regional belt is a stepping stone, and the guards that keep a man off the division's live
+            // wires apply to it exactly as they do anywhere else. This path used to bypass them entirely,
+            // which is how a 17-0 novice came to be offered a NABF title fight with an unbeaten 14-0
+            // class-11 fighter. Somebody's future all-time great is not a stepping stone.
             if (PlayerHolds(region))   // defend the regional belt against a fellow regional contender
             {
-                var chall = ranked.FirstOrDefault(b => b.Id != Player.Id && RegionOf(b) == region && !IsWorldChampion(b));
+                var chall = ranked.FirstOrDefault(b => b.Id != Player.Id && RegionOf(b) == region
+                                                    && !IsWorldChampion(b) && !DangerousProspect(b));
                 if (chall is not null)
                     return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = region, Context = $"{region} title defence" };
             }
             else                       // or challenge for it as a stepping stone to world level
             {
                 var rc = BeltHolder(region);
-                if (rc is not null && rc.Id != Player.Id && RegionOf(rc) == region)
+                if (rc is not null && rc.Id != Player.Id && RegionOf(rc) == region && !DangerousProspect(rc))
                     return new FightOffer { Opponent = rc, Rounds = 12, TitleFight = true, Belt = region, Context = $"{region} title shot" };
             }
         }
@@ -2203,16 +2208,21 @@ public sealed class CareerGame
             if (ok.Count > 0) opp = NearOne(ok, opp.Overall);
         }
 
-        // The distance a man is trusted with follows his mileage, the way a real career does: four-rounders on
-        // debut, then six, eight, and ten once he is established. It used to come off the career STAGE, which
+        // The distance a man is trusted with follows his mileage, the way a real career does: six-rounders to
+        // begin with, then eight, and ten once he is established. It used to come off the career STAGE, which
         // gave six rounds until his ninth fight and then eight for everything up to about thirty - so a
         // twenty-one fight professional was still being matched over eight, with no way to a ten-rounder
-        // unless he was already ranked in the top five, and no four-rounders for a debutant at all.
+        // unless he was already ranked in the top five.
+        //
+        // Six is the floor. A four-rounder is a novice show and there is nothing in one to watch - the card
+        // is barely long enough for a fight to develop, and the sim's own commentary has no room to say
+        // anything before the bell. Then eight, ten at a dozen fights where a man stops being a prospect on
+        // a club show and starts headlining one, and the championship distance from nineteen.
         int had = ProFights(Player);
-        int rounds = had <= 4 ? 4
-                   : had <= 10 ? 6
-                   : had <= 18 ? 8
-                   : 10;
+        int rounds = had <= 6 ? 6
+                   : had <= 12 ? 8
+                   : had <= 18 ? 10
+                   : 12;
         string ctx = capped ? "building a record"
                    : target < idx ? (idx <= 5 ? "eliminator" : "step-up")
                    : stage == CareerStage.Starter || stage == CareerStage.PrePrime ? "building a record"
@@ -2285,8 +2295,11 @@ public sealed class CareerGame
         // string, so a long career's save doesn't balloon with round data for journeyman undercards.
         bool keepRounds = a.Id == Player.Id || b.Id == Player.Id || note is not null || WorldRanked(a) || WorldRanked(b);
         var commentary = ExtractHighlights(res);   // null for the fast NPC resolver (no tick detail)
-        Record(a, b.Name, ra, res.Method, res.EndRound, res.KnockdownsB, res.KnockdownsA, note, cardsA, keepRounds ? roundsA : null, commentary);
-        Record(b, a.Name, rb, res.Method, res.EndRound, res.KnockdownsA, res.KnockdownsB, note, cardsB, keepRounds ? roundsB : null, commentary);
+        // The weight it was made at. Equal for an ordinary bout; for a superfight between two divisions it is
+        // the heavier man's, because that is the weight the lighter man came up to.
+        var at = (WeightClass)Math.Max((int)a.WeightClass, (int)b.WeightClass);
+        Record(a, b.Name, ra, res.Method, res.EndRound, res.KnockdownsB, res.KnockdownsA, note, cardsA, keepRounds ? roundsA : null, commentary, at);
+        Record(b, a.Name, rb, res.Method, res.EndRound, res.KnockdownsA, res.KnockdownsB, note, cardsB, keepRounds ? roundsB : null, commentary, at);
 
         double scoreA = res.IsDraw ? 0.5 : res.Winner!.Id == a.Id ? 1.0 : 0.0;
         const double k = 32.0;
@@ -2716,9 +2729,9 @@ public sealed class CareerGame
         static int Dn(int v) => Ratings.Clamp((int)Math.Round(v * 0.96));
     }
 
-    private void Record(Boxer f, string opp, char result, string method, int round, int kdFor, int kdAgainst, string? note, string? cards, IReadOnlyList<BoutRound>? rounds, IReadOnlyList<string>? commentary)
+    private void Record(Boxer f, string opp, char result, string method, int round, int kdFor, int kdAgainst, string? note, string? cards, IReadOnlyList<BoutRound>? rounds, IReadOnlyList<string>? commentary, WeightClass at)
     {
-        f.History.Add(new BoutLine { Date = Date, Opponent = opp, Result = result, Method = method, Round = round, KdFor = kdFor, KdAgainst = kdAgainst, Note = note, Cards = cards, Rounds = rounds, Commentary = commentary });
+        f.History.Add(new BoutLine { Date = Date, Opponent = opp, Result = result, Method = method, Round = round, KdFor = kdFor, KdAgainst = kdAgainst, Note = note, Cards = cards, Rounds = rounds, Commentary = commentary, Division = at });
         if (f.History.Count > 60) f.History.RemoveAt(0);   // keep the ledger bounded
     }
 

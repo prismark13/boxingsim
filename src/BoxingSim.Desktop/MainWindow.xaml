@@ -128,8 +128,14 @@
                     </TextBlock>
                     <StackPanel Grid.Column="2">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding Opponent}" FontSize="13" Foreground="{StaticResource Text}"
-                                       TextTrimming="CharacterEllipsis" />
+                            <!-- The row opens the fight; the NAME opens the man. Reading a record is half
+                                 "what happened that night" and half "who was he?", and only the first of
+                                 those had anywhere to click. A nested button wins the click, so the row
+                                 behaviour is untouched everywhere else along it. -->
+                            <Button Style="{StaticResource LinkName}" Content="{Binding Opponent}"
+                                    ToolTip="See his card"
+                                    CommandParameter="{Binding Opponent}"
+                                    Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}" />
                             <!-- The belt that was on the line. Gold, because that is what a record is read for. -->
                             <Border Background="{StaticResource GoldSoft}" BorderBrush="{StaticResource GoldLine}"
                                     BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="8,0,0,0"

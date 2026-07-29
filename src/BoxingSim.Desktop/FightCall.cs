@@ -305,8 +305,76 @@ public static class FightCall
             if (rd.Round < res.Rounds.Count && caller.Corner(my, his, myLanded, hisLanded, cutMine, hurtMine, hurtHis) is string corner)
                 lines.Add(new CallLine("", corner, CallKind.Corner, rd.Round, myTotal, hisTotal));
         }
+
+        AnnounceCards(lines, res, me, my, his, myTotal, hisTotal);
         return lines;
     }
+
+    /// <summary>The scorecards, read out the way they are read out.
+    ///
+    /// A fight that went the distance simply stopped: the last round was called, and then a single flat line
+    /// appeared underneath saying who had won. Every knockout in the sim got a moment and every decision got
+    /// a caption — which is backwards, because the decision is the one where nobody in the building knows yet.
+    ///
+    /// So the cards are announced. The totals are held back and given one at a time, the last card is the one
+    /// that settles it, and the verdict lands on its own line. A split decision reads as a split decision:
+    /// two cards one way, one the other, and you find out which as they come.</summary>
+    private static void AnnounceCards(List<CallLine> lines, FightResult res, Boxer me,
+                                      string my, string his, int myTotal, int hisTotal)
+    {
+        if (res.Scorecards.Count == 0) return;               // a stoppage has no cards to read
+        if (lines.Count > 0 && lines[^1].Event == CallEvent.Stoppage) return;
+
+        bool iAmA = res.A.Id == me.Id;
+        string[] judges = { "Judge 1", "Judge 2", "Judge 3" };
+
+        lines.Add(new CallLine("", "The final bell — and this one is going to the scorecards.",
+                               CallKind.Drama, res.Rounds.Count, myTotal, hisTotal));
+        lines.Add(new CallLine("", $"After {res.Rounds.Count} rounds, we go to the judges.",
+                               CallKind.Score, res.Rounds.Count, myTotal, hisTotal));
+
+        for (int i = 0; i < res.Scorecards.Count; i++)
+        {
+            var (a, b) = res.Scorecards[i];
+            int mine = iAmA ? a : b, theirs = iAmA ? b : a;
+            string name = i < judges.Length ? judges[i] : $"Judge {i + 1}";
+            // Read the higher number first, the way a card is actually called, and name who it favours only
+            // after the numbers — that half-second is the whole point of reading them out.
+            string card = mine == theirs
+                ? $"{name} scores it {mine} to {theirs}. Even."
+                : mine > theirs
+                    ? $"{name} scores it {mine} to {theirs}\u2026 for {my}."
+                    : $"{name} scores it {theirs} to {mine}\u2026 for {his}.";
+            // The last card is the one that settles it, so it gets the weight of a moment.
+            lines.Add(new CallLine("", card, i == res.Scorecards.Count - 1 ? CallKind.Drama : CallKind.Score,
+                                   res.Rounds.Count, myTotal, hisTotal));
+        }
+
+        string how = res.Method switch
+        {
+            "UD" => "by unanimous decision",
+            "SD" => "by split decision",
+            "MD" => "by majority decision",
+            _ => "by decision"
+        };
+        string verdict = res.IsDraw
+            ? (res.Method == "D" && res.Scorecards.Any(c => c.A != c.B)
+                ? $"\u2014 and we have a majority draw. Nobody wins it."
+                : $"\u2014 and it is a draw. Nothing is settled tonight.")
+            : res.Winner!.Id == me.Id
+                ? $"\u2014 and the winner, {how}\u2026 {my}!"
+                : $"\u2014 the winner, {how}, is {his}.";
+        lines.Add(new CallLine("", verdict, CallKind.Verdict, res.Rounds.Count, myTotal, hisTotal));
+        // A draw gets no roar. Nobody has anything to roar about, and an empty crowd line was being added.
+        if (!res.IsDraw)
+            lines.Add(new CallLine("", Crowd(res.Winner!.Id == me.Id), CallKind.Crowd,
+                                   res.Rounds.Count, myTotal, hisTotal));
+    }
+
+    /// <summary>The building's reaction to a decision, which is not the same as its reaction to a knockout.</summary>
+    private static string Crowd(bool forMe) => forMe
+        ? "The place erupts."
+        : "A roar from the other corner.";
 
     /// <summary>Holds the state a commentator would carry in his head: how he last phrased something, and how
     /// often each man has landed each punch.</summary>

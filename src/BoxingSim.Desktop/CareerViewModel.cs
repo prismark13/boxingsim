@@ -1315,11 +1315,17 @@ public sealed class CareerViewModel : Observable
     };
 
     /// <summary>Break "116-112 · 115-113 · 114-114" into three judges, each with who he had winning. The
-    /// scores are stored from the owning fighter's point of view, so the first number is always his.</summary>
-    private static IReadOnlyList<JudgeCard> JudgesFrom(string? cards)
+    /// scores are stored from the owning fighter's point of view, so the first number is always his.
+    ///
+    /// The card names the man it favours. It used to read "for him" and "against him", which on a screen
+    /// showing two fighters is a pronoun with two possible referents and no way to tell them apart — and on
+    /// a split decision, where the whole interest is which judge went which way, "for him / against him /
+    /// for him" says almost nothing.</summary>
+    private static IReadOnlyList<JudgeCard> JudgesFrom(string? cards, string? owner = null, string? foe = null)
     {
         var outp = new List<JudgeCard>();
         if (string.IsNullOrWhiteSpace(cards)) return outp;
+        string me = Surname(owner) ?? "him", them = Surname(foe) ?? "the other man";
         string[] names = { "Judge 1", "Judge 2", "Judge 3" };
         int i = 0;
         foreach (var part in cards.Split('·', StringSplitOptions.RemoveEmptyEntries))
@@ -1328,17 +1334,28 @@ public sealed class CareerViewModel : Observable
             if (bits.Length != 2 || !int.TryParse(bits[0], out int mine) || !int.TryParse(bits[1], out int his)) continue;
             outp.Add(new JudgeCard(i < names.Length ? names[i] : $"Judge {i + 1}",
                                    $"{mine}–{his}",
-                                   mine == his ? "level" : mine > his ? "for him" : "against him",
+                                   mine == his ? "level" : mine > his ? $"for {me}" : $"for {them}",
                                    mine > his, mine == his));
             i++;
         }
         return outp;
     }
 
+    /// <summary>The surname, which is what a scorecard is read out with.</summary>
+    private static string? Surname(string? full)
+    {
+        if (string.IsNullOrWhiteSpace(full)) return null;
+        int sp = full.LastIndexOf(' ');
+        return sp > 0 ? full[(sp + 1)..] : full;
+    }
+
     private static LedgerRow ToLedger(BoutLine h, string? owner = null)
     {
         string detail = h.Method + (h.Round > 0 && h.Method is "KO" or "TKO" or "cut" ? $" rd{h.Round}" : "");
-        if (h.Note is not null) detail = $"{h.Note} · {detail}";
+        // The weight it was made at, on every line. A record that spans divisions is exactly the one you
+        // cannot read without it, and there is no way to tell which records those are at a glance.
+        detail = $"{h.Division.DisplayName()} · {detail}";
+        if (h.Note is not null) detail = $"{TitleAt(h)} · {detail}";
         if (h.Rounds is { Count: > 0 } rs)
         {
             int f = rs.Sum(r => r.LandedFor), a = rs.Sum(r => r.LandedAgainst);
@@ -1352,8 +1369,16 @@ public sealed class CareerViewModel : Observable
         bool notable = h.Note is string note && note.Contains("title", StringComparison.OrdinalIgnoreCase);
         return new LedgerRow(h.Date.ToString("d MMM yyyy"), h.Result.ToString(), h.Opponent, detail,
                              h.Result == 'W', h.Result == 'L', h, owner, notable,
-                             notable && h.Note is string tt ? tt : "");
+                             notable ? TitleAt(h) : "");
     }
+
+    /// <summary>A belt with its weight on it. "WBA title" names half a thing — a title won at welterweight
+    /// is not the one won at middleweight, and a man who held both should read as having held both.</summary>
+    private static string TitleAt(BoutLine h) =>
+        h.Note is not string n ? ""
+        : n.EndsWith("title", StringComparison.Ordinal)
+            ? $"{n[..^"title".Length]}{h.Division.DisplayName()} title"
+            : n;
 
     // ---- a single fight, opened out ----
 
@@ -1418,7 +1443,7 @@ public sealed class CareerViewModel : Observable
                       + (h.Round > 0 && h.Method is "KO" or "TKO" or "cut" ? $", round {h.Round}" : ""),
             Note = h.Note ?? "",
             Cards = h.Cards ?? "",
-            Judges = JudgesFrom(h.Cards),
+            Judges = JudgesFrom(h.Cards, row.OwnerName, h.Opponent),
             Title = h.Note is string tn && tn.Contains("title", StringComparison.OrdinalIgnoreCase) ? tn : "",
             Win = h.Result == 'W',
             Loss = h.Result == 'L',

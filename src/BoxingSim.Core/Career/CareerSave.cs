@@ -139,7 +139,7 @@ public sealed class BoxerSave
             {
                 Date = h.Date.ToString("yyyy-MM-dd"), Opponent = h.Opponent, Result = h.Result.ToString(),
                 Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst,
-                Note = h.Note, Cards = h.Cards,
+                Note = h.Note, Div = h.Division.ToString(), Cards = h.Cards,
                 Rounds = h.Rounds?.Select(r => new BoutRoundSave
                 {
                     Round = r.Round, LandedFor = r.LandedFor, LandedAgainst = r.LandedAgainst,
@@ -171,6 +171,7 @@ public sealed class BoxerSave
                 Result = string.IsNullOrEmpty(h.Result) ? 'D' : h.Result[0], Method = h.Method,
                 Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst,
                 Note = h.Note, Cards = h.Cards,
+                Division = Enum.TryParse<WeightClass>(h.Div, out var bw) ? bw : b.WeightClass,
                 Rounds = h.Rounds?.Select(r => new BoutRound
                 {
                     Round = r.Round, LandedFor = r.LandedFor, LandedAgainst = r.LandedAgainst,
@@ -192,6 +193,9 @@ public sealed class BoutLineSave
     public int KdFor { get; set; }
     public int KdAgainst { get; set; }
     public string? Note { get; set; }
+    /// <summary>The weight the bout was made at. Absent from saves written before records carried it — those
+    /// fall back to the division the fighter is in now, which is right for the many men who never moved.</summary>
+    public string? Div { get; set; }
     public string? Cards { get; set; }
     public List<BoutRoundSave>? Rounds { get; set; }
     public List<string>? Commentary { get; set; }
