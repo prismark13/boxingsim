@@ -121,30 +121,24 @@ public sealed class BoxerFactory
 
     /// <summary>A generated fighter's ceiling — where he tops out if his career runs its course.
     ///
-    /// This used to be the minimum of two rolls in the 34–55 band, on the principle that "the contender,
-    /// champion and elite tiers belong to the real fighters and the player". The effect was that no
-    /// generated man could ever be better than a club fighter: measured in a running world, their median
-    /// ceiling was 40 and their best was 55, against a median of 74 and a maximum of 99 across the real
-    /// roster. Every generated fighter alive in the sport — 88% of it — sat in the bottom three classes.
+    /// Invented men are gatekeepers at best. The contender, champion and all-time-great tiers belong to the
+    /// real roster and to the player, and a fighter the sim made up out of a first-name list and a surname
+    /// list does not take a world title off Carlos Ortiz.
     ///
-    /// That is what breaks a career after a dozen fights and a universe after a decade. The matchmaker
-    /// looks for a credible opponent, finds that the entire generated population is club-standard, and so
-    /// reaches past it for the few real men and for other people's prospects. A world outlives its real
-    /// fighters, and the belts end up on men rated 49.
+    /// The proportions are what a division looks like from underneath: four men in five are there to lose,
+    /// and the remaining fifth are a real night's work without ever being more than that.
     ///
-    /// A sport needs the whole ladder, so the roll now spans it. The proportions are what a division looks
-    /// like from underneath: mostly men who are there to lose, a solid fifth who are a real test without
-    /// ever being champion, and a thinning tail that reaches the top. The all-time-great band is left to
-    /// the real roster — a generated man can win titles, but he does not become Robinson.</summary>
+    /// The cost of this is real and worth stating plainly, because it has been measured. A world outlives
+    /// its real fighters: thirty years into a universe they have all retired, and if nothing generated can
+    /// rise above a gatekeeper then the belts end up on gatekeepers. The sport does not fall over — the
+    /// rankings, the titles and the matchmaking all still work — but its ceiling drops away with the last
+    /// of the historical roster. That is the trade being made here deliberately.</summary>
     private int RollPotential()
     {
         double r = _rng.NextDouble();
         //  share   ceiling    what he becomes
-        int p = r < 0.55 ? _rng.Next(42, 68)    // journeyman, opponent            class 1-3
-              : r < 0.75 ? _rng.Next(68, 77)    // gatekeeper - a real night's work class 4-5
-              : r < 0.90 ? _rng.Next(77, 83)    // contender                       class 6-8
-              : r < 0.98 ? _rng.Next(83, 88)    // champion calibre                class 9-11
-                         : _rng.Next(88, 92);   // a great, rarely                 class 12-13
+        int p = r < 0.80 ? _rng.Next(42, 68)    // journeyman, opponent   class 1-3
+                         : _rng.Next(68, 76);   // gatekeeper             class 4-5
         return Ratings.Clamp(p);
     }
 

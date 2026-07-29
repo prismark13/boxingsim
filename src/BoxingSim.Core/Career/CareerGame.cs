@@ -2994,12 +2994,11 @@ public sealed class CareerGame
         return Math.Max(21, (int)Math.Round(typical * spread));
     }
 
-    /// <summary>The ceiling a generated fighter may not pass. It sits just below the all-time-great band, so
-    /// a generated man can become a contender or a champion — the sport needs him to, or it has nobody left
-    /// once the real fighters retire — but the very top of the scale stays the preserve of the real roster
-    /// and the player. It was 56, which capped the entire generated population below the MEDIAN real fighter
-    /// and is what left a career with no credible opponents after a dozen bouts.</summary>
-    private const int GeneratedCap = 91;
+    /// <summary>The ceiling a generated fighter may not pass: class 5, the top of the gatekeeper band on the
+    /// 1-15 scale. An invented fighter can be a real night's work and can hold a regional belt; he does not
+    /// become a world champion, and he never becomes a great. Those tiers are the real roster's and the
+    /// player's.</summary>
+    private const int GeneratedCap = 75;
 
     /// <summary>A fighter is only "world-ranked" once he's built a real body of work — 20 pro bouts.</summary>
     public static bool WorldRanked(Boxer b) => b.Record.Wins + b.Record.Losses + b.Record.Draws >= 20;
