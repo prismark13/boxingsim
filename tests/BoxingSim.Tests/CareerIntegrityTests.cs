@@ -118,18 +118,30 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
         }
     }
 
+    /// <summary>A career climbs as far as a body will carry it, and no further.
+    ///
+    /// This test used to assert a flat two-division limit, which is what the sim enforced — and which wrote
+    /// the sport's best careers out of existence, since Leonard, Duran, Hearns and Pacquiao all climbed four
+    /// divisions or more. The limit is now weight gained rather than divisions counted, so it admits those
+    /// careers while still refusing to turn a flyweight into a heavyweight. Six divisions from the bottom of
+    /// the scale and one from the top are the same forty per cent of bodyweight.</summary>
     [Fact]
-    public void NobodyClimbsMoreThanThreeWeightClasses()
+    public void NobodyClimbsFurtherThanHisFrameAllows()
     {
+        static double ScaleWeight(WeightClass wc) =>
+            wc == WeightClass.Heavyweight ? 215 : wc.WeightLimitLbs();
+
         foreach (var wc in _g.Divisions)
             foreach (var b in _g.RankingOf(wc, 500))
                 if (b.DebutWeight is WeightClass from)
-                    Assert.True((int)b.WeightClass - (int)from <= 2,
-                                $"{b.Name} climbed from {from} to {b.WeightClass}");
+                    Assert.True(ScaleWeight(b.WeightClass) <= ScaleWeight(from) * 1.40 + 0.01,
+                                $"{b.Name} climbed from {from} ({ScaleWeight(from)}lb) to {b.WeightClass} " +
+                                $"({ScaleWeight(b.WeightClass)}lb) — more than 40% above his debut weight");
 
-        // And nobody wins belts in more than three divisions.
+        // And nobody wins belts in more divisions than the men who actually did it. Six is De La Hoya, and
+        // he is the outer edge of what has ever happened.
         foreach (var m in _g.HallOfFame)
-            Assert.True(m.WeightTitles <= 3, $"{m.Name} holds titles in {m.WeightTitles} divisions");
+            Assert.True(m.WeightTitles <= 6, $"{m.Name} holds titles in {m.WeightTitles} divisions");
     }
 
     [Fact]

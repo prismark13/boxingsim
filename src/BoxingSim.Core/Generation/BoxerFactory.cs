@@ -98,15 +98,7 @@ public sealed class BoxerFactory
             Accuracy = Scale(Ceiling(14), Lerp(dev, 1.0, 0.5)),
             Stamina = Scale(Ceiling(14), young ? Lerp(dev, 1.0, 0.84) : dev),
             Conditioning = Scale(Ceiling(14), young ? Lerp(dev, 1.0, 0.75) : dev),
-            // Chin is fairly innate — and for a journeyman it is the whole job. A man whose trade is losing
-            // competitively in somebody else's home town only keeps getting the work if he is still standing
-            // at the final bell; the ones who get stopped every time stop being booked. So the opponent
-            // class carries a chin floor that has nothing to do with how good he is otherwise. This is why a
-            // prospect's early record should be a mix of stoppages and decisions rather than twelve knockouts
-            // in twelve: he is in with men who are specifically hard to put away.
-            Chin = potential < 68
-                 ? Scale(Math.Max(Ceiling(16), 48 + _rng.Next(12)), Lerp(dev, 1.0, 0.6))
-                 : Scale(Ceiling(16), Lerp(dev, 1.0, 0.6)),
+            Chin = Scale(Ceiling(16), Lerp(dev, 1.0, 0.6)),   // chin is fairly innate
             CutResistance = Ceiling(20),                        // innate, age-independent
             Aggression = Ceiling(22),                           // temperament, age-independent
             Heart = Ceiling(18)                                 // innate, age-independent

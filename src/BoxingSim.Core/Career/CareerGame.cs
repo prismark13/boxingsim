@@ -1086,17 +1086,36 @@ public sealed class CareerGame
     // mid-card. Populated per-bout (see ConsiderStepUp) rather than by a single yearly roll.
     private readonly HashSet<int> _stepUpQueued = new();
 
-    /// <summary>Can this fighter move up to <paramref name="to"/>? Real fighters never climb past the top weight
-    /// they actually campaigned at; generated fighters (and multi-weight greats below their ceiling) can.</summary>
+    /// <summary>Can this fighter move up to <paramref name="to"/>?
+    ///
+    /// This used to be a flat count: two divisions above where he started, and no further. That rule wrote
+    /// the sport's best careers out of existence. Sugar Ray Leonard went from welterweight to light
+    /// heavyweight and won titles at five weights; Duran went lightweight to middleweight; Hearns went
+    /// welterweight to cruiserweight; Pacquiao went flyweight to light middleweight. Every one of them is a
+    /// four-to-eight division climb, and the sim forbade all of it.
+    ///
+    /// The real limit is not a number of divisions — it is a body. What a man cannot do is put on unlimited
+    /// weight and still be himself, and how many DIVISIONS that buys him depends entirely on where he
+    /// started, because the scale is not evenly spaced. Six pounds separate flyweight from bantamweight;
+    /// twenty-five separate light heavyweight from cruiserweight. So a flyweight can climb six divisions on
+    /// the same forty-odd pounds that takes a welterweight three.
+    ///
+    /// The limit is therefore weight gained, capped at about 40% above his debut division. Measured against
+    /// the men who actually did it: Leonard +19%, Duran +19%, De La Hoya +23%, Hearns +36%, Pacquiao +37%.
+    /// Forty per cent admits all of them and still stops a flyweight becoming a heavyweight.</summary>
     private bool StepUpAllowed(Boxer b, WeightClass to)
     {
         // A real fighter with a documented ceiling never climbs past the top weight he actually campaigned at.
         if (_historical.ContainsKey(b.Id) && b.TopWeight is WeightClass top) return (int)to <= (int)top;
-        // Otherwise he can thicken out and chase belts up the scale, but only so far: two divisions above where
-        // he started is already a rare career (a three-weight champion). A welterweight has no business ending
-        // up at heavyweight — and if he does, the division's ratings are nonsense.
-        return (int)to - (int)(b.DebutWeight ?? b.WeightClass) <= 2;
+
+        var from = b.DebutWeight ?? b.WeightClass;
+        return ScaleWeight(to) <= ScaleWeight(from) * 1.40;
     }
+
+    /// <summary>A division's weight for comparison. Heavyweight has no limit, so it is read as the weight a
+    /// heavyweight actually is rather than as infinity — otherwise nothing could ever climb into it.</summary>
+    private static double ScaleWeight(WeightClass wc) =>
+        wc == WeightClass.Heavyweight ? 215 : wc.WeightLimitLbs();
 
     /// <summary>The flat per-fight chance any fighter drifts up a weight, from his prime onward (bodies fill out).
     /// Zero before the prime — a kid isn't outgrowing his division yet.</summary>
@@ -1158,7 +1177,13 @@ public sealed class CareerGame
         // to move up and hunt a second and third belt, so his step-up chance is skewed sharply upward.
         int ceiling = Math.Max(b.Overall, b.Potential);
         double greatness = 1.0 + Math.Max(0, ceiling - 76) / 14.0;   // ~1.0 at contender level, ~2.6 for an ATG
-        if (_rng.NextDouble() < p * greatness) _stepUpQueued.Add(b.Id);
+        // And each division he has already climbed makes the next one less likely. With the ceiling now set by
+        // his frame rather than by a flat count of two, something has to make a long climb RARE as well as
+        // possible — otherwise the whole division drifts upward over a career and everyone ends up a
+        // cruiserweight. A second move is two-thirds as likely as the first, a fourth about a fifth.
+        int climbed = (int)b.WeightClass - (int)(b.DebutWeight ?? b.WeightClass);
+        double weariness = Math.Pow(0.62, climbed);
+        if (_rng.NextDouble() < p * greatness * weariness) _stepUpQueued.Add(b.Id);
     }
 
     /// <summary>Apply every queued move-up. Run once a year (from AgeRetireCrown) so weight changes land between
