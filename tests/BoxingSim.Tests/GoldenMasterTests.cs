@@ -103,7 +103,7 @@ public class GoldenMasterTests
 
         var body = Fingerprint(g);
         Dump("career", body);
-        Assert.Equal("F62204847EEE55AC", Hash(body));
+        Assert.Equal("FE3D62A0CA9D7580", Hash(body));
     }
 
     [Fact]

@@ -843,7 +843,16 @@ public sealed class CareerViewModel : Observable
     }
     public Boxer? RivalFighter => _rival;
 
-    // ---- the rest of tonight's show ----
+    // ---- the card ----
+    //
+    // A bill is something you read before the night, not a list you are handed afterwards. The same
+    // collection serves both: announced beforehand with the matchups, and carrying the results once they
+    // have been fought.
+    public ObservableCollection<BillLine> Bill { get; } = new();
+    public bool HasBill => Bill.Count > 0;
+    public string BillHeader => Game?.BillHeader ?? "";
+    public string CardNote => Game?.CardNote ?? "";
+
     public ObservableCollection<UndercardBout> Undercard { get; } = new();
     public bool HasUndercard => Undercard.Count > 0;
 
@@ -851,7 +860,10 @@ public sealed class CareerViewModel : Observable
     {
         Undercard.Clear();
         foreach (var u in Game?.Undercard ?? Array.Empty<UndercardBout>()) Undercard.Add(u);
-        Raise(nameof(HasUndercard));
+        Bill.Clear();
+        foreach (var l in Game?.Bill ?? Array.Empty<BillLine>()) Bill.Add(l);
+        foreach (var n in new[] { nameof(HasUndercard), nameof(HasBill), nameof(BillHeader), nameof(CardNote) })
+            Raise(n);
     }
 
     private async void Decline() { await BusyAsync("Waiting for the next offer…", () => _svc.Decline()); RefreshAll(); }
@@ -1505,7 +1517,7 @@ public sealed class CareerViewModel : Observable
         // The owner travels with the row: rebuilding the fight to watch it needs BOTH men, and the bout line
         // only names the opponent. A title fight is flagged as one worth the extra search when it is replayed,
         // so the night it comes back with is the best of several rather than the first that fits.
-        bool notable = h.Note is string note && note.Contains("title", StringComparison.OrdinalIgnoreCase);
+        bool notable = IsTitleBout(h);
         return new LedgerRow(h.Date.ToString("d MMM yyyy"), h.Result.ToString(), h.Opponent, detail,
                              h.Result == 'W', h.Result == 'L', h, owner, notable,
                              notable ? TitleAt(h) : "");
@@ -1513,11 +1525,20 @@ public sealed class CareerViewModel : Observable
 
     /// <summary>A belt with its weight on it. "WBA title" names half a thing — a title won at welterweight
     /// is not the one won at middleweight, and a man who held both should read as having held both.</summary>
+    /// <summary>A belt with its weight on it. "WBA title" names half a thing — a title won at welterweight
+    /// is not the one won at middleweight — and "unification" named none of it at all: it read as a bare
+    /// word on the record with no gold on it, when it is the biggest night a division has, both belts on
+    /// the line and the winner walking out as the undisputed champion.</summary>
     private static string TitleAt(BoutLine h) =>
         h.Note is not string n ? ""
+        : n == "unification" ? $"Undisputed {h.Division.DisplayName()} title"
         : n.EndsWith("title", StringComparison.Ordinal)
             ? $"{n[..^"title".Length]}{h.Division.DisplayName()} title"
             : n;
+
+    /// <summary>Whether this is a bout the record is scanned FOR. A unification is, and did not say so.</summary>
+    private static bool IsTitleBout(BoutLine h) =>
+        h.Note is string n && (n == "unification" || n.Contains("title", StringComparison.OrdinalIgnoreCase));
 
     // ---- a single fight, opened out ----
 
@@ -1583,7 +1604,7 @@ public sealed class CareerViewModel : Observable
             Note = h.Note ?? "",
             Cards = h.Cards ?? "",
             Judges = JudgesFrom(h.Cards, row.OwnerName, h.Opponent),
-            Title = h.Note is string tn && tn.Contains("title", StringComparison.OrdinalIgnoreCase) ? tn : "",
+            Title = IsTitleBout(h) ? TitleAt(h) : "",
             Win = h.Result == 'W',
             Loss = h.Result == 'L',
             Commentary = unplaced,

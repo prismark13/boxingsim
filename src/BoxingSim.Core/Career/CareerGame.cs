@@ -107,7 +107,24 @@ public sealed partial class CareerGame
     private bool UnifiedIn(WeightClass wc) => ChampOf(wc) is Boxer a && WbcOf(wc) is Boxer b && a.Id == b.Id;
     public DateOnly Date { get; private set; }
     public int Year => Date.Year;
-    public FightOffer? Offer { get; private set; }
+    private FightOffer? _offer;
+    /// <summary>The fight on the table. Setting it draws up the card it sits on — the hall, the size of the
+    /// night, his billing, and the rest of the bill — because a card is something you read BEFORE you agree
+    /// to be on it. Six places in the sim hand the player a new offer; hanging this off the property means
+    /// none of them can forget.</summary>
+    public FightOffer? Offer
+    {
+        get => _offer;
+        private set
+        {
+            _offer = value;
+            // A universe has no player and shows no card, so it must not draw one — doing so consumed
+            // random numbers for a bill nobody would ever see and shifted every result in the world after it.
+            if (value is null || Universe is not null || Player.Retired)
+            { _billed.Clear(); _undercard.Clear(); Hall = null; }
+            else { SetTheCard(); AnnounceUndercard(); }
+        }
+    }
     public DateOnly OfferDate { get; private set; }
     public Injury? PlayerInjury { get; private set; }   // set while the player is on the shelf recovering
     private int _layoffDays;
@@ -593,110 +610,5 @@ public sealed partial class CareerGame
         if (Offer is not null) s.Offer = new OfferSave { OpponentId = Offer.Opponent.Id, Rounds = Offer.Rounds, TitleFight = Offer.TitleFight, Belt = Offer.Belt, Context = Offer.Context };
         return s;
     }
-
-    /// <summary>The rest of tonight's show.
-    ///
-    /// The player's fight happened in an empty building: one bout, on its own, with nothing before it. Every
-    /// fight he has ever had has been the only fight in the world that night. A card is four or five men on
-    /// the way up boxing in front of a half-full hall before the main event, and their results are on the
-    /// same page of the paper as his the next morning.
-    ///
-    /// These are real bouts in the world - the men involved gain and lose from them exactly as they would on
-    /// any other card - staged on his date, in his division, from the men beneath him.</summary>
-    private readonly List<UndercardBout> _undercard = new();
-
-    /// <summary>Tonight's supporting bouts, in the order they were fought - the main event is the player's.</summary>
-    public IReadOnlyList<UndercardBout> Undercard => _undercard;
-
-    private void StageUndercard()
-    {
-        _undercard.Clear();
-        var here = Top20Ids(Player.WeightClass);
-        // The undercard is the men below the top of the division: prospects and gatekeepers, not contenders,
-        // because a contender is not boxing four rounds before somebody else's main event.
-        var pool = ActiveIn(Player.WeightClass)
-            .Where(b => b.Id != Player.Id && b.Id != Offer?.Opponent.Id && !here.Contains(b.Id)
-                     && Available(b) && !AtYearCap(b) && ProFights(b) >= 2)
-            .OrderBy(_ => _rng.Next())
-            .ToList();
-
-        int bouts = Math.Min(pool.Count / 2, 3 + _rng.Next(2));
-        var top8 = Top8Ids(Player.WeightClass);
-        for (int i = 0; i + 1 < pool.Count && _undercard.Count < bouts; i += 2)
-        {
-            var a = pool[i]; var b = pool[i + 1];
-            if (BadMatch(a, b, here, top8)) continue;
-            int rounds = ProFights(a) < 8 || ProFights(b) < 8 ? 6 : 8;
-            var res = FastBout(a, b, rounds);
-            ApplyOutcome(res, a, b);
-            _undercard.Add(new UndercardBout(
-                a.Name, b.Name,
-                res.IsDraw ? null : res.Winner!.Name,
-                res.Method, res.EndRound, rounds));
-        }
-    }
-
-    /// <summary>The man whose career runs alongside the player's.
-    ///
-    /// A division was a table that reshuffled. Fifteen names moved up and down it and not one of them was
-    /// anybody - there was no man you were measured against, no name you looked for first in the results.
-    /// Every sport has one, and boxing more than most: the other guy in your weight, at your stage, who
-    /// keeps winning while you keep winning.
-    ///
-    /// He is chosen by what actually makes a rivalry - a man who has beaten you outranks everything, then a
-    /// man you have beaten who is still climbing, then simply the best fighter at your own stage of a career
-    /// in your own division. He is re-read as the sport moves, so when he retires or falls away, somebody
-    /// else becomes the man to watch.</summary>
-    public Boxer? Rival
-    {
-        get
-        {
-            if (Player.Retired) return null;
-            var here = ActiveIn(Player.WeightClass).Where(b => b.Id != Player.Id && !b.Retired).ToList();
-            if (here.Count == 0) return null;
-
-            // A man who beat you and is still going. This one needs no seniority — the first loss of a
-            // career makes a rivalry on its own, whenever it comes. Most recent first: the freshest wound.
-            foreach (var h in Enumerable.Reverse(Player.History))
-                if (h.Result == 'L' && here.FirstOrDefault(b => b.Name == h.Opponent) is Boxer beat)
-                    return beat;
-
-            // Otherwise there is nobody yet, and the honest answer is to say so.
-            //
-            // The first cut named a rival from the debut — some 6-0 prospect the sim had decided was "the
-            // man to watch" because he happened to be the same age. That is not a rivalry, it is a stranger
-            // with a similar record, and putting his name at the top of the dashboard from fight one cheapens
-            // the thing entirely. A rivalry is either somebody who has beaten you or somebody you are
-            // actually racing, and you cannot be racing anyone until you are far enough up to be in the race.
-            if (!WorldRanked(Player)) return null;
-            var order = RankingOf(Player.WeightClass, 15);
-            int mine = order.ToList().FindIndex(b => b.Id == Player.Id);
-            if (mine < 0) return null;
-
-            // The nearest ranked man to him, above or below — the one he is actually measured against.
-            return order.Where(b => b.Id != Player.Id)
-                        .OrderBy(b => Math.Abs(order.ToList().FindIndex(x => x.Id == b.Id) - mine))
-                        .FirstOrDefault();
-        }
-    }
-
-    /// <summary>Where the rival stands, in a line: his record, and whether he is above or below the player.</summary>
-    public string RivalStanding(Boxer r)
-    {
-        var order = RankingOf(Player.WeightClass, 15).Select(b => b.Name).ToList();
-        int his = order.IndexOf(r.Name), mine = order.IndexOf(Player.Name);
-        string rank = his >= 0 ? $"#{his + 1}" : "unranked";
-        if (his >= 0 && mine >= 0)
-            return his < mine ? $"{rank} — {mine - his} place{(mine - his == 1 ? "" : "s")} above you"
-                 : $"{rank} — {his - mine} place{(his - mine == 1 ? "" : "s")} below you";
-        if (his >= 0 && mine < 0) return $"{rank}, and you are not ranked yet";
-        return rank;
-    }
-
-    /// <summary>Why he is the one being watched — beaten you, or climbing beside you.</summary>
-    public string RivalReason(Boxer r) =>
-        Player.History.Any(h => h.Result == 'L' && h.Opponent == r.Name) ? "he beat you"
-        : Player.History.Any(h => h.Result == 'W' && h.Opponent == r.Name) ? "you have beaten him"
-        : "he is next to you in the rankings";
 
 }

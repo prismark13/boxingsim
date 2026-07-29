@@ -22,7 +22,7 @@ public sealed partial class CareerGame
     {
         // Champions don't fight on undercards — when they fight, it's a title defence (handled below).
         // A man who's already boxed 8 times this year sits the rest of it out.
-        var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b) && Available(b))
+        var pool = ActiveHere.Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b))
                          .OrderByDescending(b => b.Overall).ToList();
         if (pool.Count < 2) return;
 
@@ -183,7 +183,7 @@ public sealed partial class CareerGame
         {
             // A prospect stays busy on the club circuit; an established (world-ranked) fighter takes fewer, bigger
             // bouts — long camps, ~3–4 a year — so he only appears on some cards.
-            var pool = ActiveHere.Where(b => b.Id != Player.Id && b.Id != Champ?.Id && b.Id != Wbc?.Id && !AtYearCap(b) && Available(b)
+            var pool = ActiveHere.Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
                                           && (!WorldRanked(b) || _rng.NextDouble() < FightChancePerCard(b)))
                              .OrderByDescending(b => b.Overall).ToList();
             Date = SpreadDate(yr, pass, 6);

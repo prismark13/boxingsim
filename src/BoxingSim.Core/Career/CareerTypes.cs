@@ -151,11 +151,21 @@ public sealed record Achievements(
     int TitleWins);                // world title bouts won across his career
 
 /// <summary>One supporting bout on the player's own show, as the card reads.</summary>
-public sealed record UndercardBout(string A, string B, string? Winner, string Method, int EndRound, int Rounds)
+public sealed record UndercardBout(string A, string B, string? Winner, string Method, int EndRound, int Rounds,
+                                   string Note = "")
 {
     public bool IsDraw => Winner is null;
     public string Line => IsDraw ? $"{A} drew with {B}" : $"{Winner} beat {(Winner == A ? B : A)}";
     public string Verdict => IsDraw ? "draw"
                            : Method is "KO" or "TKO" or "cut" ? $"{Method} rd{EndRound}"
                            : Method;
+}
+
+/// <summary>One line of a bill: the fight, the distance, and — once the night has happened — what became
+/// of it. The player's own bout is marked so the card can show it as his.</summary>
+public sealed record BillLine(string Fight, int Rounds, bool IsPlayer, string What,
+                              string Verdict, string Result, string Note)
+{
+    public bool Fought => Verdict.Length > 0;
+    public string Distance => $"{Rounds} rds";
 }

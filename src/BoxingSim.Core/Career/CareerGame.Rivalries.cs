@@ -235,7 +235,14 @@ public sealed partial class CareerGame
 
         var (a, b, _) = best.Value;
         // The heavier man's weight, and the championship distance, because that is what these are.
-        var heavier = (int)a.WeightClass >= (int)b.WeightClass ? a : b;
+        // Who is the bigger man — and when they are the same size, the champion, because it is his belt that
+        // is at stake and the other man who is challenging for it. Taking whichever happened to be argument
+        // `a` meant that a superfight between two middleweights, one of them the champion, was fought for
+        // nothing half the time: the sim asked whether the "heavier" man held a belt, and half the time the
+        // heavier man was the challenger.
+        var heavier = (int)a.WeightClass != (int)b.WeightClass
+                    ? ((int)a.WeightClass > (int)b.WeightClass ? a : b)
+                    : (IsWorldChampion(a) ? a : IsWorldChampion(b) ? b : a);
         var lighter = ReferenceEquals(heavier, a) ? b : a;
         _cursor = heavier.WeightClass;
 

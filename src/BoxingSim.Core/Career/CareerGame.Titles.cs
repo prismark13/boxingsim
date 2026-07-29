@@ -68,6 +68,15 @@ public sealed partial class CareerGame
     private readonly Dictionary<(WeightClass Div, string Region), Boxer> _regional = new();   // (division, region) → belt holder
     private static readonly string[] RegionalBelts = { "NABF", "European", "Commonwealth" };
 
+    /// <summary>Does this man hold a world belt in his own division?
+    ///
+    /// The undercard pool used to exclude the WBA and WBC champions by name and say "champions sit these
+    /// out — they only defend". It never mentioned the IBF, so the third champion of every division was
+    /// quietly available to be matched on a club show, and could be beaten there with nothing on the line.
+    /// That is how a man beats a reigning champion and walks away with no belt.</summary>
+    private bool HoldsAnyWorldBelt(Boxer b) =>
+        ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
+
     /// <summary>Who is worth putting in for a regional title. A world-ranked contender obviously, but a good
     /// unbeaten prospect too - that is exactly what these belts are for, and holding a man back until he has
     /// twenty bouts means the belt only ever changes hands between established fighters. It is not everybody

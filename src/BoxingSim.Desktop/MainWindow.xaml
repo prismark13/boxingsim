@@ -788,6 +788,74 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
+                                <!-- The bill, as a poster. A card is a thing you read BEFORE the night: what
+                                     kind of show it is, which hall, who else is on, and where you come on it. -->
+                                <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource GoldLine}"
+                                        BorderThickness="1" CornerRadius="10" Margin="24,4,24,12" Padding="18,14"
+                                        Visibility="{Binding HasBill, Converter={StaticResource BoolVis}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding BillHeader}" Style="{StaticResource Label}"
+                                                   Foreground="{StaticResource Gold}" HorizontalAlignment="Center"
+                                                   TextWrapping="Wrap" TextAlignment="Center" />
+                                        <TextBlock Text="{Binding CardNote}" FontSize="12.5" Margin="0,8,0,12"
+                                                   Foreground="{StaticResource Muted}" TextWrapping="Wrap"
+                                                   TextAlignment="Center" HorizontalAlignment="Center" MaxWidth="520" />
+                                        <ItemsControl ItemsSource="{Binding Bill}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,2" CornerRadius="6" Padding="10,6">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsPlayer}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource AccentSoft}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Fight}" FontSize="13"
+                                                                           TextWrapping="Wrap">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsPlayer}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding Note}" FontSize="11.5"
+                                                                           Foreground="{StaticResource Faint}" Margin="0,3,0,0"
+                                                                           TextWrapping="Wrap"
+                                                                           Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="1" Margin="14,0,0,0"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Distance}" FontSize="11"
+                                                                           Foreground="{StaticResource Faint}" TextAlignment="Right"
+                                                                           Visibility="{Binding Fought, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
+                                                                <TextBlock Text="{Binding Verdict}" FontSize="11.5"
+                                                                           Foreground="{StaticResource Muted}" TextAlignment="Right"
+                                                                           Visibility="{Binding Fought, Converter={StaticResource BoolVis}}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- Time passes. Everything the sport did between his fights used to happen in
                                      the single frame between clicking "take the fight" and the opening bell. -->
                                 <Button Content="Wait for fight night" Command="{Binding WaitForFight}"
@@ -1702,10 +1770,11 @@
                                    Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,0,0,14"
                                    Visibility="{Binding PlaybackFinished, Converter={StaticResource BoolVis}}" />
 
-                        <!-- The rest of the show. His fight used to happen in an empty building. -->
+                        <!-- The rest of the show, with a word about each. His fight used to happen in an
+                             empty building; then it happened on a card he could not read until afterwards. -->
                         <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
-                                BorderThickness="1" CornerRadius="10" Padding="18,12" Margin="0,0,0,14"
-                                HorizontalAlignment="Center" MinWidth="420">
+                                BorderThickness="1" CornerRadius="10" Padding="18,14" Margin="0,0,0,14"
+                                HorizontalAlignment="Center" MinWidth="460" MaxWidth="640">
                             <Border.Visibility>
                                 <MultiBinding Converter="{StaticResource AllTrue}">
                                     <Binding Path="PlaybackFinished" />
@@ -1713,26 +1782,35 @@
                                 </MultiBinding>
                             </Border.Visibility>
                             <StackPanel>
-                                <TextBlock Text="ALSO ON THE CARD" Style="{StaticResource Label}"
-                                           HorizontalAlignment="Center" Margin="0,0,0,8" />
+                                <TextBlock Text="{Binding BillHeader}" Style="{StaticResource Label}"
+                                           Foreground="{StaticResource Gold}" HorizontalAlignment="Center"
+                                           TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,10" />
                                 <ItemsControl ItemsSource="{Binding Undercard}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid Margin="0,3">
+                                            <Grid Margin="0,5">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Line}" FontSize="12.5"
-                                                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Line}" FontSize="12.5"
+                                                               Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Note}" FontSize="11.5"
+                                                               Foreground="{StaticResource Faint}" Margin="0,2,0,0"
+                                                               TextWrapping="Wrap"
+                                                               Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                                </StackPanel>
                                                 <TextBlock Grid.Column="1" Text="{Binding Verdict}" FontSize="11.5"
-                                                           Foreground="{StaticResource Faint}" Margin="14,0,0,0" />
+                                                           Foreground="{StaticResource Muted}" Margin="14,0,0,0"
+                                                           VerticalAlignment="Top" />
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </StackPanel>
                         </Border>
+
                         <!-- Watch it at your own pace: speed, pause, or jump to the end. Pausing lets the call
                              be scrolled back and read. -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,12"
