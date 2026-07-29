@@ -75,16 +75,29 @@ public sealed class BoxerFactory
         // develop distinct identities (banger, boxer, iron chin, glass jaw, etc.).
         int Ceiling(int spread) => Ratings.Clamp(potential + _rng.Next(-spread, spread + 1));
 
-        // Power, defence, speed and the punch arsenal arrive early; stamina, conditioning and
-        // timing are what a young fighter still has to build. Past the peak they all erode.
+        // What a young fighter has, and what he has not.
+        //
+        // He has his engine, his legs and his chin — those are physical and they arrive with him. What he
+        // lacks is placement, ring craft and defence: the things that take rounds to learn. That is the
+        // right way round, and it was the wrong way round here. Stamina and conditioning were the only two
+        // attributes scaled by the bare development curve with no floor under them, so at eighteen a man
+        // sat at 59% of his engine while his power was at 94% of his ceiling — and since anything under 48
+        // shows as 1 on the 1-15 scale, 73% of all prospects had a tale of the tape reading STAMINA 1.
+        // Every other attribute read 3 to 5. In his prime the same man reads 4.
+        //
+        // A raw eighteen-year-old is not a man with no gas tank. He is a man who does not know how to pace
+        // himself, which is a different thing and is already modelled elsewhere — the engine reads work rate
+        // and aggression, not stamina alone. Conditioning stays a little lower than stamina: he has the
+        // lungs, but he has not had the camps. Past the peak both still erode on the bare curve, because
+        // the engine is the first thing a fighter loses.
         var r = new Ratings
         {
             Power = Scale(Ceiling(18), young ? Lerp(dev, 1.0, 0.85) : dev),
             Speed = Scale(Ceiling(14), young ? Lerp(dev, 1.0, 0.82) : dev),
             Defense = Scale(Ceiling(15), Lerp(dev, 1.0, young ? 0.72 : 0.4)),
             Accuracy = Scale(Ceiling(14), Lerp(dev, 1.0, 0.5)),
-            Stamina = Scale(Ceiling(14), dev),
-            Conditioning = Scale(Ceiling(14), dev),
+            Stamina = Scale(Ceiling(14), young ? Lerp(dev, 1.0, 0.84) : dev),
+            Conditioning = Scale(Ceiling(14), young ? Lerp(dev, 1.0, 0.75) : dev),
             Chin = Scale(Ceiling(16), Lerp(dev, 1.0, 0.6)),   // chin is fairly innate
             CutResistance = Ceiling(20),                        // innate, age-independent
             Aggression = Ceiling(22),                           // temperament, age-independent
