@@ -436,10 +436,11 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                               Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Dashboard}">
                     <StackPanel Margin="28,26,28,28" MaxWidth="1080">
-                        <TextBlock Text="{Binding PlayerHeadline}" FontSize="24" FontWeight="Light"
+                        <!-- The date heads this page, not the fighter's name. The sidebar names him two inches
+                             to the left, on this page and every other; the date is the one thing it does not
+                             say, and where you are in a career is what the dashboard is actually about. -->
+                        <TextBlock Text="{Binding DateLabel}" FontSize="24" FontWeight="Light"
                                    Foreground="{StaticResource Text}" />
-                        <TextBlock Text="{Binding DateLabel}" FontSize="12" Foreground="{StaticResource Muted}"
-                                   Margin="0,4,0,0" />
 
                         <!-- Where he stands, beside his name. This replaced four cards across the top of the
                              page — Record, Division rank, Titles, Rating — three of which repeated the sidebar
@@ -574,45 +575,9 @@
                             </StackPanel>
                         </Grid>
 
-                        <Border Style="{StaticResource Card}">
-                            <StackPanel>
-                                <Button Style="{StaticResource RowButton}" Command="{Binding Navigate}"
-                                        CommandParameter="News" AutomationProperties.Name="Latest news">
-                                    <Grid Margin="18,14,18,10">
-                                        <TextBlock Text="AROUND THE SPORT" Style="{StaticResource Label}" />
-                                        <TextBlock Text="all news ›" FontSize="11" HorizontalAlignment="Right"
-                                                   Foreground="{StaticResource Quiet}" />
-                                    </Grid>
-                                </Button>
-                                <ItemsControl ItemsSource="{Binding HeadlineNews}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Margin="18,7">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="96" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12.5" TextWrapping="Wrap">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding PlayerBout}" Value="True">
-                                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
-                                                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <Border Height="8" Background="Transparent" />
-                            </StackPanel>
-                        </Border>
+                        <!-- The sport's news was a card here, at the foot of the page and below the fold on a
+                             1366-wide screen. It is the drawer on the right now: reachable from every page
+                             instead of only this one, and carrying the whole feed rather than six lines. -->
                     </StackPanel>
                 </ScrollViewer>
 
@@ -1837,8 +1802,153 @@
                 <TextBlock Text="{Binding BusyMessage}" FontSize="12.5" Foreground="#CFE4FF" />
             </Border>
 
+            <!-- ============ NEWS DRAWER ============ -->
+            <!-- The sport's news used to be a card at the foot of the dashboard, below the fold on a 1366-wide
+                 screen and reachable from nowhere else without leaving the page you were on. It slides in from
+                 the right now, over whatever you are reading, and carries the whole feed rather than six lines.
+                 ClipToBounds is what keeps the closed drawer off screen instead of hanging past the edge. -->
+            <Grid Grid.ColumnSpan="2" Panel.ZIndex="8" ClipToBounds="True"
+                  Visibility="{Binding InPlay, Converter={StaticResource BoolVis}}">
+
+                <!-- Click anywhere else to put it away. Only in the way while it is open. -->
+                <Button Style="{StaticResource BackdropButton}" Command="{Binding CloseNewsDrawer}"
+                        AutomationProperties.Name="Close the news"
+                        Visibility="{Binding NewsOpen, Converter={StaticResource BoolVis}}" />
+
+                <!-- The handle. Pinned to the right edge on every page, so the sport is always one click away
+                     and never in the way. It goes when the drawer is out, because the drawer is its own close. -->
+                <!-- Named for what it opens, not "News": the sidebar already has a nav item by that name, and
+                     two controls with one name is ambiguous to a screen reader and to anything driving the UI. -->
+                <Button Command="{Binding ToggleNews}" AutomationProperties.Name="Around the sport"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,22,0,0" Cursor="Hand"
+                        Visibility="{Binding NewsOpen, Converter={StaticResource BoolVis}, ConverterParameter=invert}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="b" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                                    BorderThickness="1,1,0,1" CornerRadius="9,0,0,9" Padding="11,9,9,9">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="c" Text="‹" FontSize="13" Foreground="{StaticResource Quiet}"
+                                               VerticalAlignment="Center" Margin="0,0,7,0" />
+                                    <TextBlock x:Name="t" Text="NEWS" FontSize="9.5" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Quiet}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource GoldLine}" />
+                                    <Setter TargetName="t" Property="Foreground" Value="{StaticResource Gold}" />
+                                    <Setter TargetName="c" Property="Foreground" Value="{StaticResource Gold}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <Border Width="430" HorizontalAlignment="Right" Background="{StaticResource Panel}"
+                        BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0"
+                        IsHitTestVisible="{Binding NewsOpen}">
+                    <Border.RenderTransform>
+                        <TranslateTransform X="430" />
+                    </Border.RenderTransform>
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NewsOpen}" Value="True">
+                                    <DataTrigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.X"
+                                                                 To="0" Duration="0:0:0.22">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.EnterActions>
+                                    <DataTrigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.X"
+                                                                 To="430" Duration="0:0:0.18">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseIn" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </DataTrigger.ExitActions>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Margin="20,18,14,12">
+                            <StackPanel>
+                                <TextBlock Text="AROUND THE SPORT" Style="{StaticResource Label}" />
+                                <TextBlock Text="Every division, most recent first" FontSize="11"
+                                           Foreground="{StaticResource Faint}" Margin="0,4,0,0" />
+                            </StackPanel>
+                            <Button Style="{StaticResource CloseXButton}" HorizontalAlignment="Right"
+                                    VerticalAlignment="Top" Command="{Binding CloseNewsDrawer}"
+                                    AutomationProperties.Name="Close the news" />
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled" Padding="0,0,0,14">
+                            <ItemsControl ItemsSource="{Binding News}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!-- A headline about a fight is a way into that fight, the same as on the
+                                             News page. The rest stays plain text so only the openable ones ask. -->
+                                        <Button Style="{StaticResource RowButton}" HorizontalAlignment="Stretch"
+                                                AutomationProperties.Name="{Binding Text}"
+                                                Command="{Binding DataContext.WatchNews, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                IsHitTestVisible="{Binding CanWatch}">
+                                            <StackPanel Margin="20,7,16,7">
+                                                <Grid>
+                                                    <TextBlock Text="{Binding Date}" FontSize="10.5"
+                                                               Foreground="{StaticResource Faint}" />
+                                                    <TextBlock Text="watch ›" FontSize="10.5" HorizontalAlignment="Right"
+                                                               Foreground="{StaticResource Gold}"
+                                                               Visibility="{Binding CanWatch, Converter={StaticResource BoolVis}}" />
+                                                </Grid>
+                                                <TextBlock Text="{Binding Text}" FontSize="12.5" TextWrapping="Wrap"
+                                                           Margin="0,3,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding PlayerBout}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
             <!-- ============ AWARD CITATION (overlay) ============ -->
-            <Grid Grid.ColumnSpan="2" Panel.ZIndex="11"
+            <!-- Above the year-end awards panel (12), not below it: the honours are announced there and each
+                 one opens its citation, so a citation stacked underneath would have opened invisibly. Closing
+                 it drops back to the panel with the other three still waiting to be read. -->
+            <Grid Grid.ColumnSpan="2" Panel.ZIndex="13"
                   Visibility="{Binding HasAward, Converter={StaticResource BoolVis}}">
                 <Button Style="{StaticResource BackdropButton}" Command="{Binding CloseAward}"
                         AutomationProperties.Name="Close" />
@@ -2163,8 +2273,25 @@
                         <ItemsControl ItemsSource="{Binding YearAwards}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
-                                            BorderThickness="1" CornerRadius="9" Padding="16,12" Margin="0,0,0,9">
+                                    <!-- Each honour opens its citation, the same as on the Awards page. Being
+                                         told who won the year and not being able to ask about it was the one
+                                         dead end left in the announcement. -->
+                                    <Button Style="{StaticResource RowButton}" ToolTip="Read the citation"
+                                            AutomationProperties.Name="{Binding Name}"
+                                            Command="{Binding DataContext.ShowAward, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                    <Border BorderThickness="1" CornerRadius="9" Padding="16,12" Margin="0,0,0,9">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource Panel2}" />
+                                                <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Value="True" Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}">
+                                                        <Setter Property="BorderBrush" Value="{StaticResource GoldLine}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
                                         <StackPanel>
                                             <TextBlock Text="{Binding Position}" FontSize="10"
                                                        FontWeight="SemiBold" Foreground="{StaticResource Gold}" />
@@ -2180,6 +2307,7 @@
                                                        Visibility="{Binding Commentary, Converter={StaticResource EmptyVis}}" />
                                         </StackPanel>
                                     </Border>
+                                    </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

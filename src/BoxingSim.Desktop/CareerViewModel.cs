@@ -283,6 +283,8 @@ public sealed class CareerViewModel : Observable
             Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
         });
         CloseYearAwards = new Cmd(() => { ShowYearAwards = false; Raise(nameof(ShowYearAwards)); });
+        ToggleNews = new Cmd(() => NewsOpen = !NewsOpen);
+        CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; Raise(nameof(IsWaiting)); Raise(nameof(CanWait)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
@@ -316,6 +318,7 @@ public sealed class CareerViewModel : Observable
         Dismiss = new Cmd(() =>
         {
             if (SelectedAward is not null) SelectedAward = null;
+            else if (NewsOpen) NewsOpen = false;
             else if (SelectedFight is not null) SelectedFight = null;
             else if (SelectedCard is not null) SelectedCard = null;
             else if (IsPlayingBack) EndPlayback();
@@ -671,7 +674,6 @@ public sealed class CareerViewModel : Observable
     // ---- the dashboard: career mode's hub ----
     public ObservableCollection<LedgerRow> RecentForm { get; } = new();
     public ObservableCollection<RankRow> DivisionTop { get; } = new();
-    public ObservableCollection<NewsRow> HeadlineNews { get; } = new();
 
     public bool HasLedger => Ledger.Count > 0;
 
@@ -871,6 +873,22 @@ public sealed class CareerViewModel : Observable
     public bool ShowYearAwards { get; private set; }
 
     public Cmd CloseYearAwards { get; }
+
+    // ---- the news drawer ----
+    //
+    // The sport's news was a panel at the foot of the dashboard, below the fold on a 1366-wide screen, and
+    // reachable nowhere else without leaving the page you were on. It is a drawer now: it slides in over
+    // whatever you are looking at, from any page, and carries the full feed rather than six headlines.
+
+    public Cmd ToggleNews { get; }
+    public Cmd CloseNewsDrawer { get; }
+
+    private bool _newsOpen;
+    public bool NewsOpen
+    {
+        get => _newsOpen;
+        private set { _newsOpen = value; Raise(); }
+    }
 
     /// <summary>Pull the year's honours out of the world, if it has raised any. Called after anything that
     /// can move the calendar.</summary>
@@ -1808,7 +1826,7 @@ public sealed class CareerViewModel : Observable
     /// the sport is saying, and the headline numbers — each a way INTO the fuller screen behind it.</summary>
     private void BuildDashboard()
     {
-        RecentForm.Clear(); DivisionTop.Clear(); HeadlineNews.Clear();
+        RecentForm.Clear(); DivisionTop.Clear();
         if (Game is null) return;
         var p = Game.Player;
 
@@ -1824,12 +1842,6 @@ public sealed class CareerViewModel : Observable
                                         b.Record.ToString(), b.Id == p.Id, champ, b));
             if (!champ) r++;
         }
-
-        foreach (var (e, _) in Game.Log.Select((e, i) => (e, i))
-                                       .Where(x => x.e.Div == p.WeightClass || x.e.PlayerBout)
-                                       .OrderByDescending(x => x.e.On).ThenByDescending(x => x.i)
-                                       .Take(6))
-            HeadlineNews.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout));
 
     }
 
