@@ -655,17 +655,28 @@ public sealed class CareerGame
             var here = ActiveIn(Player.WeightClass).Where(b => b.Id != Player.Id && !b.Retired).ToList();
             if (here.Count == 0) return null;
 
-            // A man who beat you and is still going. Most recent first - the freshest wound.
+            // A man who beat you and is still going. This one needs no seniority — the first loss of a
+            // career makes a rivalry on its own, whenever it comes. Most recent first: the freshest wound.
             foreach (var h in Enumerable.Reverse(Player.History))
                 if (h.Result == 'L' && here.FirstOrDefault(b => b.Name == h.Opponent) is Boxer beat)
                     return beat;
 
-            int mine = ProFights(Player);
-            // Otherwise the best man at his own stage: within a third of his mileage, ranked as high as
-            // possible. A twenty-fight prospect's rival is another twenty-fight prospect, not the champion.
-            var peers = here.Where(b => Math.Abs(ProFights(b) - mine) <= Math.Max(6, mine / 3))
-                            .OrderByDescending(RankScore).ToList();
-            return peers.FirstOrDefault() ?? here.OrderByDescending(RankScore).FirstOrDefault();
+            // Otherwise there is nobody yet, and the honest answer is to say so.
+            //
+            // The first cut named a rival from the debut — some 6-0 prospect the sim had decided was "the
+            // man to watch" because he happened to be the same age. That is not a rivalry, it is a stranger
+            // with a similar record, and putting his name at the top of the dashboard from fight one cheapens
+            // the thing entirely. A rivalry is either somebody who has beaten you or somebody you are
+            // actually racing, and you cannot be racing anyone until you are far enough up to be in the race.
+            if (!WorldRanked(Player)) return null;
+            var order = RankingOf(Player.WeightClass, 15);
+            int mine = order.ToList().FindIndex(b => b.Id == Player.Id);
+            if (mine < 0) return null;
+
+            // The nearest ranked man to him, above or below — the one he is actually measured against.
+            return order.Where(b => b.Id != Player.Id)
+                        .OrderBy(b => Math.Abs(order.ToList().FindIndex(x => x.Id == b.Id) - mine))
+                        .FirstOrDefault();
         }
     }
 
@@ -686,7 +697,7 @@ public sealed class CareerGame
     public string RivalReason(Boxer r) =>
         Player.History.Any(h => h.Result == 'L' && h.Opponent == r.Name) ? "he beat you"
         : Player.History.Any(h => h.Result == 'W' && h.Opponent == r.Name) ? "you have beaten him"
-        : "he came up with you";
+        : "he is next to you in the rankings";
 
     // ---- player turn ----
 
