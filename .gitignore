@@ -7,3 +7,6 @@ obj/
 # business in the history — it is a release asset, not source.
 out/
 publish/
+
+# MSIX build output — a 65 MB package and a throwaway test certificate.
+out-msix/
