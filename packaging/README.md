@@ -1,4 +1,8 @@
-# Shipping BoxingSim through the Microsoft Store
+# Shipping The Final Bell through the Microsoft Store
+
+The app was called BoxingSim until 0.5.3 and the repository, the solution and `BoxingSim.exe` still are.
+Only the name the user reads changed; the executable filename is referenced by the manifest, this script
+and every GitHub release asset, and renaming it would buy nothing visible.
 
 ## Why the Store rather than a download
 
@@ -63,19 +67,29 @@ makeappx unpack /p out-msix\BoxingSim.msix /d some\folder /o
 1. **Register** at [Partner Center](https://partner.microsoft.com/dashboard) — free for individuals, in
    about 200 markets, no card needed. There is an identity check; it is an ordinary one, not the Verified
    ID/AU10TIX gate that Trusted Signing failed on.
-2. **Reserve the name** "BoxingSim" (or whatever it ends up called) under Apps and games → New product.
-3. **Copy the identity values Partner Center issues** into `AppxManifest.xml`, replacing the three
-   placeholders:
-   - `Identity/@Name` → the Package/Identity/Name it gives you
-   - `Identity/@Publisher` → the Package/Identity/Publisher (`CN=…`)
-   - `Properties/PublisherDisplayName` → your publisher display name
+2. **Reserve the name** under Apps and games → New product. Choose **MSIX/PWA app**, not "EXE or MSI app":
+   the EXE route requires you to sign the installer yourself, which is the very problem the Store was
+   meant to solve.
+3. **Copy the identity values Partner Center issues** into `AppxManifest.xml`. This is already done — the
+   product is *The Final Bell*, Store ID `9P3B0VK4TBNX`:
+   - `Identity/@Name` → `Prismark.TheFinalBell`
+   - `Identity/@Publisher` → `CN=6D48472E-F6B3-45EB-9398-938A34F4C879`
+   - `Properties/PublisherDisplayName` → `Prismark`
 
-   A mismatch here is the commonest reason a first submission is rejected.
+   They come from Product management → Product identity, and a mismatch is the commonest reason a first
+   submission is rejected. If the product is ever deleted and recreated, they change.
 4. **Rebuild** with `pack.ps1` and upload `out-msix\BoxingSim.msix` to the submission's Packages step.
-5. Fill in the listing: description, at least one screenshot (1366×768 or larger), age rating
-   questionnaire, and privacy — the app collects nothing and makes no network calls, which makes that
-   section short.
-6. Submit. First certification usually takes a few days.
+   Device family: **Windows 10/11 Desktop only** — the app is pointer-driven and cannot work on Xbox,
+   Surface Hub or HoloLens.
+5. **Justify `runFullTrust`.** Partner Center flags it as a restricted capability, which is routine: every
+   Win32 app packaged as MSIX declares it, because `Windows.FullTrustApplication` cannot run without it.
+   The answer that satisfies a reviewer covers three things — that it is required by the application model
+   rather than by a feature, that it is not used to reach user data (no network, one save file), and that
+   the app launches no processes and needs no elevation.
+6. Fill in the listing: description, at least one screenshot (1366×768 or larger), age rating
+   questionnaire, and privacy policy — <https://github.com/prismark13/boxingsim/blob/main/PRIVACY.md>.
+   The app collects nothing and makes no network calls, which keeps that section short.
+7. Submit. First certification usually takes a few days.
 
 ## Notes on the manifest
 

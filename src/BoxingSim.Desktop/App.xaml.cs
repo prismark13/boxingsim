@@ -14,7 +14,7 @@ public partial class App : Application
     private void OnUnhandled(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         MessageBox.Show($"{e.Exception.Message}\n\nYour last saved career is untouched at:\n{DesktopCareerService.SavePath}",
-                        "BoxingSim", MessageBoxButton.OK, MessageBoxImage.Error);
+                        "The Final Bell", MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
     }
 }

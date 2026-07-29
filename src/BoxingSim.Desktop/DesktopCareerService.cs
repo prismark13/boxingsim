@@ -20,8 +20,32 @@ public sealed class DesktopCareerService
         WriteIndented = false
     };
 
-    public static string SaveDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BoxingSim");
+    public static string SaveDirectory { get; } = ResolveSaveDirectory();
+
+    /// <summary>Where the save lives, moving it out of the old BoxingSim folder if it is still there.
+    ///
+    /// The app was called BoxingSim until the Store submission; anyone who played it before that has a career
+    /// under the old name, and a rename that simply pointed somewhere new would leave it stranded — the game
+    /// would open on an empty title screen and the career would look lost. So the first run under the new name
+    /// carries the old folder across.
+    ///
+    /// Move rather than copy, so there is exactly one save and no chance of editing the wrong one. If the move
+    /// fails for any reason — the folder open in Explorer, the file locked, permissions — keep using the OLD
+    /// directory instead of starting empty beside a career we could not reach. A player would far rather have
+    /// their fighter under an out-of-date folder name than not at all.</summary>
+    private static string ResolveSaveDirectory()
+    {
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string home = Path.Combine(appData, "The Final Bell");
+        string old = Path.Combine(appData, "BoxingSim");
+
+        if (Directory.Exists(home) || !Directory.Exists(old)) return home;
+
+        try { Directory.Move(old, home); }
+        catch (IOException) { return old; }
+        catch (UnauthorizedAccessException) { return old; }
+        return home;
+    }
 
     public static string SavePath { get; } = Path.Combine(SaveDirectory, "career.json");
 

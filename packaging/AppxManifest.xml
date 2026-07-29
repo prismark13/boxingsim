@@ -13,9 +13,10 @@
   and nothing for Smart App Control to object to. Individual developer registration became free in
   September 2025.
 
-  Identity, Publisher and PublisherDisplayName below are placeholders. Partner Center issues the real
-  values when the app is reserved, and they must be copied in verbatim — a mismatch is the single most
-  common reason a first submission is rejected.
+  The identity below is the real one, issued by Partner Center for The Final Bell (Store ID 9P3B0VK4TBNX)
+  and copied verbatim from its Product identity page. It must match exactly or certification rejects the
+  package, which is the single most common reason a first submission fails. If the product is ever
+  recreated in Partner Center, these values change and must be copied again.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -24,14 +25,14 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="PLACEHOLDER.BoxingSim"
-    Publisher="CN=PLACEHOLDER"
-    Version="0.5.2.0"
+    Name="Prismark.TheFinalBell"
+    Publisher="CN=6D48472E-F6B3-45EB-9398-938A34F4C879"
+    Version="0.5.3.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>BoxingSim</DisplayName>
-    <PublisherDisplayName>PLACEHOLDER</PublisherDisplayName>
+    <DisplayName>The Final Bell</DisplayName>
+    <PublisherDisplayName>Prismark</PublisherDisplayName>
     <Logo>assets\store\StoreLogo.png</Logo>
     <Description>A boxing career simulator. Take a fighter from his debut to the Hall of Fame, or watch a whole sport run without you.</Description>
   </Properties>
@@ -46,9 +47,9 @@
   </Resources>
 
   <Applications>
-    <Application Id="BoxingSim" Executable="BoxingSim.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="TheFinalBell" Executable="BoxingSim.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="BoxingSim"
+        DisplayName="The Final Bell"
         Description="A boxing career simulator: fights called round by round, a world that moves without you, and a Hall of Fame at the end of it."
         BackgroundColor="#14110F"
         Square150x150Logo="assets\store\Square150x150Logo.png"
