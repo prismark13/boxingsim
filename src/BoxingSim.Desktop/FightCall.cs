@@ -5,7 +5,10 @@ using BoxingSim.Core.Model;
 namespace BoxingSim.Desktop;
 
 /// <summary>How loud a line of the call is — drives its size and colour on the night.</summary>
-public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern, Corner, Crowd, Position }
+/// <summary>Card is a judge's scorecard being read out. It is deliberately NOT Score: a Score line is the
+/// end-of-round summary and the playback treats it as a property of the round, overwriting whatever was there
+/// before — so three judges emitted as Score lines silently collapsed into one and only the last was seen.</summary>
+public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern, Corner, Crowd, Position, Card }
 
 /// <summary>What actually HAPPENED on a line, independent of how it was worded. Sound and effects key off this,
 /// never off the prose — the phrasing rotates, so matching on words silently missed half the knockdowns.</summary>
@@ -331,7 +334,7 @@ public static class FightCall
         lines.Add(new CallLine("", "The final bell — and this one is going to the scorecards.",
                                CallKind.Drama, res.Rounds.Count, myTotal, hisTotal));
         lines.Add(new CallLine("", $"After {res.Rounds.Count} rounds, we go to the judges.",
-                               CallKind.Score, res.Rounds.Count, myTotal, hisTotal));
+                               CallKind.Card, res.Rounds.Count, myTotal, hisTotal));
 
         for (int i = 0; i < res.Scorecards.Count; i++)
         {
@@ -346,7 +349,7 @@ public static class FightCall
                     ? $"{name} scores it {mine} to {theirs}\u2026 for {my}."
                     : $"{name} scores it {theirs} to {mine}\u2026 for {his}.";
             // The last card is the one that settles it, so it gets the weight of a moment.
-            lines.Add(new CallLine("", card, i == res.Scorecards.Count - 1 ? CallKind.Drama : CallKind.Score,
+            lines.Add(new CallLine("", card, i == res.Scorecards.Count - 1 ? CallKind.Drama : CallKind.Card,
                                    res.Rounds.Count, myTotal, hisTotal));
         }
 

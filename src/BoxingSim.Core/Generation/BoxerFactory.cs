@@ -46,27 +46,27 @@ public sealed class BoxerFactory
 
     /// <summary>A raw 18–21 year old: low current ability, the ceiling still ahead of them.
     /// <paramref name="maxPotential"/> caps the ceiling — generated filler stays journeyman-class.</summary>
-    public Boxer CreateProspect(WeightClass wc, int maxPotential = 100)
+    public Boxer CreateProspect(WeightClass wc, int maxPotential = 100, int year = 0)
     {
         int age = _rng.Next(18, 22);
         int potential = Math.Min(maxPotential, RollPotential());
         int peak = _rng.Next(26, 31);
-        var b = Build(wc, age, peak, potential);
+        var b = Build(wc, age, peak, potential, year);
         return b;
     }
 
     /// <summary>A fighter somewhere in their career, with a record to match their level and age.</summary>
-    public Boxer CreateExisting(WeightClass wc, int maxPotential = 100)
+    public Boxer CreateExisting(WeightClass wc, int maxPotential = 100, int year = 0)
     {
         int age = _rng.Next(19, 37);
         int potential = Math.Min(maxPotential, RollPotential());
         int peak = _rng.Next(26, 31);
-        var b = Build(wc, age, peak, potential);
+        var b = Build(wc, age, peak, potential, year);
         SeedRecord(b);
         return b;
     }
 
-    private Boxer Build(WeightClass wc, int age, int peakAge, int potential)
+    private Boxer Build(WeightClass wc, int age, int peakAge, int potential, int year = 0)
     {
         double dev = Development(age, peakAge);
         bool young = age <= peakAge;
@@ -98,18 +98,30 @@ public sealed class BoxerFactory
             Accuracy = Scale(Ceiling(14), Lerp(dev, 1.0, 0.5)),
             Stamina = Scale(Ceiling(14), young ? Lerp(dev, 1.0, 0.84) : dev),
             Conditioning = Scale(Ceiling(14), young ? Lerp(dev, 1.0, 0.75) : dev),
-            Chin = Scale(Ceiling(16), Lerp(dev, 1.0, 0.6)),   // chin is fairly innate
+            // Chin is fairly innate — and for a journeyman it is the whole job. A man whose trade is losing
+            // competitively in somebody else's home town only keeps getting the work if he is still standing
+            // at the final bell; the ones who get stopped every time stop being booked. So the opponent
+            // class carries a chin floor that has nothing to do with how good he is otherwise. This is why a
+            // prospect's early record should be a mix of stoppages and decisions rather than twelve knockouts
+            // in twelve: he is in with men who are specifically hard to put away.
+            Chin = potential < 68
+                 ? Scale(Math.Max(Ceiling(16), 48 + _rng.Next(12)), Lerp(dev, 1.0, 0.6))
+                 : Scale(Ceiling(16), Lerp(dev, 1.0, 0.6)),
             CutResistance = Ceiling(20),                        // innate, age-independent
             Aggression = Ceiling(22),                           // temperament, age-independent
             Heart = Ceiling(18)                                 // innate, age-independent
         };
 
-        string name = _names.Next();
+        // The country comes FIRST and the name follows from it. It used to be the other way about - a name
+        // drawn at random from every culture at once, then a country drawn independently - which is how the
+        // sim produced men called Tomasz Ramirez boxing out of Argentina.
+        string country = Countries[_rng.Next(Countries.Length)];
+        string name = _names.Next(country, year > 0 ? year - age : 0);
         return new Boxer
         {
             Id = _nextId++,
             Name = name,
-            Country = Countries[_rng.Next(Countries.Length)],
+            Country = country,
             WeightClass = wc,
             Ratings = r,
             Reach = Physique.ReachInchesFor(wc, name),

@@ -357,7 +357,7 @@ public sealed class CareerGame
         // Seed each division that exists yet with a base of journeymen, alongside the real fighters.
         foreach (var wc in AllDivisions)
             if (DivisionActive(wc))
-                for (int i = 0; i < 24; i++) AddActive(_factory.CreateExisting(wc, GeneratedCap));
+                for (int i = 0; i < 24; i++) AddActive(_factory.CreateExisting(wc, GeneratedCap, Year));
 
         foreach (var proto in protos)
         {
@@ -757,7 +757,7 @@ public sealed class CareerGame
             int debuts = Universe is { } u
                 ? Math.Max(0, u.EntrantsPerYear + _rng.Next(-3, 4))
                 : 14 + _rng.Next(10);
-            for (int i = 0; i < debuts; i++) AddActive(_factory.CreateProspect(wc, GeneratedCap));
+            for (int i = 0; i < debuts; i++) AddActive(_factory.CreateProspect(wc, GeneratedCap, Year));
         }
     }
 
@@ -1885,14 +1885,46 @@ public sealed class CareerGame
         var (a, b, _) = best.Value;
         // The heavier man's weight, and the championship distance, because that is what these are.
         var heavier = (int)a.WeightClass >= (int)b.WeightClass ? a : b;
+        var lighter = ReferenceEquals(heavier, a) ? b : a;
         _cursor = heavier.WeightClass;
+
+        // And his belt, if he has one. These were being fought for nothing, which is not what a superfight is:
+        // the lighter man comes up to challenge, and what he is challenging for is the title. Leonard went up
+        // to middleweight for Hagler's belt, not for an exhibition. Only the heavier man's strap can be on the
+        // line — the lighter man's is at a weight the other could not make.
+        // ...but only if the lighter man could actually campaign there. A career climbs two divisions from
+        // where it started and no further, and a belt on the line here means he MOVES if he wins it — so a
+        // superfight that would carry him past that cap is fought at a catchweight for nothing instead.
+        // (The integrity test caught this: without the check a man could be walked up the scale by superfights.)
+        string? belt = !StepUpAllowed(lighter, heavier.WeightClass) ? null
+                     : ChampOf(heavier.WeightClass)?.Id == heavier.Id ? PrimaryBelt
+                     : WbcOf(heavier.WeightClass)?.Id == heavier.Id ? "WBC"
+                     : IbfOf(heavier.WeightClass)?.Id == heavier.Id ? "IBF" : null;
+        string note = belt is not null ? $"{belt} title" : "superfight";
+
         Date = SpreadDate(Date.Year, 1 + _rng.Next(4), 6);
         var res = FastBout(a, b, 12);
-        ApplyOutcome(res, a, b, "superfight");
+        ApplyOutcome(res, a, b, note);
         ReportBout(res);
+        // A belt changing hands here has to actually change hands, or the champions board still shows the
+        // beaten man holding it.
+        if (belt is not null && !res.IsDraw && res.Winner!.Id == lighter.Id)
+        {
+            // He came up and took it, so he campaigns there now — the way a man who wins a belt two divisions
+            // north does. MoveUpTo strips the belts he leaves behind and rebalances him for the new weight;
+            // no warm-up, because he has just beaten the champion of it.
+            var won = heavier.WeightClass;
+            MoveUpTo(lighter, won, warmup: false);
+            if (belt == PrimaryBelt) CrownChampion(lighter);
+            else if (belt == "WBC") CrownWbc(lighter);
+            else CrownIbf(lighter);
+            _everChampion.Add(lighter.Id);
+        }
         LogEvent(res.IsDraw
                     ? $"{a.Name} and {b.Name} draw the superfight — the two best in the world settle nothing."
-                    : $"{res.Winner!.Name} beats {res.Loser!.Name} in the superfight — the best against the best, at {heavier.WeightClass.DisplayName()}.",
+                    : belt is not null
+                        ? $"{res.Winner!.Name} beats {res.Loser!.Name} for the {belt} {heavier.WeightClass.DisplayName()} title — the best against the best, with a belt on it."
+                        : $"{res.Winner!.Name} beats {res.Loser!.Name} in the superfight — the best against the best, at {heavier.WeightClass.DisplayName()}.",
                  kind: "fight", div: heavier.WeightClass, bout: RefOf(res));
         _cursor = Division;
     }
@@ -1990,7 +2022,7 @@ public sealed class CareerGame
             OfferDate = new DateOnly(Date.Year + 1, 1, 12 + _rng.Next(24));
         var ranked = Active.OrderByDescending(b => RankScore(b)).ToList();   // index 0 = strongest
         int idx = ranked.FindIndex(b => b.Id == Player.Id);
-        if (ranked.Count <= 1) return new FightOffer { Opponent = _factory.CreateProspect(Player.WeightClass, GeneratedCap), Rounds = 6, Context = "stay-busy" };
+        if (ranked.Count <= 1) return new FightOffer { Opponent = _factory.CreateProspect(Player.WeightClass, GeneratedCap, Year), Rounds = 6, Context = "stay-busy" };
 
         int proFights = ProFights(Player);
         // Build a career properly: journeyman fodder (class 1–3) for the first stretch, then a step-up phase that

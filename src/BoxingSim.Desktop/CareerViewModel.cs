@@ -860,6 +860,36 @@ public sealed class CareerViewModel : Observable
         }
     }
 
+    /// <summary>The three cards, held back until the fight is over and then put up together.
+    ///
+    /// The call reads them out one at a time, which is the drama; this is the other half of it — the cards
+    /// side by side afterwards, so you can see that two judges had it close and one had it wide, or that a
+    /// man was a single point from a draw. A line of commentary scrolls past and is gone; a card is a thing
+    /// you look at.</summary>
+    public ObservableCollection<JudgeCard> PlaybackJudges { get; } = new();
+
+    /// <summary>Only a fight that went the distance has cards to show.</summary>
+    public bool HasPlaybackCards => PlaybackJudges.Count > 0;
+
+    private void BuildPlaybackCards(FightResult res, Boxer me, Boxer them)
+    {
+        PlaybackJudges.Clear();
+        if (res.Scorecards.Count > 0)
+        {
+            bool iAmA = res.A.Id == me.Id;
+            string mine = Surname(me.Name) ?? "him", theirs = Surname(them.Name) ?? "the other man";
+            for (int i = 0; i < res.Scorecards.Count; i++)
+            {
+                var (a, b) = res.Scorecards[i];
+                int my = iAmA ? a : b, his = iAmA ? b : a;
+                PlaybackJudges.Add(new JudgeCard($"Judge {i + 1}", $"{my}–{his}",
+                                                 my == his ? "level" : my > his ? $"for {mine}" : $"for {theirs}",
+                                                 my > his, my == his));
+            }
+        }
+        Raise(nameof(HasPlaybackCards));
+    }
+
     private bool _skipping;
 
     private bool _soundOn = true;
@@ -996,6 +1026,7 @@ public sealed class CareerViewModel : Observable
         FightNightAwayRecord = RecordAsOf(them, on);
         FightNightBillLine = billLine;
         PlaybackVerdict = verdict;
+        BuildPlaybackCards(res, me, them);
         foreach (var n in new[] { nameof(FightNightHome), nameof(FightNightAway), nameof(FightNightHomeRecord),
                                   nameof(FightNightAwayRecord), nameof(FightNightBillLine), nameof(PlaybackVerdict) })
             Raise(n);
@@ -1088,6 +1119,7 @@ public sealed class CareerViewModel : Observable
             CallKind.Drama => 950,
             CallKind.Verdict => 1100,
             CallKind.Score => 800,
+            CallKind.Card => 900,      // a card is read out slowly; the pause is the point
             CallKind.Pattern => 1000,
             CallKind.Big => 500,
             _ => 380

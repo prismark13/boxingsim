@@ -102,6 +102,15 @@ public sealed class EnumToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
 }
 
+/// <summary>Visible only when every bound condition is true. The scorecards want two: the fight is over,
+/// and it went to the cards at all.</summary>
+public sealed class AllTrueConverter : IMultiValueConverter
+{
+    public object Convert(object?[] values, Type t, object? p, CultureInfo c) =>
+        values.All(v => v is bool b && b) ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+    public object[] ConvertBack(object? v, Type[] t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
 /// <summary>A 0–1 fraction and the available width → an actual pixel width, for the tale-of-the-tape bars.</summary>
 public sealed class FractionWidthConverter : IMultiValueConverter
 {

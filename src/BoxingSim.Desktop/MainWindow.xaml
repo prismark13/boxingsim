@@ -48,6 +48,7 @@
         <local:WeightClassNameConverter x:Key="DivName" />
         <local:ShoutConverter x:Key="Shout" />
         <local:OnOffConverter x:Key="OnOff" />
+        <local:AllTrueConverter x:Key="AllTrue" />
 
         <!-- Weight classes read as "Light Heavyweight", never the raw enum name. -->
         <DataTemplate x:Key="DivisionItem">
@@ -1545,6 +1546,56 @@
                     </Border>
 
                     <StackPanel Grid.Row="2" Margin="0,18,0,0">
+                        <!-- The three cards, put up together once it is over. The call reads them out one at a
+                             time and they are gone; this is the thing you actually look at. -->
+                        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                                BorderThickness="1" CornerRadius="10" Padding="20,14" Margin="0,0,0,14"
+                                HorizontalAlignment="Center" MinWidth="420">
+                            <Border.Visibility>
+                                <MultiBinding Converter="{StaticResource AllTrue}">
+                                    <Binding Path="PlaybackFinished" />
+                                    <Binding Path="HasPlaybackCards" />
+                                </MultiBinding>
+                            </Border.Visibility>
+                            <StackPanel>
+                                <TextBlock Text="THE CARDS" Style="{StaticResource Label}"
+                                           HorizontalAlignment="Center" Margin="0,0,0,10" />
+                                <ItemsControl ItemsSource="{Binding PlaybackJudges}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="78" />
+                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Judge}" FontSize="12"
+                                                           Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Score}" FontSize="17"
+                                                           FontFamily="Consolas" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource Loss}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ForMe}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Level}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="2" Text="{Binding Verdict}" FontSize="12"
+                                                           Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="{Binding PlaybackVerdict}" FontSize="19" TextWrapping="Wrap"
                                    Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,0,0,14"
                                    Visibility="{Binding PlaybackFinished, Converter={StaticResource BoolVis}}" />
