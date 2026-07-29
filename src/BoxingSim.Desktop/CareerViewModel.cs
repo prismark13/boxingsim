@@ -282,6 +282,9 @@ public sealed class CareerViewModel : Observable
             RefreshAll();
             Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
         });
+        WaitForFight = new Cmd(DoWaitForFight);
+        StopWaiting = new Cmd(() => { _waiting = false; Raise(nameof(IsWaiting)); Raise(nameof(CanWait)); });
+        WatchTheOne = new Cmd(DoWatchTheOne);
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
         ShowMyCard = new Cmd(() => { if (Game is not null) SelectedCard = BuildCard(Game.Player); });
@@ -618,6 +621,12 @@ public sealed class CareerViewModel : Observable
     public Cmd PlayYear { get; }
     public Cmd LeaveUniverse { get; }
 
+    /// <summary>Let the weeks run to fight night, one at a time, with the sport happening in front of you.</summary>
+    public Cmd WaitForFight { get; }
+    public Cmd StopWaiting { get; }
+    /// <summary>Watch the fight that came up while you were waiting.</summary>
+    public Cmd WatchTheOne { get; }
+
     public Cmd ShowFighter { get; }
 
     /// <summary>Open your own fighter card - attributes, form and full record.</summary>
@@ -747,6 +756,102 @@ public sealed class CareerViewModel : Observable
         await BusyAsync("Fight night…", () => _svc.Take());
         RefreshAll();
         StartPlayback();
+    }
+
+    // ---- the wait ----
+    //
+    // Career mode used to jump from "take the fight" straight to the opening bell, running three months of
+    // the sport silently on the way. The results were all there afterwards, in a list. Nothing ever happened
+    // while you waited, because you never waited.
+
+    /// <summary>The weeks between now and fight night, as they land.</summary>
+    public ObservableCollection<CareerEvent> Camp { get; } = new();
+
+    private bool _waiting;
+    public bool IsWaiting => _waiting;
+    /// <summary>There is only something to wait for while fight night is still ahead. Once the calendar has
+    /// reached it the offer to wait has to go, or it sits there inviting you to wait for today.</summary>
+    public bool CanWait => !_waiting && Game?.DaysToFight > 0;
+    public string CampCountdown => Game?.DaysToFight is int d && d > 0
+        ? d >= 14 ? $"{d / 7} weeks to fight night" : d == 1 ? "Tomorrow" : $"{d} days to fight night"
+        : "Fight night";
+    public string CampDate => Game?.Date.ToString("d MMMM yyyy") ?? "";
+
+    private BoutRef? _theOne;
+    /// <summary>A fight in his own division that came up while he waited, and is worth stopping for.</summary>
+    public string TheOne { get; private set; } = "";
+    public bool HasTheOne => _theOne is not null;
+
+    private async void DoWaitForFight()
+    {
+        if (Game is null || _waiting) return;
+        _waiting = true;
+        Camp.Clear();
+        _theOne = null; TheOne = "";
+        foreach (var n in new[] { nameof(IsWaiting), nameof(CanWait), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+
+        while (_waiting && Game?.WaitAWeek() is IReadOnlyList<CareerEvent> week)
+        {
+            foreach (var e in week) Camp.Insert(0, e);
+            // Something in his own weight worth watching stops the clock and asks.
+            if (_theOne is null && Game.WorthWatching(week) is BoutRef b)
+            {
+                _theOne = b;
+                TheOne = $"{b.Winner} vs {b.Loser}";
+                _waiting = false;
+                foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+            }
+            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait) }) Raise(n);
+            await Task.Delay(_waiting ? 550 : 0);   // a week a second, so it reads as time passing
+        }
+        _waiting = false;
+        foreach (var n in new[] { nameof(IsWaiting), nameof(CanWait), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        RefreshAll();
+    }
+
+    private void DoWatchTheOne()
+    {
+        if (_theOne is not BoutRef b) return;
+        _theOne = null; TheOne = "";
+        Raise(nameof(HasTheOne)); Raise(nameof(TheOne));
+        if (Game?.FindBout(b) is not (Boxer owner, Boxer foe, BoutLine line))
+        {
+            WatchUnavailable = "That fight is no longer on the record.";
+            return;
+        }
+        _ = WatchAsync(owner, foe, line, notable: line.Note is string n && n.Contains("title", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // ---- the man you are measured against ----
+    public string RivalName { get; private set; } = "";
+    public string RivalRecord { get; private set; } = "";
+    public string RivalStanding { get; private set; } = "";
+    public string RivalReason { get; private set; } = "";
+    public bool HasRival => RivalName.Length > 0;
+    private Boxer? _rival;
+
+    private void BuildRival()
+    {
+        _rival = Game?.Rival;
+        RivalName = _rival?.Name ?? "";
+        RivalRecord = _rival is null ? "" : $"{_rival.Record}  ·  class {_rival.Class}";
+        RivalStanding = _rival is null || Game is null ? "" : Game.RivalStanding(_rival);
+        RivalReason = _rival is null || Game is null ? "" : Game.RivalReason(_rival);
+        foreach (var n in new[] { nameof(RivalName), nameof(RivalRecord), nameof(RivalStanding),
+                                  nameof(RivalReason), nameof(HasRival), nameof(RivalFighter) })
+            Raise(n);
+    }
+    public Boxer? RivalFighter => _rival;
+
+    // ---- the rest of tonight's show ----
+    public ObservableCollection<UndercardBout> Undercard { get; } = new();
+    public bool HasUndercard => Undercard.Count > 0;
+
+    private void BuildUndercard()
+    {
+        Undercard.Clear();
+        foreach (var u in Game?.Undercard ?? Array.Empty<UndercardBout>()) Undercard.Add(u);
+        Raise(nameof(HasUndercard));
     }
 
     private async void Decline() { await BusyAsync("Waiting for the next offer…", () => _svc.Decline()); RefreshAll(); }
@@ -1208,6 +1313,8 @@ public sealed class CareerViewModel : Observable
         BuildNews();
         BuildHof();
         BuildAwards();
+        BuildRival();
+        BuildUndercard();
     }
 
     private void OnShowFighter(object? param)
@@ -1666,6 +1773,8 @@ public sealed class CareerViewModel : Observable
         BuildChampions();
         BuildHof();
         BuildAwards();
+        BuildRival();
+        BuildUndercard();
         BuildNews();
         BuildLedger();
         BuildTape();
@@ -1673,7 +1782,7 @@ public sealed class CareerViewModel : Observable
 
         foreach (var n in new[]
         {
-            nameof(InCareer), nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav),
+            nameof(InCareer), nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav), nameof(CanWait),
             nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(Game), nameof(PlayerHeadline), nameof(PlayerClass), nameof(PlayerRecord),
             nameof(PlayerIdentity), nameof(PlayerStanding), nameof(PlayerIsChampion),
             nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),

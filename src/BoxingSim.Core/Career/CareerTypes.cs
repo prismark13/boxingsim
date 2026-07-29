@@ -149,3 +149,13 @@ public sealed record Achievements(
     int Defences,                  // longest current reign, in defences
     int WeightTitles,              // divisions he's won a world belt in
     int TitleWins);                // world title bouts won across his career
+
+/// <summary>One supporting bout on the player's own show, as the card reads.</summary>
+public sealed record UndercardBout(string A, string B, string? Winner, string Method, int EndRound, int Rounds)
+{
+    public bool IsDraw => Winner is null;
+    public string Line => IsDraw ? $"{A} drew with {B}" : $"{Winner} beat {(Winner == A ? B : A)}";
+    public string Verdict => IsDraw ? "draw"
+                           : Method is "KO" or "TKO" or "cut" ? $"{Method} rd{EndRound}"
+                           : Method;
+}

@@ -594,6 +594,100 @@ public sealed class CareerGame
         return s;
     }
 
+    /// <summary>The rest of tonight's show.
+    ///
+    /// The player's fight happened in an empty building: one bout, on its own, with nothing before it. Every
+    /// fight he has ever had has been the only fight in the world that night. A card is four or five men on
+    /// the way up boxing in front of a half-full hall before the main event, and their results are on the
+    /// same page of the paper as his the next morning.
+    ///
+    /// These are real bouts in the world - the men involved gain and lose from them exactly as they would on
+    /// any other card - staged on his date, in his division, from the men beneath him.</summary>
+    private readonly List<UndercardBout> _undercard = new();
+
+    /// <summary>Tonight's supporting bouts, in the order they were fought - the main event is the player's.</summary>
+    public IReadOnlyList<UndercardBout> Undercard => _undercard;
+
+    private void StageUndercard()
+    {
+        _undercard.Clear();
+        var here = Top20Ids(Player.WeightClass);
+        // The undercard is the men below the top of the division: prospects and gatekeepers, not contenders,
+        // because a contender is not boxing four rounds before somebody else's main event.
+        var pool = ActiveIn(Player.WeightClass)
+            .Where(b => b.Id != Player.Id && b.Id != Offer?.Opponent.Id && !here.Contains(b.Id)
+                     && Available(b) && !AtYearCap(b) && ProFights(b) >= 2)
+            .OrderBy(_ => _rng.Next())
+            .ToList();
+
+        int bouts = Math.Min(pool.Count / 2, 3 + _rng.Next(2));
+        var top8 = Top8Ids(Player.WeightClass);
+        for (int i = 0; i + 1 < pool.Count && _undercard.Count < bouts; i += 2)
+        {
+            var a = pool[i]; var b = pool[i + 1];
+            if (BadMatch(a, b, here, top8)) continue;
+            int rounds = ProFights(a) < 8 || ProFights(b) < 8 ? 6 : 8;
+            var res = FastBout(a, b, rounds);
+            ApplyOutcome(res, a, b);
+            _undercard.Add(new UndercardBout(
+                a.Name, b.Name,
+                res.IsDraw ? null : res.Winner!.Name,
+                res.Method, res.EndRound, rounds));
+        }
+    }
+
+    /// <summary>The man whose career runs alongside the player's.
+    ///
+    /// A division was a table that reshuffled. Fifteen names moved up and down it and not one of them was
+    /// anybody - there was no man you were measured against, no name you looked for first in the results.
+    /// Every sport has one, and boxing more than most: the other guy in your weight, at your stage, who
+    /// keeps winning while you keep winning.
+    ///
+    /// He is chosen by what actually makes a rivalry - a man who has beaten you outranks everything, then a
+    /// man you have beaten who is still climbing, then simply the best fighter at your own stage of a career
+    /// in your own division. He is re-read as the sport moves, so when he retires or falls away, somebody
+    /// else becomes the man to watch.</summary>
+    public Boxer? Rival
+    {
+        get
+        {
+            if (Player.Retired) return null;
+            var here = ActiveIn(Player.WeightClass).Where(b => b.Id != Player.Id && !b.Retired).ToList();
+            if (here.Count == 0) return null;
+
+            // A man who beat you and is still going. Most recent first - the freshest wound.
+            foreach (var h in Enumerable.Reverse(Player.History))
+                if (h.Result == 'L' && here.FirstOrDefault(b => b.Name == h.Opponent) is Boxer beat)
+                    return beat;
+
+            int mine = ProFights(Player);
+            // Otherwise the best man at his own stage: within a third of his mileage, ranked as high as
+            // possible. A twenty-fight prospect's rival is another twenty-fight prospect, not the champion.
+            var peers = here.Where(b => Math.Abs(ProFights(b) - mine) <= Math.Max(6, mine / 3))
+                            .OrderByDescending(RankScore).ToList();
+            return peers.FirstOrDefault() ?? here.OrderByDescending(RankScore).FirstOrDefault();
+        }
+    }
+
+    /// <summary>Where the rival stands, in a line: his record, and whether he is above or below the player.</summary>
+    public string RivalStanding(Boxer r)
+    {
+        var order = RankingOf(Player.WeightClass, 15).Select(b => b.Name).ToList();
+        int his = order.IndexOf(r.Name), mine = order.IndexOf(Player.Name);
+        string rank = his >= 0 ? $"#{his + 1}" : "unranked";
+        if (his >= 0 && mine >= 0)
+            return his < mine ? $"{rank} — {mine - his} place{(mine - his == 1 ? "" : "s")} above you"
+                 : $"{rank} — {his - mine} place{(his - mine == 1 ? "" : "s")} below you";
+        if (his >= 0 && mine < 0) return $"{rank}, and you are not ranked yet";
+        return rank;
+    }
+
+    /// <summary>Why he is the one being watched — beaten you, or climbing beside you.</summary>
+    public string RivalReason(Boxer r) =>
+        Player.History.Any(h => h.Result == 'L' && h.Opponent == r.Name) ? "he beat you"
+        : Player.History.Any(h => h.Result == 'W' && h.Opponent == r.Name) ? "you have beaten him"
+        : "he came up with you";
+
     // ---- player turn ----
 
     /// <summary>Take the current offer: the calendar rolls forward to fight night, then the bout is fought.</summary>
@@ -610,6 +704,7 @@ public sealed class CareerGame
                      : Offer.Context is "eliminator" ? "eliminator"
                      : Offer.Context.StartsWith("rematch") ? "rematch"
                      : null;
+        StageUndercard();                           // the rest of the show, fought before he walks out
         var res = _engine.Simulate(Player, opp, Offer.Rounds);
         _declined.Clear();
         ClearRematch(Player, opp);          // whatever it was, it has now been settled once more
@@ -732,14 +827,60 @@ public sealed class CareerGame
     {
         while (Date < target)
         {
-            var next = Date.AddDays(14);
-            if (next > target) next = target;
-            bool yearTurned = next.Year != Date.Year;
-            Date = next;
-            if (yearTurned) { ComputeAwardsFor(Date.Year - 1); InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights(); }
-            RunEvent();
+            if (AdvanceSome(target, 14).Count == 0 && Date >= target) return;
             if (Player.Retired) return;
         }
+    }
+
+    /// <summary>Move the world forward by one step and hand back what happened in it.
+    ///
+    /// Everything the sport does between the player's fights used to happen inside a single call that ran
+    /// three months of boxing before his bout and returned nothing. He clicked "take the fight", the world
+    /// silently caught up, and the results were waiting for him in a list afterwards. Nothing ever happened
+    /// WHILE HE WAITED - the fight he was anticipating and the world around it arrived in the same frame.
+    ///
+    /// This is the same machinery with a door in it: step the calendar, run the cards, and return the
+    /// headlines from that step so they can be read as they land. The fortnight is unchanged, so a career
+    /// played straight through behaves exactly as it did.</summary>
+    private IReadOnlyList<CareerEvent> AdvanceSome(DateOnly target, int days)
+    {
+        if (Date >= target) return Array.Empty<CareerEvent>();
+        int before = _log.Count;
+        var next = Date.AddDays(days);
+        if (next > target) next = target;
+        bool yearTurned = next.Year != Date.Year;
+        Date = next;
+        if (yearTurned) { ComputeAwardsFor(Date.Year - 1); InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights(); }
+        RunEvent();
+        return _log.Skip(before).ToList();
+    }
+
+    /// <summary>Run the sport forward one week toward fight night and report what happened, so the wait can
+    /// be watched rather than skipped. Null once there is nothing left to wait for.</summary>
+    public IReadOnlyList<CareerEvent>? WaitAWeek()
+    {
+        if (Player.Retired || Offer is null || Date >= OfferDate) return null;
+        return AdvanceSome(OfferDate, 7);
+    }
+
+    /// <summary>How long until he fights, in days. Zero once fight night has arrived.</summary>
+    public int DaysToFight => Offer is null ? 0 : Math.Max(0, OfferDate.DayNumber - Date.DayNumber);
+
+    /// <summary>A fight in the player's own division worth stopping to watch, from the events just logged:
+    /// a title fight, an eliminator, or a night involving somebody ranked around him. This is what turns a
+    /// list of results into an invitation - the sim already stores the round-by-round for exactly these
+    /// bouts, so every one of them can be watched rather than merely read.</summary>
+    public BoutRef? WorthWatching(IEnumerable<CareerEvent> events)
+    {
+        foreach (var e in events)
+        {
+            if (e.Bout is not BoutRef b || e.Div != Player.WeightClass) continue;
+            if (e.Kind is "title" || e.Text.Contains("eliminator", StringComparison.OrdinalIgnoreCase)) return b;
+            if (FindByName(b.Winner) is Boxer w && FindByName(b.Loser) is Boxer l
+                && (Top20Ids(Player.WeightClass).Contains(w.Id) || Top20Ids(Player.WeightClass).Contains(l.Id)))
+                return b;
+        }
+        return null;
     }
 
     /// <summary>New blood for the year: real fighters on their historical debut year, plus generated prospects.</summary>
@@ -1000,6 +1141,85 @@ public sealed class CareerGame
 
     /// <summary>Log a title event, tagged with the division being simulated so the news feed can filter it.</summary>
     private void LogTitle(string text, BoutRef? bout = null) => LogEvent(text, kind: "title", div: _cursor, bout: bout);
+
+    // The ranked order of the player's division, computed at most once a day. The angle below asks for it on
+    // every headline in his weight, and re-sorting two hundred men for each one is not free.
+    private DateOnly _rankCachedOn = DateOnly.MinValue;
+    private List<string> _rankCache = new();
+
+    private List<string> PlayerDivisionOrder()
+    {
+        if (_rankCachedOn != Date)
+        {
+            _rankCache = RankingOf(Player.WeightClass, 15).Select(b => b.Name).ToList();
+            _rankCachedOn = Date;
+        }
+        return _rankCache;
+    }
+
+    /// <summary>What this result has to do with the player, in a clause.
+    ///
+    /// The news feed reported the sport accurately and impersonally: "Hector Ramirez beat Nick Furlano (UD)".
+    /// Every fact needed to make that matter was already in hand — that Furlano took the player's unbeaten
+    /// record two years ago, that Ramirez is now one place behind him, that the belt just changed hands in
+    /// his own division — and none of it was said. A list of other men's results is a scoreboard; the same
+    /// list with one clause attached is the story going on around him.
+    ///
+    /// Only the strongest connection is used, and only one, because a headline carrying three of these is
+    /// worse than a headline carrying none.</summary>
+    private string? PlayerAngle(BoutRef r, WeightClass? div)
+    {
+        if (Universe is not null || Player.Retired) return null;         // a universe has nobody to care
+        if (r.Winner == Player.Name || r.Loser == Player.Name) return null;   // his own night needs no gloss
+
+        // 1. The man he is about to fight. Nothing outranks this.
+        if (Offer is { } o && (o.Opponent.Name == r.Winner || o.Opponent.Name == r.Loser))
+            return o.Opponent.Name == r.Winner ? "your next opponent, warming up"
+                                               : "your next opponent — beaten going in";
+
+        // 2. A man he has been in with. The record already knows how it went.
+        foreach (var (name, them) in new[] { (r.Winner, true), (r.Loser, false) })
+        {
+            var met = Player.History.LastOrDefault(h => h.Opponent == name);
+            if (met is null) continue;
+            string when = $"in {met.Date.Year}";
+            return met.Result switch
+            {
+                'W' when them => $"you beat him {when}",
+                'W'           => $"you beat him {when} too",
+                'L' when them => $"the man who beat you {when}",
+                'L'           => $"he beat you {when}",
+                _             => $"you drew with him {when}",
+            };
+        }
+
+        // 3. His own division, while he is in it far enough for any of it to be his business.
+        if (div == Player.WeightClass && WorldRanked(Player))
+        {
+            var order = PlayerDivisionOrder();
+            int mine = order.IndexOf(Player.Name);
+            if (mine < 0) return null;
+
+            // A belt moving in his own weight is the thing he is working toward, whoever it moved between.
+            bool titleNight = IsWorldChampion(FindByName(r.Winner) ?? Player);
+            if (titleNight) return mine <= 4 ? "the belt you are ranked for" : "the belt at the end of your road";
+
+            int his = order.IndexOf(r.Winner);
+            if (his >= 0 && his != mine)
+            {
+                int gap = his - mine;
+                if (gap == 1) return "he is one place behind you";
+                if (gap == -1) return "he is one place ahead of you";
+                if (gap < 0) return $"he is #{his + 1} — {-gap} places above you";
+                return null;   // somebody ranked below him and not next: not news
+            }
+            // An unranked man is only closing in on him if he is genuinely closing in. Firing this for every
+            // winner in the division made half the feed read "he is coming up behind you", which says nothing.
+            if (FindByName(r.Winner) is Boxer up && ProFights(up) >= 15 && WinStreak(up) >= 4)
+                return "he is coming up behind you";
+        }
+        return null;
+    }
 
     /// <summary>How to find a just-fought bout again. A draw has no winner to key on, so it gets no link.</summary>
     private BoutRef? RefOf(FightResult res) =>
@@ -3017,6 +3237,9 @@ public sealed class CareerGame
     private void LogEvent(string text, bool playerBout = false, string? kind = null, WeightClass? div = null,
                           BoutRef? bout = null)
     {
+        // Say why he should care. A result is a scoreboard until it touches him.
+        if (!playerBout && bout is BoutRef br && PlayerAngle(br, div) is string angle)
+            text = $"{text} — {angle}";
         _log.Add(new CareerEvent { On = Date, Text = text, PlayerBout = playerBout, Kind = kind,
                                    Div = div ?? Division, Bout = bout });
         if (_log.Count > 1500) _log.RemoveAt(0);   // bounded; eight divisions produce more news

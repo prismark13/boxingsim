@@ -102,6 +102,14 @@ public sealed class EnumToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
 }
 
+/// <summary>Visible once a collection has anything in it.</summary>
+public sealed class CountToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type t, object? p, CultureInfo c) =>
+        value is int n && n > 0 ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+    public object ConvertBack(object? value, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
 /// <summary>Visible only when every bound condition is true. The scorecards want two: the fight is over,
 /// and it went to the cards at all.</summary>
 public sealed class AllTrueConverter : IMultiValueConverter
