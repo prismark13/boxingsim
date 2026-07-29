@@ -282,6 +282,7 @@ public sealed class CareerViewModel : Observable
             RefreshAll();
             Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
         });
+        CloseYearAwards = new Cmd(() => { ShowYearAwards = false; Raise(nameof(ShowYearAwards)); });
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; Raise(nameof(IsWaiting)); Raise(nameof(CanWait)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
@@ -802,11 +803,15 @@ public sealed class CareerViewModel : Observable
                 foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
             }
             foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait) }) Raise(n);
+            CheckForAwards();
+            if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
+
             await Task.Delay(_waiting ? 550 : 0);   // a week a second, so it reads as time passing
         }
         _waiting = false;
         foreach (var n in new[] { nameof(IsWaiting), nameof(CanWait), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
         RefreshAll();
+        CheckForAwards();
     }
 
     private void DoWatchTheOne()
@@ -842,6 +847,43 @@ public sealed class CareerViewModel : Observable
             Raise(n);
     }
     public Boxer? RivalFighter => _rival;
+
+    // ---- the year's honours ----
+    //
+    // These were computed the moment the calendar turned and filed on a page the player had to go and look
+    // at. A year of the sport ending is an occasion, and the sim knew who had won what and said nothing.
+
+    /// <summary>The year just gone, when it has honours the player has not seen.</summary>
+    public ObservableCollection<AwardPlace> YearAwards { get; } = new();
+    public string YearAwardsTitle { get; private set; } = "";
+    public bool ShowYearAwards { get; private set; }
+
+    public Cmd CloseYearAwards { get; }
+
+    /// <summary>Pull the year's honours out of the world, if it has raised any. Called after anything that
+    /// can move the calendar.</summary>
+    private void CheckForAwards()
+    {
+        if (Game?.UnseenAwards is not AwardsYear a) return;
+        YearAwards.Clear();
+        void Add(string honour, IReadOnlyList<AwardWinner> winners)
+        {
+            // The winner only. A year-end announcement names who won, not who came third.
+            foreach (var w in winners.Take(1))
+                YearAwards.Add(new AwardPlace(honour, w.Name, w.Div.DisplayName(), w.Detail, true,
+                                              honour, a.Year, w.Commentary, w.Bout));
+        }
+        Add("Fighter of the Year", a.FighterOfYear);
+        Add("Fight of the Year", a.FightOfYear);
+        Add("Knockout of the Year", a.KnockoutOfYear);
+        Add("Upset of the Year", a.UpsetOfYear);
+
+        if (YearAwards.Count == 0) { Game.AwardsSeen(); return; }
+        YearAwardsTitle = $"THE {a.Year} AWARDS";
+        ShowYearAwards = true;
+        Game.AwardsSeen();
+        foreach (var n in new[] { nameof(YearAwardsTitle), nameof(ShowYearAwards) }) Raise(n);
+    }
 
     // ---- the card ----
     //
@@ -1259,6 +1301,7 @@ public sealed class CareerViewModel : Observable
             return;
         }
         IsPlayingBack = false;
+        CheckForAwards();   // the fight itself may have carried the calendar into a new year
         // The crowd goes home with you. Without this the bed played on under the rankings, the news and every
         // other screen for the rest of the session, and starting a second fight layered another one over it.
         Sfx.StopBed();
@@ -1788,6 +1831,10 @@ public sealed class CareerViewModel : Observable
 
     public void RefreshAll()
     {
+        // Anything that moved the world may have crossed a new year. Checking here rather than in the two
+        // or three places I first thought of means taking a fight, holding out and moving up all announce
+        // the year's honours, instead of only waiting for fight night doing it.
+        if (!IsPlayingBack) CheckForAwards();
         BuildDashboard();
         BuildRankings();
         BuildP4P();

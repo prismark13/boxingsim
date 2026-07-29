@@ -2154,10 +2154,58 @@
             </Grid>
 
             <!-- ============ FIGHTER CARD (overlay) ============ -->
+            <!-- The year's honours, announced. A year of the sport ending is an occasion; these used to be
+                 computed the moment the calendar turned and filed on a page you had to go and look at. -->
+            <Grid Grid.ColumnSpan="2" Panel.ZIndex="12"
+                  Visibility="{Binding ShowYearAwards, Converter={StaticResource BoolVis}}">
+                <Border Background="#CC080706" />
+                <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource GoldLine}"
+                        BorderThickness="1" CornerRadius="14" Padding="30,26" MaxWidth="620"
+                        VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="{Binding YearAwardsTitle}" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Gold}" HorizontalAlignment="Center"
+                                   Margin="0,0,0,4" />
+                        <TextBlock Text="The year in the sport, and who took it"
+                                   FontSize="12" Foreground="{StaticResource Faint}"
+                                   HorizontalAlignment="Center" Margin="0,0,0,20" />
+
+                        <ItemsControl ItemsSource="{Binding YearAwards}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                            BorderThickness="1" CornerRadius="9" Padding="16,12" Margin="0,0,0,9">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Position}" FontSize="10"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource Gold}" />
+                                            <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="Light"
+                                                       Foreground="{StaticResource Text}" Margin="0,5,0,0"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Detail}" FontSize="12"
+                                                       Foreground="{StaticResource Muted}" Margin="0,3,0,0"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Commentary}" FontSize="11.5"
+                                                       Foreground="{StaticResource Faint}" Margin="0,5,0,0"
+                                                       TextWrapping="Wrap" FontStyle="Italic"
+                                                       Visibility="{Binding Commentary, Converter={StaticResource EmptyVis}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Button Content="On with it" Command="{Binding CloseYearAwards}"
+                                Style="{StaticResource PrimaryButton}" Margin="0,14,0,0" Padding="16,9" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
             <Grid Grid.ColumnSpan="2"
                   Visibility="{Binding HasCard, Converter={StaticResource BoolVis}}">
                 <Button Style="{StaticResource BackdropButton}" Command="{Binding CloseCard}"
                         AutomationProperties.Name="Close" />
+
+
                 <Border Style="{StaticResource Card}" Width="620" MaxHeight="760" Padding="0"
                         VerticalAlignment="Center" HorizontalAlignment="Center"
                         DataContext="{Binding SelectedCard}">

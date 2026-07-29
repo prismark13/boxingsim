@@ -34,6 +34,17 @@ public sealed partial class CareerGame
     private readonly List<AwardsYear> _awards = new();
     private readonly List<YearBout> _yearBouts = new();   // this year's honourable-mention bouts, cleared each year end
     public IReadOnlyList<AwardsYear> Awards => _awards.OrderByDescending(a => a.Year).ToList();
+
+    /// <summary>A year's honours that the player has not been shown yet.
+    ///
+    /// The awards were computed the moment the calendar turned and then filed silently on a page he had to
+    /// go and look at. A year of the sport ending is an occasion — somebody was fighter of the year, some
+    /// night was the fight of the year — and the sim knew all of it and said nothing. The world raises this
+    /// as it passes the new year; whoever is watching decides what to do about it.</summary>
+    public AwardsYear? UnseenAwards { get; private set; }
+
+    /// <summary>Mark the honours as read.</summary>
+    public void AwardsSeen() => UnseenAwards = null;
     private sealed record YearBout(int Year, DateOnly Date, string Winner, string Loser, int WinnerId, int LoserId,
                                    string Method, int Round, bool Title, int WinnerOvr, int LoserOvr, int Kds,
                                    bool Draw, bool Close, WeightClass Div, string LoserStanding)
@@ -174,7 +185,15 @@ public sealed partial class CareerGame
             var next = Date.AddDays(Math.Min(days, target.DayNumber - Date.DayNumber));
             bool yearTurned = next.Year != Date.Year;
             Date = next;
-            if (yearTurned) { ComputeAwardsFor(Date.Year - 1); InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights(); }
+            if (yearTurned)
+            {
+                ComputeAwardsFor(Date.Year - 1);
+                // A year of the sport just ended. Hand its honours to whoever is watching — but not in a
+                // universe, which has no player to hand them to.
+                if (Universe is null && !Player.Retired)
+                    UnseenAwards = _awards.FirstOrDefault(a => a.Year == Date.Year - 1);
+                InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights();
+            }
             RunEvent();
         }
     }

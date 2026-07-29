@@ -40,7 +40,15 @@ public sealed partial class CareerGame
         if (next > target) next = target;
         bool yearTurned = next.Year != Date.Year;
         Date = next;
-        if (yearTurned) { ComputeAwardsFor(Date.Year - 1); InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights(); }
+        if (yearTurned)
+            {
+                ComputeAwardsFor(Date.Year - 1);
+                // A year of the sport just ended. Hand its honours to whoever is watching — but not in a
+                // universe, which has no player to hand them to.
+                if (Universe is null && !Player.Retired)
+                    UnseenAwards = _awards.FirstOrDefault(a => a.Year == Date.Year - 1);
+                InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights();
+            }
         RunEvent();
         return _log.Skip(before).ToList();
     }
