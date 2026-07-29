@@ -3063,9 +3063,13 @@ public sealed class CareerGame
             Speed = Sc(Ceil(12), Lerp(dev, 0.82)),
             Defense = Sc(Ceil(13), Lerp(dev, 0.72)),
             Accuracy = Sc(Ceil(12), Lerp(dev, 0.58)),
-            // ...stamina, conditioning and the finer timing are what experience builds.
-            Stamina = Sc(Ceil(12), dev),
-            Conditioning = Sc(Ceil(12), dev),
+            // ...and so is his engine. This carried the same fault as the fighter factory, separately: stamina
+            // and conditioning were the only two attributes scaled by the bare development curve, so a debutant
+            // sat at 59% of his gas tank while his power was at 94% of its ceiling — and since anything under
+            // 48 shows as 1, the tale of the tape read STAMINA 1 on the first fight of every career.
+            // Fixing the factory did not fix this, because the player is not built by the factory.
+            Stamina = Sc(Ceil(12), Lerp(dev, 0.84)),
+            Conditioning = Sc(Ceil(12), Lerp(dev, 0.75)),
             Chin = Sc(Ceil(14), Lerp(dev, 0.7)),
             CutResistance = Ceil(18),
             Aggression = Ceil(20),
