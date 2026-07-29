@@ -672,7 +672,6 @@ public sealed class CareerViewModel : Observable
     public ObservableCollection<LedgerRow> RecentForm { get; } = new();
     public ObservableCollection<RankRow> DivisionTop { get; } = new();
     public ObservableCollection<NewsRow> HeadlineNews { get; } = new();
-    public ObservableCollection<StatRow> Headlines { get; } = new();
 
     public bool HasLedger => Ledger.Count > 0;
 
@@ -752,11 +751,24 @@ public sealed class CareerViewModel : Observable
         else { ContinueCareer.Refresh(); Raise(nameof(HasSave)); }
     }
 
+    /// <summary>Set from the moment a fight is taken until its playback is over.
+    ///
+    /// The year's honours are announced when the calendar turns, and taking a fight carries the calendar
+    /// months forward — so a fight that crossed New Year opened the awards panel on top of fight night,
+    /// over the round-by-round call, with the verdict already showing behind it. RefreshAll guarded on
+    /// IsPlayingBack, but Take refreshes BEFORE playback starts, so the guard read false at exactly the
+    /// moment it mattered. The awards can wait; the fight cannot be interrupted.</summary>
+    private bool _awardsWait;
+
     private async void Take()
     {
+        _awardsWait = true;
         await BusyAsync("Fight night…", () => _svc.Take());
         RefreshAll();
         StartPlayback();
+        // Nothing to play back — a declined or vanished offer. Without this the flag would stay raised and
+        // the year's honours would never be announced again for the rest of the career.
+        if (!IsPlayingBack) { _awardsWait = false; CheckForAwards(); }
     }
 
     // ---- the wait ----
@@ -864,6 +876,7 @@ public sealed class CareerViewModel : Observable
     /// can move the calendar.</summary>
     private void CheckForAwards()
     {
+        if (_awardsWait || IsPlayingBack) return;   // never over the top of a fight
         if (Game?.UnseenAwards is not AwardsYear a) return;
         YearAwards.Clear();
         void Add(string honour, IReadOnlyList<AwardWinner> winners)
@@ -1301,6 +1314,7 @@ public sealed class CareerViewModel : Observable
             return;
         }
         IsPlayingBack = false;
+        _awardsWait = false;
         CheckForAwards();   // the fight itself may have carried the calendar into a new year
         // The crowd goes home with you. Without this the bed played on under the rankings, the news and every
         // other screen for the rest of the session, and starting a second fight layered another one over it.
@@ -1794,7 +1808,7 @@ public sealed class CareerViewModel : Observable
     /// the sport is saying, and the headline numbers — each a way INTO the fuller screen behind it.</summary>
     private void BuildDashboard()
     {
-        RecentForm.Clear(); DivisionTop.Clear(); HeadlineNews.Clear(); Headlines.Clear();
+        RecentForm.Clear(); DivisionTop.Clear(); HeadlineNews.Clear();
         if (Game is null) return;
         var p = Game.Player;
 
@@ -1817,16 +1831,35 @@ public sealed class CareerViewModel : Observable
                                        .Take(6))
             HeadlineNews.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout));
 
-        int rank = PlayerRank;
-        var myBelts = Game.BeltsHeld(p).Select(x => x.Belt).ToList();
-        Headlines.Add(new StatRow("Record", p.Record.ToString(), CareerStages.Label(CareerStages.Of(p))));
-        Headlines.Add(new StatRow("Division rank", rank > 0 ? $"#{rank}" : "unranked",
-                                  p.WeightClass.DisplayName()));
-        Headlines.Add(new StatRow("Titles", myBelts.Count > 0 ? string.Join(" · ", myBelts) : "none",
-                                  Game.TitleDefenses > 0 ? $"{Game.TitleDefenses} defences" : ""));
-        // Lead with the CLASS, the same number the rating pills show everywhere else. The raw 0–100 overall was
-        // the odd one out on this tile and meant nothing next to the pills.
-        Headlines.Add(new StatRow("Rating", $"Class {p.Class}", $"{p.Overall} OVR · age {p.Age}"));
+    }
+
+    /// <summary>Where he stands, on one line under his name.
+    ///
+    /// This was four cards across the top of the dashboard — Record, Division rank, Titles, Rating — and
+    /// three of the four repeated what the sidebar already showed two inches to the left: the same record,
+    /// the same belts, the same class badge. Only his rank, his defence count and the raw overall were
+    /// genuinely new, so those are what this keeps, and the full record is one click away rather than
+    /// spread across a row of tiles nobody needed twice.
+    ///
+    /// Not to be confused with <see cref="PlayerStanding"/>, which is the sidebar's one-line belt or rank
+    /// caption. This is the fuller line at the head of the dashboard.</summary>
+    public string StandingLine
+    {
+        get
+        {
+            if (Game?.Player is not { } p) return "";
+            string div = p.WeightClass.DisplayName();
+            var bits = new List<string> { PlayerRank > 0 ? $"#{PlayerRank} in {div}" : $"unranked in {div}" };
+
+            var belts = Game.BeltsHeld(p).Select(x => x.Belt).ToList();
+            if (belts.Count > 0)
+                bits.Add(Game.TitleDefenses > 0
+                         ? $"{string.Join(" · ", belts)}, {Game.TitleDefenses} defence{(Game.TitleDefenses == 1 ? "" : "s")}"
+                         : string.Join(" · ", belts));
+
+            bits.Add($"class {p.Class} · {p.Overall} OVR");
+            return string.Join("   ·   ", bits);
+        }
     }
 
     public void RefreshAll()
@@ -1851,7 +1884,7 @@ public sealed class CareerViewModel : Observable
         foreach (var n in new[]
         {
             nameof(InCareer), nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav), nameof(CanWait),
-            nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(Game), nameof(PlayerHeadline), nameof(PlayerClass), nameof(PlayerRecord),
+            nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(Game), nameof(PlayerHeadline), nameof(StandingLine), nameof(PlayerClass), nameof(PlayerRecord),
             nameof(PlayerIdentity), nameof(PlayerStanding), nameof(PlayerIsChampion),
             nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),
             nameof(OfferOpponentClass), nameof(OfferOpponentRecord), nameof(OfferOpponentMeta),
