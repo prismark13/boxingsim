@@ -190,19 +190,46 @@ public sealed partial class CareerGame
     private void ReRank() { /* RankPoints are the ranking; nothing to precompute */ }
 
     /// <summary>Turn a notable NPC undercard result into a news headline — upsets, KO streaks, big stoppages.</summary>
+    /// <summary>Where a man stands in his division on the board the player reads, or 0 if he is not on it.
+    /// Champions come first, so "C" is 1 and the leading contender is 2 — which is why the caller says
+    /// "champion" rather than "#1" when it lands on a title holder.</summary>
+    private int BoardPlace(Boxer b)
+    {
+        var board = RankingBoard(b.WeightClass, 15);
+        for (int i = 0; i < board.Count; i++) if (board[i].Id == b.Id) return i + 1;
+        return 0;
+    }
+
+    /// <summary>Who these two men are, in one quiet line under the headline.
+    ///
+    /// "Paul Fujii halts Jorgen Hansen in 8" tells you nothing about either of them: whether Fujii is a
+    /// prospect or a gatekeeper, whether Hansen was ranked, whether this mattered. Composed here rather than in
+    /// the view because a record read later is the record he has NOW, not the one he carried into the ring.</summary>
+    private string BoutDetail(Boxer w, Boxer l)
+    {
+        string Where(Boxer b)
+        {
+            if (IsWorldChampion(b)) return "champion";
+            int p = BoardPlace(b);
+            return p > 0 ? $"#{p}" : "unranked";
+        }
+        return $"{w.Name} {w.Record}, {Where(w)}  ·  {l.Name} {l.Record}, {Where(l)}";
+    }
+
     private void ReportBout(FightResult res)
     {
         if (res.IsDraw || res.Winner is null || res.Loser is null) return;
         var w = res.Winner; var l = res.Loser;
         bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
+        string who = BoutDetail(w, l);
 
         var div = w.WeightClass;   // tag every headline with the division so the news feed filters by weight
         if (WorldRanked(l) && l.Overall - w.Overall >= 8 && _rng.NextDouble() < 0.7)
         {
             LogEvent(Pick($"UPSET! {w.Name} shocks {l.Name}{(ko ? $", stopped in {res.EndRound}" : "")}.",
-                          $"Boilover — {w.Name} outpoints the fancied {l.Name}.",
+                          $"Against the odds — {w.Name} outpoints the fancied {l.Name}.",
                           $"{l.Name} is stunned by {w.Name} in a major upset."), kind: "upset", div: div,
-                     bout: new BoutRef(w.Name, l.Name, Date));
+                     bout: new BoutRef(w.Name, l.Name, Date), detail: who);
             return;
         }
         // A long unbeaten run is news in itself — reported once it hits 10, then every 5 (15, 20, …).
@@ -212,7 +239,7 @@ public sealed partial class CareerGame
             LogEvent(Pick($"{w.Name} extends his unbeaten run to {wins} straight.",
                           $"Still perfect — {w.Name} makes it {wins} wins in a row and is knocking on the door.",
                           $"{w.Name} runs his streak to {wins} in a row, forcing his way into the picture."), kind: "streak", div: div,
-                     bout: new BoutRef(w.Name, l.Name, Date));
+                     bout: new BoutRef(w.Name, l.Name, Date), detail: who);
             return;
         }
         if (ko)
@@ -223,13 +250,13 @@ public sealed partial class CareerGame
                 LogEvent(Pick($"{w.Name} rolls on — {streak} straight inside the distance.",
                               $"{w.Name} keeps the KO streak going, now {streak} in a row.",
                               $"Frightening — {w.Name} up to {streak} consecutive knockouts."), kind: "streak", div: div,
-                         bout: new BoutRef(w.Name, l.Name, Date));
+                         bout: new BoutRef(w.Name, l.Name, Date), detail: who);
                 return;
             }
             if (w.Overall >= 76 && WorldRanked(l) && _rng.NextDouble() < 0.4)
                 LogEvent(Pick($"{w.Name} halts {l.Name} in {res.EndRound}.",
                               $"{w.Name} takes out {l.Name} inside the distance."), kind: "ko", div: div,
-                         bout: new BoutRef(w.Name, l.Name, Date));
+                         bout: new BoutRef(w.Name, l.Name, Date), detail: who);
             return;
         }
     }
@@ -257,13 +284,13 @@ public sealed partial class CareerGame
 
     private string Pick(params string[] opts) => opts[_rng.Next(opts.Length)];
     private void LogEvent(string text, bool playerBout = false, string? kind = null, WeightClass? div = null,
-                          BoutRef? bout = null)
+                          BoutRef? bout = null, string? detail = null)
     {
         // Say why he should care. A result is a scoreboard until it touches him.
         if (!playerBout && bout is BoutRef br && PlayerAngle(br, div) is string angle)
             text = $"{text} — {angle}";
         _log.Add(new CareerEvent { On = Date, Text = text, PlayerBout = playerBout, Kind = kind,
-                                   Div = div ?? Division, Bout = bout });
+                                   Div = div ?? Division, Bout = bout, Detail = detail });
         if (_log.Count > 1500) _log.RemoveAt(0);   // bounded; eight divisions produce more news
     }
 

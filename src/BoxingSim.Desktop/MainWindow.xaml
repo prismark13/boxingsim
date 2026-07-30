@@ -787,6 +787,10 @@
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
+                                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Detail}"
+                                                               FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"
+                                                               Foreground="{StaticResource Faint}"
+                                                               Visibility="{Binding Detail, Converter={StaticResource EmptyVis}}" />
                                                     <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Margin="10,1,0,0"
                                                             VerticalAlignment="Top" BorderThickness="1"
                                                             Visibility="{Binding HasTag, Converter={StaticResource BoolVis}}">
@@ -1117,10 +1121,6 @@
                                     <Button Grid.Column="2" Content="Turn it down" Command="{Binding HoldOut}"
                                             ToolTip="Refuse this fight and wait for another offer" />
                                 </Grid>
-                                <Button Content="{Binding MoveUpLabel}" Command="{Binding MoveUp}"
-                                        Margin="24,0,24,22" Padding="12,8" FontSize="12"
-                                        Visibility="{Binding MoveUpLabel, Converter={StaticResource EmptyVis}}"
-                                        IsEnabled="{Binding FightIsStillAnOffer}" />
                             </StackPanel>
                         </Border>
 
@@ -1465,6 +1465,11 @@
                 <!-- ============ CAREER STATS ============ -->
                 <local:PageHost Title="CAREER" Subtitle="What this fighter has done so far"
                                 Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Stats}">
+                  <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <ItemsControl ItemsSource="{Binding Stats}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
@@ -1485,6 +1490,23 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!-- Moving up lives here rather than under tonight's opponent. It is a career decision made
+                         once or twice in a career, not a thing to weigh while looking at a fight you have
+                         already agreed to, and it was a full-width bar on the busiest page in the app. -->
+                    <Border Grid.Row="1" Style="{StaticResource Card}" Padding="18,16" Margin="9,14,9,4"
+                            Visibility="{Binding MoveUpLabel, Converter={StaticResource EmptyVis}}">
+                        <StackPanel>
+                            <TextBlock Text="CHANGING DIVISION" Style="{StaticResource Label}" />
+                            <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"
+                                       Margin="0,8,0,0"
+                                       Text="Heavier men hit harder, and the ranking you have built here does not travel with you. You cannot move while a fight is agreed." />
+                            <Button Content="{Binding MoveUpLabel}" Command="{Binding MoveUp}"
+                                    HorizontalAlignment="Left" Margin="0,14,0,0" Padding="16,9" FontSize="13"
+                                    IsEnabled="{Binding FightIsStillAnOffer}" />
+                        </StackPanel>
+                    </Border>
+                  </Grid>
                 </local:PageHost>
 
                 <!-- ============ THIS WEEK (UNIVERSE) ============ -->
@@ -2941,6 +2963,10 @@
                                 </ItemsControl>
 
                                 <TextBlock Text="FIGHT RECORD" Style="{StaticResource PanelHeader}" Margin="24,10,24,4" />
+                                <!-- Why a 29-1-0 man can show two fights. -->
+                                <TextBlock Text="{Binding RecordNote}" FontSize="11" Margin="24,0,24,6"
+                                           Foreground="{StaticResource Faint}" TextWrapping="Wrap"
+                                           Visibility="{Binding RecordNote, Converter={StaticResource EmptyVis}}" />
                                 <ItemsControl ItemsSource="{Binding Recent}" ItemTemplate="{StaticResource LedgerRowTemplate}"
                                               Margin="6,0,6,8" />
                             </StackPanel>

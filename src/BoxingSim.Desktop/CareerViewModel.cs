@@ -82,7 +82,7 @@ public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyLi
 /// <summary>One line of the build-up feed, with how much it matters already worked out. The view should not be
 /// comparing weight classes to decide how brightly to draw a row.</summary>
 public sealed record CampRow(string Date, string Text, bool Mine, bool IsTitle, bool IsUpset,
-                             bool PlayerBout, BoutRef? Bout)
+                             bool PlayerBout, BoutRef? Bout, string Detail)
 {
     /// <summary>A belt changing hands, a boilover, or anything in his own division. Everything else is weather.</summary>
     public bool Major => IsTitle || IsUpset || Mine || PlayerBout;
@@ -95,7 +95,8 @@ public sealed record NewsDivChoice(string Label, WeightClass? Div, bool IsMine =
     public override string ToString() => Label;
 }
 
-public sealed record NewsRow(string Date, string Text, string Kind, bool PlayerBout, BoutRef? Bout = null)
+public sealed record NewsRow(string Date, string Text, string Kind, bool PlayerBout, BoutRef? Bout = null,
+                             string Detail = "")
 {
     /// <summary>A headline reporting a fight can be opened and watched; the rest are just news.</summary>
     public bool CanWatch => Bout is not null;
@@ -215,6 +216,11 @@ public sealed class FighterCard : Observable
     public Boxer? Fighter { get; init; }
 
     public IReadOnlyList<LedgerRow> Recent { get; init; } = Array.Empty<LedgerRow>();
+
+    /// <summary>How many of his bouts this world actually saw, out of how many he has had. Fighters on the
+    /// roster start with a record already built and no ledger behind it, so a 29-1-0 veteran can show two
+    /// fights — which reads as a bug unless the card says otherwise.</summary>
+    public string RecordNote { get; init; } = "";
 
     /// <summary>Every point on his career the card can be read at, most recent last.</summary>
     public IReadOnlyList<ArcRow> Arc { get; init; } = Array.Empty<ArcRow>();
@@ -338,7 +344,8 @@ public sealed class CareerViewModel : Observable
         });
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
-        StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn)); });
+        StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn));
+            Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
@@ -897,7 +904,11 @@ public sealed class CareerViewModel : Observable
     /// division made it vanish and left "On to fight night" as the only way onward: a different control, in a
     /// different place, labelled as though it skipped to the end when it actually resumed week by week. One
     /// control, one place, whatever the reason for the pause.</summary>
-    public bool CanCarryOn => Game?.Offer is not null && Game?.Player.Retired == false && Game?.DaysToFight > 0;
+    /// <summary>There is a run-up to carry on with — which means one has been STARTED. Without the committed
+    /// part this was true of any fight with days left, so a fresh offer showed "go to fight night" and
+    /// "continue" and "run the rest" all at once: three buttons, two of them offering to resume something that
+    /// had not begun. It is the same condition as being in camp, so it says so.</summary>
+    public bool CanCarryOn => InCamp;
 
     /// <summary>Whether the fight has been taken and the run-up is under way.
     ///
@@ -1090,7 +1101,8 @@ public sealed class CareerViewModel : Observable
         IsUpset: e.Kind == "upset" || e.Text.StartsWith("UPSET", StringComparison.Ordinal)
                  || e.Text.Contains("major upset", StringComparison.OrdinalIgnoreCase),
         PlayerBout: e.PlayerBout,
-        Bout: e.Bout);
+        Bout: e.Bout,
+        Detail: e.Detail ?? "");
 
     private bool _waiting;
     public bool IsWaiting => _waiting;
@@ -1133,7 +1145,7 @@ public sealed class CareerViewModel : Observable
         _autoRestPending = false;
         if (!resuming) { Camp.Clear(); _campAll.Clear(); }
         _theOne = null; TheOne = "";
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
         while (_waiting && Game?.WaitAWeek() is IReadOnlyList<CareerEvent> week)
         {
@@ -1152,7 +1164,7 @@ public sealed class CareerViewModel : Observable
                 _waiting = false;
                 foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
             }
-            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn) }) Raise(n);
+            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer) }) Raise(n);
             CheckForAwards();
             if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
 
@@ -1160,7 +1172,7 @@ public sealed class CareerViewModel : Observable
             if (_waiting) await Gate(550);
         }
         _waiting = false;
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
         RefreshAll();
         CheckForAwards();
     }
@@ -1760,6 +1772,15 @@ public sealed class CareerViewModel : Observable
         if (param is string name && Game.FindByName(name) is Boxer found) SelectedCard = BuildCard(found);
     }
 
+    /// <summary>"2 of 30 on file - his earlier bouts were before this world began." Empty when the ledger is
+    /// complete, because then there is nothing to explain.</summary>
+    private static string RecordNoteFor(int onFile, int total)
+    {
+        if (total <= 0 || onFile >= total) return "";
+        return $"{onFile} of {total} on file — his earlier bouts were fought before this world began, "
+             + "so they count on his record but have no round-by-round.";
+    }
+
     private FighterCard BuildCard(Boxer b)
     {
         var g = Game!;
@@ -1781,6 +1802,7 @@ public sealed class CareerViewModel : Observable
             Arc = g.CareerArc(b).Select(p => new ArcRow(p.Stage, p.Fights, p.Ratings, p.IsNow)).ToList(),
             Form = FormOf(b),
             Recent = b.History.OrderByDescending(h => h.Date).Select(h => ToLedger(h, b.Name)).ToList(),
+            RecordNote = RecordNoteFor(b.History.Count, b.Record.Wins + b.Record.Losses + b.Record.Draws),
             Division = b.WeightClass
         };
     }
@@ -2538,7 +2560,7 @@ public sealed class CareerViewModel : Observable
                                        .Where(x => div is null || x.e.Div == div)
                                        .OrderByDescending(x => x.e.On).ThenByDescending(x => x.i)
                                        .Take(120))
-            News.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout, e.Bout));
+            News.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout, e.Bout, e.Detail ?? ""));
 
         RaiseNewsState();
     }

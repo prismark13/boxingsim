@@ -71,6 +71,10 @@ public sealed class CareerEvent
     public bool PlayerBout { get; init; }
     public string? Kind { get; init; }   // "title", "upset", "ko", "debut", "retire", "streak", "hof", "move" — for the news feed
     public WeightClass? Div { get; init; }   // which division this event belongs to (for the news filter)
+
+    /// <summary>Who the men in this headline are, as they stood on the night: records and where each sat on the
+    /// division board. A result without it is two names and a round number.</summary>
+    public string? Detail { get; init; }
     public int Year => On.Year;
     public string DateLabel => On.ToString("d MMM yyyy");
 
