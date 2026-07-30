@@ -583,8 +583,10 @@
                                                 ToolTip="{Binding TakeFightHint}"
                                                 AutomationProperties.Name="{Binding TakeFightLabel}"
                                                 Style="{StaticResource PrimaryButton}" Padding="22,10" />
-                                        <Button Content="Hold out" Command="{Binding HoldOut}" Margin="10,0,0,0" />
-                                        <Button Content="Tale of the tape ›" Command="{Binding Navigate}"
+                                        <!-- No "turn it down" here. The dashboard offers the fight; the
+                                             decision to refuse one is made on the page that shows you the
+                                             man, the tape and the card. -->
+                                        <Button Content="See the card ›" Command="{Binding Navigate}"
                                                 CommandParameter="Career" Margin="10,0,0,0" FontSize="12" />
                                     </StackPanel>
                                 </Grid>
@@ -655,10 +657,9 @@
                              a page where the one thing you now had to press was off screen. What you act on
                              comes first; the poster it is a build-up TO reads underneath. -->
                         <!-- Time passes. Everything the sport did between his fights used to happen in
-                             the single frame between clicking "take the fight" and the opening bell. -->
-                        <Button Content="Wait for fight night" Command="{Binding WaitForFight}"
-                                Margin="24,0,24,10" Padding="14,10" FontSize="13"
-                                Visibility="{Binding CanWait, Converter={StaticResource BoolVis}}" />
+                             the single frame between clicking "take the fight" and the opening bell.
+                             There was a "Wait for fight night" button here as well, which did what "Go to
+                             fight night" now does from the same page - two buttons for one action. -->
                         <!-- Held between weeks, so the build-up can be read rather than watched going
                              past. "Run the rest" hands the pacing back to the clock for this one run. -->
                         <Grid Margin="24,0,24,10"
@@ -904,14 +905,16 @@
 
                                 <!-- The bill, as a poster. A card is a thing you read BEFORE the night: what
                                      kind of show it is, which hall, who else is on, and where you come on it. -->
+                                <Expander Style="{StaticResource Section}" Margin="24,10,24,0"
+                                          IsExpanded="True" Header="THE CARD"
+                                          Tag="{Binding BillHeader}"
+                                          Visibility="{Binding HasBill, Converter={StaticResource BoolVis}}">
                                 <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource GoldLine}"
-                                        BorderThickness="1" CornerRadius="10" Margin="24,4,24,12" Padding="18,14"
-                                        Visibility="{Binding HasBill, Converter={StaticResource BoolVis}}">
+                                        BorderThickness="1" CornerRadius="10" Margin="0,0,0,12" Padding="18,14">
                                     <StackPanel>
-                                        <TextBlock Text="{Binding BillHeader}" Style="{StaticResource Label}"
-                                                   Foreground="{StaticResource Gold}" HorizontalAlignment="Center"
-                                                   TextWrapping="Wrap" TextAlignment="Center" />
-                                        <TextBlock Text="{Binding CardNote}" FontSize="12.5" Margin="0,8,0,12"
+                                        <!-- The venue line is the section's summary now, so it is not repeated
+                                             here as well. -->
+                                        <TextBlock Text="{Binding CardNote}" FontSize="12.5" Margin="0,0,0,12"
                                                    Foreground="{StaticResource Muted}" TextWrapping="Wrap"
                                                    TextAlignment="Center" HorizontalAlignment="Center" MaxWidth="520" />
                                         <ItemsControl ItemsSource="{Binding Bill}">
@@ -1027,6 +1030,7 @@
                                         </ItemsControl>
                                     </StackPanel>
                                 </Border>
+                                </Expander>
 
 
                                 <Grid Margin="24,20,24,22">
@@ -1039,7 +1043,8 @@
                                             ToolTip="{Binding TakeFightHint}"
                                             AutomationProperties.Name="{Binding TakeFightLabel}"
                                             Style="{StaticResource PrimaryButton}" />
-                                    <Button Grid.Column="2" Content="Hold out" Command="{Binding HoldOut}" />
+                                    <Button Grid.Column="2" Content="Turn it down" Command="{Binding HoldOut}"
+                                            ToolTip="Refuse this fight and wait for another offer" />
                                 </Grid>
                                 <Button Content="{Binding MoveUpLabel}" Command="{Binding MoveUp}"
                                         Margin="24,0,24,22" Padding="12,8" FontSize="12"

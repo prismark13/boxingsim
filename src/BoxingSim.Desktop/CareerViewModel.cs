@@ -2468,13 +2468,19 @@ public sealed class CareerViewModel : Observable
             Tape.Add(row);
         }
 
-        Row(TapeAttack,  "Power",    me.Power,    them.Power);
-        Row(TapeAttack,  "Accuracy", me.Accuracy, them.Accuracy);
-        Row(TapeDefence, "Chin",     me.Chin,     them.Chin);
-        Row(TapeDefence, "Defence",  me.Defense,  them.Defense);
-        Row(TapeEngine,  "Speed",    me.Speed,    them.Speed);
-        Row(TapeEngine,  "Stamina",  me.Stamina,  them.Stamina);
-        Row(TapeEngine,  "Heart",    me.Heart,    them.Heart);
+        // All ten, not the seven it used to show. Conditioning, cut resistance and aggression were on the
+        // fighter card but absent from the one screen where you decide whether to take the fight — and a man's
+        // cut resistance is exactly the sort of thing you would want to know before agreeing to twelve rounds.
+        Row(TapeAttack,  "Power",          me.Power,         them.Power);
+        Row(TapeAttack,  "Accuracy",       me.Accuracy,      them.Accuracy);
+        Row(TapeAttack,  "Aggression",     me.Aggression,    them.Aggression);
+        Row(TapeDefence, "Chin",           me.Chin,          them.Chin);
+        Row(TapeDefence, "Defence",        me.Defense,       them.Defense);
+        Row(TapeDefence, "Cut resistance", me.CutResistance, them.CutResistance);
+        Row(TapeEngine,  "Speed",          me.Speed,         them.Speed);
+        Row(TapeEngine,  "Stamina",        me.Stamina,       them.Stamina);
+        Row(TapeEngine,  "Conditioning",   me.Conditioning,  them.Conditioning);
+        Row(TapeEngine,  "Heart",          me.Heart,         them.Heart);
 
         int mine = Tape.Count(r => r.Mine > r.Theirs);
         int his = Tape.Count(r => r.Theirs > r.Mine);
