@@ -83,7 +83,23 @@
          from weight and brightness instead of from spending the one colour that means something. -->
     <SolidColorBrush x:Key="Quiet" Color="#CFC5B4" />
 
-    <!-- Type -->
+    <!-- TYPE SCALE.  11 · 12 · 13 · 15 · 18 · 21 · 26 · 30
+         There were twenty-two distinct sizes across two hundred and thirty-eight declarations, including 11
+         and 11.5, 12 and 12.5, 14 and 14.5. Nobody can see half a point; what they can see is that nothing
+         lines up. Every size now sits on one of these eight steps, each far enough from its neighbours to read
+         as a deliberate difference:
+
+             11  captions, tags, column labels, dates
+             12  secondary text, notes, commentary
+             13  body, buttons, list rows
+             15  a lead line, a subheading
+             18  section titles
+             21  page headings, fighter names in a list
+             26  the poster names, the wordmark
+             30  fight night
+
+         Anything new belongs on one of these. If a size feels wrong, the answer is the step above or below it
+         and not a decimal in between. -->
     <Style x:Key="Label" TargetType="TextBlock">
         <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -105,7 +121,7 @@
     </Style>
 
     <Style x:Key="TagText" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="9" />
+        <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{StaticResource Muted}" />
 
@@ -259,7 +275,7 @@
                                                     Margin="0,0,10,0" VerticalAlignment="Center">
                                                 <!-- Fixed box and centred glyph: the two arrows are different
                                                      widths, so without it the header shifted on every toggle. -->
-                                                <TextBlock x:Name="chev" Text="▾" FontSize="10"
+                                                <TextBlock x:Name="chev" Text="▾" FontSize="11"
                                                            TextAlignment="Center" HorizontalAlignment="Center"
                                                            VerticalAlignment="Center"
                                                            Foreground="{StaticResource Quiet}" />
@@ -268,7 +284,7 @@
                                             <TextBlock x:Name="hd" Grid.Column="1" Text="{TemplateBinding Content}"
                                                        FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
                                                        Foreground="{StaticResource Muted}" />
-                                            <TextBlock Grid.Column="2" Text="{TemplateBinding Tag}" FontSize="11.5"
+                                            <TextBlock Grid.Column="2" Text="{TemplateBinding Tag}" FontSize="12"
                                                        Margin="14,0,0,0" VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"
                                                        Foreground="{StaticResource Faint}" />
@@ -312,7 +328,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <TextBlock x:Name="t" Text="{TemplateBinding Content}" FontSize="12.5"
+                    <TextBlock x:Name="t" Text="{TemplateBinding Content}" FontSize="13"
                                Foreground="{StaticResource Text}" VerticalAlignment="Center" />
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -533,7 +549,7 @@
                             <Setter Property="IsEnabled" Value="False" />
                             <Setter Property="Focusable" Value="False" />
                             <Setter TargetName="t" Property="Foreground" Value="{StaticResource Faint}" />
-                            <Setter TargetName="t" Property="FontSize" Value="9.5" />
+                            <Setter TargetName="t" Property="FontSize" Value="11" />
                             <Setter TargetName="t" Property="FontWeight" Value="Bold" />
                             <Setter TargetName="t" Property="Margin" Value="14,18,14,4" />
                             <Setter TargetName="b" Property="Background" Value="Transparent" />
@@ -640,7 +656,7 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <StackPanel Margin="2,0,0,16">
-                            <TextBlock Text="{TemplateBinding Title}" FontSize="19" FontWeight="Light"
+                            <TextBlock Text="{TemplateBinding Title}" FontSize="18" FontWeight="Light"
                                        Foreground="{StaticResource Text}" />
                             <TextBlock Text="{TemplateBinding Subtitle}" FontSize="12" Foreground="{StaticResource Muted}"
                                        Margin="0,4,0,0" />
