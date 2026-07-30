@@ -730,7 +730,16 @@
                                 <!-- Taller than it was. This is the main thing on the page while the
                                      weeks run — the sport happening on the way to your fight — not a
                                      footnote under the poster. -->
-                                <ItemsControl ItemsSource="{Binding Camp}" Margin="0,10,0,0" MaxHeight="420">
+                                <!-- Something to do with the wall of text. Twelve divisions reporting over four
+                                     months buries the one fight that concerns him among fifty that do not. -->
+                                <Grid Margin="0,12,0,0">
+                                    <CheckBox Content="Only my division" IsChecked="{Binding CampMineOnly}"
+                                              VerticalAlignment="Center" FontSize="12" />
+                                    <TextBlock Text="{Binding CampCountLabel}" FontSize="11"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Faint}" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding Camp}" Margin="0,8,0,0" MaxHeight="420">
                                     <ItemsControl.Template>
                                         <ControlTemplate TargetType="ItemsControl">
                                             <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -740,16 +749,74 @@
                                     </ItemsControl.Template>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid Margin="0,3">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="86" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding On, StringFormat=d MMM yyyy}" FontSize="11"
-                                                           Foreground="{StaticResource Faint}" VerticalAlignment="Top" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12"
-                                                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
-                                            </Grid>
+                                            <!-- The ones worth raising your eyes for are drawn like it: a belt
+                                                 changing hands, a boilover, or anything in his own weight.
+                                                 The rest is weather and stays quiet. -->
+                                            <Border Margin="0,1" Padding="8,4" CornerRadius="6">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Major}" Value="True">
+                                                                <Setter Property="Background" Value="{StaticResource Panel2}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="86" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Date}" FontSize="11"
+                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Top" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12"
+                                                               TextWrapping="Wrap">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Major}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding PlayerBout}" Value="True">
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Margin="10,1,0,0"
+                                                            VerticalAlignment="Top" BorderThickness="1"
+                                                            Visibility="{Binding HasTag, Converter={StaticResource BoolVis}}">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="{StaticResource AccentSoft}" />
+                                                                <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsTitle}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource GoldSoft}" />
+                                                                        <Setter Property="BorderBrush" Value="{StaticResource GoldLine}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock Text="{Binding Tag}" FontSize="10" FontWeight="Bold">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsTitle}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>

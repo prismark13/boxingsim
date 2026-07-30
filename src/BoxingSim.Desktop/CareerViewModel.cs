@@ -79,6 +79,17 @@ public sealed record BeltRow(string Belt, string Holder, string Detail, bool Lin
 public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyList<BeltRow> Belts, bool IsPlayerDivision);
 /// <summary>One option in the news feed's division filter. Null means every division; its string form is the
 /// label, because a ComboBox's closed state falls back to ToString() and would otherwise show the type name.</summary>
+/// <summary>One line of the build-up feed, with how much it matters already worked out. The view should not be
+/// comparing weight classes to decide how brightly to draw a row.</summary>
+public sealed record CampRow(string Date, string Text, bool Mine, bool IsTitle, bool IsUpset,
+                             bool PlayerBout, BoutRef? Bout)
+{
+    /// <summary>A belt changing hands, a boilover, or anything in his own division. Everything else is weather.</summary>
+    public bool Major => IsTitle || IsUpset || Mine || PlayerBout;
+    public string Tag => IsTitle ? "TITLE" : IsUpset ? "UPSET" : Mine ? "YOUR DIVISION" : "";
+    public bool HasTag => Tag.Length > 0;
+}
+
 public sealed record NewsDivChoice(string Label, WeightClass? Div, bool IsMine = false)
 {
     public override string ToString() => Label;
@@ -298,7 +309,13 @@ public sealed class CareerViewModel : Observable
             RefreshAll();
             Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
         });
-        CloseYearAwards = new Cmd(() => { ShowYearAwards = false; Raise(nameof(ShowYearAwards)); });
+        CloseYearAwards = new Cmd(() =>
+        {
+            ShowYearAwards = false; Raise(nameof(ShowYearAwards));
+            // If the honours interrupted a walk to the ring, finish the walk. The alternative is dropping the
+            // player back on the poster page to work out for himself that the fight is still waiting.
+            if (_resumeAfterAwards) { _resumeAfterAwards = false; Take(resuming: true); }
+        });
         ToggleNews = new Cmd(() => NewsOpen = !NewsOpen);
         StepForward = new Cmd(ReleaseGate);
         RunTheRest = new Cmd(() => { _autoRest = true; ReleaseGate(); });
@@ -792,6 +809,10 @@ public sealed class CareerViewModel : Observable
     /// moment it mattered. The awards can wait; the fight cannot be interrupted.</summary>
     private bool _awardsWait;
 
+    /// <summary>Set when the year's honours arrived on the very night he was walking out, so closing them
+    /// carries on to the fight rather than abandoning him on the poster page.</summary>
+    private bool _resumeAfterAwards;
+
     /// <summary>Take the fight — which is a night, not a button.
     ///
     /// Taking a fight used to jump from the dashboard to the opening bell in one frame, silently running
@@ -806,9 +827,21 @@ public sealed class CareerViewModel : Observable
         {
             DoNavigate(Page.Career);          // the poster and the weeks live there
             await RunToFightNight(resuming);
+
             // He stopped for something, or the year turned and wants acknowledging. The fight keeps, and
             // "On to fight night" brings him back here with the weeks so far still on the page.
-            if (Game is null || Game.DaysToFight > 0) return;
+            //
+            // ShowYearAwards has to be part of this. Without it, a year that turned on the LAST week of the
+            // wait opened the honours panel and then fell straight through into the fight: the panel sits at
+            // ZIndex 12 and fight night at 10, so the bout ran on behind it. The earlier fix only stopped the
+            // honours being RAISED during a fight — it never considered them already being on screen when one
+            // started. Instead of making the player work out what to press afterwards, dismissing the panel
+            // walks him out: see CloseYearAwards.
+            if (Game is null || Game.DaysToFight > 0 || ShowYearAwards)
+            {
+                _resumeAfterAwards = ShowYearAwards && Game?.DaysToFight == 0;
+                return;
+            }
         }
 
         _awardsWait = true;
@@ -975,7 +1008,45 @@ public sealed class CareerViewModel : Observable
     // while you waited, because you never waited.
 
     /// <summary>The weeks between now and fight night, as they land.</summary>
-    public ObservableCollection<CareerEvent> Camp { get; } = new();
+    public ObservableCollection<CampRow> Camp { get; } = new();
+
+    /// <summary>Every week's news, kept whole so the filter can be turned on and off without losing what has
+    /// already gone past. Camp is what the page shows; this is what it is drawn from.</summary>
+    private readonly List<CampRow> _campAll = new();
+
+    private bool _campMineOnly;
+    /// <summary>Narrow the build-up feed to the player's own division. Twelve divisions reporting over four
+    /// months is a wall of text in which the one fight that concerns him reads exactly like the other fifty.</summary>
+    public bool CampMineOnly
+    {
+        get => _campMineOnly;
+        set { if (_campMineOnly == value) return; _campMineOnly = value; Raise(); RedrawCamp(); }
+    }
+
+    public string CampCountLabel =>
+        _campAll.Count == 0 ? ""
+        : _campMineOnly ? $"{Camp.Count} of {_campAll.Count}"
+        : $"{_campAll.Count} in the sport";
+
+    private void RedrawCamp()
+    {
+        Camp.Clear();
+        foreach (var r in _campAll.Where(r => !_campMineOnly || r.Mine)) Camp.Add(r);
+        Raise(nameof(CampCountLabel));
+    }
+
+    /// <summary>Turn a logged event into a line of the build-up feed, working out how much it matters here
+    /// rather than in the view. A title changing hands, an upset, and anything in the player's own division
+    /// are the three things worth raising your eyes for.</summary>
+    private CampRow ToCamp(CareerEvent e) => new(
+        e.On.ToString("d MMM yyyy"),
+        e.Text,
+        Mine: Game is not null && e.Div == Game.Player.WeightClass,
+        IsTitle: e.Kind == "title",
+        IsUpset: e.Kind == "upset" || e.Text.StartsWith("UPSET", StringComparison.Ordinal)
+                 || e.Text.Contains("major upset", StringComparison.OrdinalIgnoreCase),
+        PlayerBout: e.PlayerBout,
+        Bout: e.Bout);
 
     private bool _waiting;
     public bool IsWaiting => _waiting;
@@ -1014,13 +1085,19 @@ public sealed class CareerViewModel : Observable
         if (Game is null || _waiting) return;
         _waiting = true;
         _autoRest = false;          // asked for once, for this run, not remembered
-        if (!resuming) Camp.Clear();
+        if (!resuming) { Camp.Clear(); _campAll.Clear(); }
         _theOne = null; TheOne = "";
         foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
         while (_waiting && Game?.WaitAWeek() is IReadOnlyList<CareerEvent> week)
         {
-            foreach (var e in week) Camp.Insert(0, e);
+            foreach (var e in week)
+            {
+                var row = ToCamp(e);
+                _campAll.Insert(0, row);
+                if (!_campMineOnly || row.Mine) Camp.Insert(0, row);
+            }
+            Raise(nameof(CampCountLabel));
             // Something in his own weight worth watching stops the clock and asks.
             if (_theOne is null && Game.WorthWatching(week) is BoutRef b)
             {
