@@ -271,7 +271,7 @@ public sealed partial class CareerGame
             if (_rng.NextDouble() < 0.10) { RelinquishBelt(c); return; }   // ducks a mandatory, splitting the belts
             var ch = PickChallenger(c, null);
             if (ch is null) return;
-            if (NextTitleDate(c, yr, d, titleBouts) is not DateOnly nd) return;
+            if (NextTitleDate(c, ch, yr, d, titleBouts) is not DateOnly nd) return;
             Date = nd;
             var res = FastBout(c, ch, 12);
             ApplyOutcome(res, c, ch, "Undisputed title");
@@ -310,12 +310,12 @@ public sealed partial class CareerGame
                                                           && b.Overall <= c.Overall && Available(b) && !RecentFoes(c, 3).Contains(b.Name))
                                                   .OrderByDescending(RankScore).FirstOrDefault();
                 if (busy is null) return;
-                if (NextTitleDate(c, yr, d, titleBouts) is not DateOnly bd) return;
+                if (NextTitleDate(c, busy, yr, d, titleBouts) is not DateOnly bd) return;
                 Date = bd;
                 ApplyOutcome(FastBout(c, busy, 10), c, busy);
                 continue;
             }
-            if (NextTitleDate(c, yr, d, titleBouts) is not DateOnly td) return;
+            if (NextTitleDate(c, challenger, yr, d, titleBouts) is not DateOnly td) return;
             Date = td;
             var res = FastBout(c, challenger, 12);
             ApplyOutcome(res, c, challenger, $"{belt} title");
@@ -354,14 +354,25 @@ public sealed partial class CareerGame
     /// <summary>A within-year date for a champion's next title bout that always sits at least ~10 weeks AFTER his
     /// previous bout — so a season's title bouts (and a unification plus the defences that follow it) never land
     /// days apart or out of order. Null when there's no room left in the year: the bout is then skipped, not crammed.</summary>
-    private DateOnly? NextTitleDate(Boxer c, int yr, int index, int count)
+    /// <summary>When a title bout can be made, respecting BOTH men's rest.
+    ///
+    /// The gap used to be measured from the champion's last night only, which is fine for him and useless for
+    /// the other man. Each belt runs its own season, so a contender could take the WBA in September and be
+    /// pulled into the WBC season twelve days later — a date computed from that champion's history, with
+    /// nothing anywhere asking when the challenger had last fought. It reads exactly as a bug in a record:
+    /// a man wins a world title and is back in the ring a fortnight afterwards.</summary>
+    private DateOnly? NextTitleDate(Boxer c, Boxer? opponent, int yr, int index, int count)
     {
         var d = SpreadDate(yr, index, count);
-        if (c.History.Count > 0)
-        {
-            var last = c.History.Max(h => h.Date);
-            if (d.DayNumber < last.AddDays(72).DayNumber) d = last.AddDays(72 + _rng.Next(24));
-        }
+        var last = DateOnly.MinValue;
+        foreach (var man in new[] { c, opponent })
+            if (man is not null && man.History.Count > 0)
+            {
+                var his = man.History.Max(h => h.Date);
+                if (his > last) last = his;
+            }
+        if (last > DateOnly.MinValue && d.DayNumber < last.AddDays(72).DayNumber)
+            d = last.AddDays(72 + _rng.Next(24));
         return d.Year == yr ? d : null;
     }
 
