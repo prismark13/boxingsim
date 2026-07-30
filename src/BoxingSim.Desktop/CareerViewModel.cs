@@ -79,7 +79,7 @@ public sealed record BeltRow(string Belt, string Holder, string Detail, bool Lin
 public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyList<BeltRow> Belts, bool IsPlayerDivision);
 /// <summary>One option in the news feed's division filter. Null means every division; its string form is the
 /// label, because a ComboBox's closed state falls back to ToString() and would otherwise show the type name.</summary>
-public sealed record NewsDivChoice(string Label, WeightClass? Div)
+public sealed record NewsDivChoice(string Label, WeightClass? Div, bool IsMine = false)
 {
     public override string ToString() => Label;
 }
@@ -300,7 +300,10 @@ public sealed class CareerViewModel : Observable
         });
         CloseYearAwards = new Cmd(() => { ShowYearAwards = false; Raise(nameof(ShowYearAwards)); });
         ToggleNews = new Cmd(() => NewsOpen = !NewsOpen);
-        SkipUndercard = new Cmd(() => _skipCard = true);
+        StepForward = new Cmd(ReleaseGate);
+        RunTheRest = new Cmd(() => { _autoRest = true; ReleaseGate(); });
+        // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
+        SkipUndercard = new Cmd(() => { _skipCard = true; ReleaseGate(); });
         ClearNewsFilter = new Cmd(() =>
         {
             _newsTitlesOnly = false;
@@ -310,7 +313,7 @@ public sealed class CareerViewModel : Observable
         });
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
-        StopWaiting = new Cmd(() => { _waiting = false; Raise(nameof(IsWaiting)); Raise(nameof(CanWait)); });
+        StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
@@ -834,6 +837,43 @@ public sealed class CareerViewModel : Observable
     private bool _skipCard;
     public Cmd SkipUndercard { get; }
 
+    // ---- going at your own pace ----
+    //
+    // The build-up ran itself: a week every 550ms, a bout every 1250ms, and you sat and watched it go past.
+    // Putting the weeks on screen was meant to let them be READ. So the default now is that it waits for you.
+
+    private TaskCompletionSource<bool>? _gate;
+    private bool _autoRest;
+
+    /// <summary>True while the run is holding, waiting to be told to go on. What the Continue button hangs off.</summary>
+    public bool AwaitingStep => _gate is not null;
+
+    public Cmd StepForward { get; }
+    public Cmd RunTheRest { get; }
+
+    /// <summary>Hold until the player presses Continue — or fall back to a timer when they have asked for it
+    /// to run itself, either as a setting or by pressing "run the rest" during this one.
+    ///
+    /// Every way out of the panel must call <see cref="ReleaseGate"/>. A gate nobody opens is a hang with no
+    /// way out of it, and these panels cover the window.</summary>
+    private Task Gate(int autoMs)
+    {
+        if (!_prefs.StepByStep || _autoRest)
+            return Task.Delay(Math.Max(1, (int)(autoMs / Math.Max(0.25, Speed))));
+
+        _gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Raise(nameof(AwaitingStep));
+        return _gate.Task;
+    }
+
+    private void ReleaseGate()
+    {
+        var g = _gate;
+        _gate = null;
+        g?.TrySetResult(true);
+        Raise(nameof(AwaitingStep));
+    }
+
     // ---- the two build-up settings, bound straight to the checkboxes that set them ----
 
     /// <summary>Whether taking a fight runs the weeks first. Written through to disk on every change: there is
@@ -873,6 +913,12 @@ public sealed class CareerViewModel : Observable
         set { if (_prefs.LiveUndercard == value) return; _prefs.LiveUndercard = value; _prefs.Save(); Raise(); }
     }
 
+    public bool StepByStep
+    {
+        get => _prefs.StepByStep;
+        set { if (_prefs.StepByStep == value) return; _prefs.StepByStep = value; _prefs.Save(); Raise(); }
+    }
+
     /// <summary>The sound toggle, as a checkbox rather than the button on the playback bar, so all three
     /// presentation choices sit in one place.</summary>
     public bool SoundEnabled
@@ -905,18 +951,20 @@ public sealed class CareerViewModel : Observable
 
         CardTonight.Clear();
         _skipCard = false;
+        _autoRest = false;          // "run the rest" is per-night, not a standing choice
         IsCardRunning = true;
 
         foreach (var bout in running)
         {
             CardTonight.Add(bout);
-            // Paced by the same speed dial the fight itself uses, so a player who watches at 2x is not made
-            // to sit through the undercard at 1x.
-            await Task.Delay((int)(1250 / Math.Max(0.25, Speed)));
+            // Held for a press, or paced by the same speed dial the fight itself uses so a player watching at
+            // 2x is not made to sit through the undercard at 1x.
+            await Gate(1250);
             if (_skipCard) break;
         }
 
-        if (!_skipCard) await Task.Delay((int)(900 / Math.Max(0.25, Speed)));   // a beat before the main event
+        // One more hold before the main event, so walking out is something you decide to do.
+        if (!_skipCard) await Gate(900);
         IsCardRunning = false;
     }
 
@@ -931,6 +979,13 @@ public sealed class CareerViewModel : Observable
 
     private bool _waiting;
     public bool IsWaiting => _waiting;
+
+    /// <summary>Whether to show the camp panel at all.
+    ///
+    /// It used to appear only once a week had produced an event, which meant a quiet first week left the
+    /// player holding a Continue button with no countdown, no date and nothing on screen to say what they
+    /// were continuing. The panel is up for the whole wait now, empty or not.</summary>
+    public bool ShowCamp => _waiting || Camp.Count > 0;
     /// <summary>There is only something to wait for while fight night is still ahead. Once the calendar has
     /// reached it the offer to wait has to go, or it sits there inviting you to wait for today.</summary>
     public bool CanWait => !_waiting && Game?.DaysToFight > 0;
@@ -958,9 +1013,10 @@ public sealed class CareerViewModel : Observable
     {
         if (Game is null || _waiting) return;
         _waiting = true;
+        _autoRest = false;          // asked for once, for this run, not remembered
         if (!resuming) Camp.Clear();
         _theOne = null; TheOne = "";
-        foreach (var n in new[] { nameof(IsWaiting), nameof(CanWait), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
         while (_waiting && Game?.WaitAWeek() is IReadOnlyList<CareerEvent> week)
         {
@@ -977,10 +1033,11 @@ public sealed class CareerViewModel : Observable
             CheckForAwards();
             if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
 
-            await Task.Delay(_waiting ? 550 : 0);   // a week a second, so it reads as time passing
+            // Held here until Continue, or a week a second if it has been asked to run itself.
+            if (_waiting) await Gate(550);
         }
         _waiting = false;
-        foreach (var n in new[] { nameof(IsWaiting), nameof(CanWait), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
         RefreshAll();
         CheckForAwards();
     }
@@ -2317,8 +2374,16 @@ public sealed class CareerViewModel : Observable
     private void BuildDivisionChoices()
     {
         var had = _newsDiv?.Div;
+        bool hadMine = _newsDiv?.IsMine == true;
         NewsDivisions.Clear();
         NewsDivisions.Add(new NewsDivChoice("Every division", null));
+
+        // Your own weight, first and named as yours. It is the division anyone checks first, and unlike picking
+        // "Middleweight" off the list it follows you when you move up — choose it once and it stays right.
+        if (Game is not null && InCareer)
+            NewsDivisions.Add(new NewsDivChoice($"Your division · {Game.Player.WeightClass.DisplayName()}",
+                                               Game.Player.WeightClass, IsMine: true));
+
         if (Game is not null)
             foreach (var d in Game.Log.Where(e => e.Div is not null)
                                       .Select(e => e.Div!.Value)
@@ -2326,8 +2391,12 @@ public sealed class CareerViewModel : Observable
                                       .OrderByDescending(d => (int)d))
                 NewsDivisions.Add(new NewsDivChoice(d.DisplayName(), d));
 
-        // Hold the player's choice across a rebuild; the collection is replaced every turn.
-        _newsDiv = NewsDivisions.FirstOrDefault(c => c.Div == had) ?? NewsDivisions.FirstOrDefault();
+        // Hold the player's choice across a rebuild; the collection is replaced every turn. "Your division" is
+        // matched on being YOURS rather than on the weight it happened to mean, so moving up carries it with you
+        // instead of quietly pinning you to the division you left.
+        _newsDiv = hadMine
+            ? NewsDivisions.FirstOrDefault(c => c.IsMine) ?? NewsDivisions.FirstOrDefault()
+            : NewsDivisions.FirstOrDefault(c => c.Div == had && !c.IsMine) ?? NewsDivisions.FirstOrDefault();
         Raise(nameof(NewsDivision));
     }
 
@@ -2368,26 +2437,56 @@ public sealed class CareerViewModel : Observable
 
     /// <summary>Tale of the tape: the player's attributes against the man he's being offered, so the decision to
     /// take the fight is an informed one rather than a name and a record.</summary>
+    // The same seven attributes, in three groups rather than one flat run of bars.
+    //
+    // Seven rows with the name down the middle and no headings gave the eye nowhere to rest and no reason for
+    // the order: Power then Chin then Speed then Defence read as a list that had simply been typed out. Grouped,
+    // each block answers one question about the man.
+    public ObservableCollection<TapeRow> TapeAttack { get; } = new();
+    public ObservableCollection<TapeRow> TapeDefence { get; } = new();
+    public ObservableCollection<TapeRow> TapeEngine { get; } = new();
+
+    /// <summary>The tape in a sentence, for when the section is folded away. A header that only says "tale of
+    /// the tape" is worth nothing closed; this says who the numbers favour and where the other man's edge is.</summary>
+    public string TapeEdge { get; private set; } = "";
+
     private void BuildTape()
     {
-        Tape.Clear();
-        if (Game?.Offer is not { } o) return;
+        Tape.Clear(); TapeAttack.Clear(); TapeDefence.Clear(); TapeEngine.Clear();
+        TapeEdge = "";
+        if (Game?.Offer is not { } o) { Raise(nameof(TapeEdge)); return; }
         var me = Game.Player.Ratings;
         var them = o.Opponent.Ratings;
         BuildStyleMatchup(Game.Player, o.Opponent);
+
         // Both men's attributes on the 1–15 class scale, so the tape reads in the same units as the pills.
-        void Row(string name, int rawA, int rawB)
+        void Row(ObservableCollection<TapeRow> into, string name, int rawA, int rawB)
         {
             int a = OnClassScale(rawA), b = OnClassScale(rawB);
-            Tape.Add(new TapeRow(name, a, b, a / (double)TopClass, b / (double)TopClass, a >= b));
+            var row = new TapeRow(name, a, b, a / (double)TopClass, b / (double)TopClass, a >= b);
+            into.Add(row);
+            Tape.Add(row);
         }
-        Row("Power", me.Power, them.Power);
-        Row("Chin", me.Chin, them.Chin);
-        Row("Speed", me.Speed, them.Speed);
-        Row("Defence", me.Defense, them.Defense);
-        Row("Stamina", me.Stamina, them.Stamina);
-        Row("Accuracy", me.Accuracy, them.Accuracy);
-        Row("Heart", me.Heart, them.Heart);
+
+        Row(TapeAttack,  "Power",    me.Power,    them.Power);
+        Row(TapeAttack,  "Accuracy", me.Accuracy, them.Accuracy);
+        Row(TapeDefence, "Chin",     me.Chin,     them.Chin);
+        Row(TapeDefence, "Defence",  me.Defense,  them.Defense);
+        Row(TapeEngine,  "Speed",    me.Speed,    them.Speed);
+        Row(TapeEngine,  "Stamina",  me.Stamina,  them.Stamina);
+        Row(TapeEngine,  "Heart",    me.Heart,    them.Heart);
+
+        int mine = Tape.Count(r => r.Mine > r.Theirs);
+        int his = Tape.Count(r => r.Theirs > r.Mine);
+        var hisBest = Tape.Where(r => r.Theirs > r.Mine)
+                          .OrderByDescending(r => r.Theirs - r.Mine)
+                          .Take(2).Select(r => r.Attribute.ToLowerInvariant()).ToList();
+
+        TapeEdge = mine == 0 && his == 0 ? "Nothing between you on paper."
+                 : his == 0             ? "Every number is yours."
+                 : mine == 0            ? "Every number is his."
+                 : $"You lead {mine} of {Tape.Count} — his edge is {string.Join(" and ", hisBest)}.";
+        Raise(nameof(TapeEdge));
     }
 
     // ---- the styles, and what they make of each other ----

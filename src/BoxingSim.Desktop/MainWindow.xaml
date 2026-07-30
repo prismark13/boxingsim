@@ -100,6 +100,49 @@
         </DataTemplate>
 
         <!-- A bout in a ledger. Clicking it opens the round-by-round card for that fight. -->
+        <DataTemplate x:Key="TapeRowTemplate">
+                <Grid Margin="0,3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="128" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <!-- mine, growing right-to-left -->
+                    <Grid x:Name="MineTrack" Grid.Column="0" Height="16">
+                        <Border HorizontalAlignment="Right" CornerRadius="3"
+                                Background="{StaticResource Accent}">
+                            <Border.Width>
+                                <MultiBinding Converter="{StaticResource BarWidth}">
+                                    <Binding Path="MineWidth" />
+                                    <Binding Path="ActualWidth" ElementName="MineTrack" />
+                                </MultiBinding>
+                            </Border.Width>
+                        </Border>
+                        <TextBlock Text="{Binding Mine}" FontSize="11" Margin="0,0,7,0"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Foreground="#06121C" FontWeight="Bold" />
+                    </Grid>
+                    <TextBlock Grid.Column="1" Text="{Binding Attribute}" FontSize="11"
+                               FontWeight="SemiBold" Foreground="{StaticResource Muted}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Grid x:Name="TheirsTrack" Grid.Column="2" Height="16">
+                        <Border HorizontalAlignment="Left" CornerRadius="3"
+                                Background="{StaticResource Foe}">
+                            <Border.Width>
+                                <MultiBinding Converter="{StaticResource BarWidth}">
+                                    <Binding Path="TheirsWidth" />
+                                    <Binding Path="ActualWidth" ElementName="TheirsTrack" />
+                                </MultiBinding>
+                            </Border.Width>
+                        </Border>
+                        <!-- Dark on the bar, matching the player's side: the number sits ON the
+                             colour now rather than on an empty track behind it. -->
+                        <TextBlock Text="{Binding Theirs}" FontSize="11" Margin="7,0,0,0"
+                                   HorizontalAlignment="Left" VerticalAlignment="Center"
+                                   Foreground="#1F0A04" FontWeight="Bold" />
+                    </Grid>
+                </Grid>
+        </DataTemplate>
         <DataTemplate x:Key="LedgerRowTemplate">
             <Button Style="{StaticResource RowButton}" AutomationProperties.Name="{Binding Opponent}"
                     ToolTip="See the round-by-round card"
@@ -605,6 +648,113 @@
                               Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Career}">
                     <StackPanel Margin="28,26,28,28" MaxWidth="1000" HorizontalAlignment="Stretch">
 
+                        <!-- THE BUILD-UP, above the poster rather than below it.
+
+                             It used to sit under the bill, which on any normal window put the countdown and
+                             the Continue button below the fold — so pressing "go to fight night" landed you on
+                             a page where the one thing you now had to press was off screen. What you act on
+                             comes first; the poster it is a build-up TO reads underneath. -->
+                        <!-- Time passes. Everything the sport did between his fights used to happen in
+                             the single frame between clicking "take the fight" and the opening bell. -->
+                        <Button Content="Wait for fight night" Command="{Binding WaitForFight}"
+                                Margin="24,0,24,10" Padding="14,10" FontSize="13"
+                                Visibility="{Binding CanWait, Converter={StaticResource BoolVis}}" />
+                        <!-- Held between weeks, so the build-up can be read rather than watched going
+                             past. "Run the rest" hands the pacing back to the clock for this one run. -->
+                        <Grid Margin="24,0,24,10"
+                              Visibility="{Binding IsWaiting, Converter={StaticResource BoolVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="9" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="9" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button Content="Continue" Command="{Binding StepForward}"
+                                    Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
+                                    ToolTip="One more week"
+                                    IsEnabled="{Binding AwaitingStep}" />
+                            <Button Grid.Column="2" Content="Run the rest" Command="{Binding RunTheRest}"
+                                    Padding="14,10" FontSize="12.5"
+                                    ToolTip="Let the remaining weeks run on their own" />
+                            <Button Grid.Column="4" Content="Stop here" Command="{Binding StopWaiting}"
+                                    Padding="14,10" FontSize="12.5"
+                                    ToolTip="Leave the rest of the wait for later" />
+                        </Grid>
+
+                        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                                BorderThickness="1" CornerRadius="10" Margin="24,0,24,12" Padding="16,12"
+                                Visibility="{Binding ShowCamp, Converter={StaticResource BoolVis}}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding CampCountdown}" Style="{StaticResource Label}"
+                                               Foreground="{StaticResource Gold}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding CampDate}" FontSize="11.5"
+                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- A fight in his own division worth stopping for. The round-by-round is
+                                     already stored for these, so it can actually be watched. -->
+                                <Border Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
+                                        BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,10,0,0"
+                                        Visibility="{Binding HasTheOne, Converter={StaticResource BoolVis}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="IN YOUR DIVISION, TONIGHT" FontSize="10.5"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource Accent}" />
+                                            <TextBlock Text="{Binding TheOne}" FontSize="14"
+                                                       Foreground="{StaticResource Text}" Margin="0,3,0,0"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Button Content="Watch it" Command="{Binding WatchTheOne}"
+                                                    Style="{StaticResource PrimaryButton}" Padding="14,7" />
+                                            <!-- Without this, being stopped by a fight in your own
+                                                 division meant pressing "take the fight" a second
+                                                 time, which reads as the first press having failed. -->
+                                            <Button Content="On to fight night" Margin="9,0,0,0" Padding="12,7"
+                                                    FontSize="12" Command="{Binding CarryOnToFightNight}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Taller than it was. This is the main thing on the page while the
+                                     weeks run — the sport happening on the way to your fight — not a
+                                     footnote under the poster. -->
+                                <ItemsControl ItemsSource="{Binding Camp}" Margin="0,10,0,0" MaxHeight="420">
+                                    <ItemsControl.Template>
+                                        <ControlTemplate TargetType="ItemsControl">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsPresenter />
+                                            </ScrollViewer>
+                                        </ControlTemplate>
+                                    </ItemsControl.Template>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="86" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding On, StringFormat=d MMM yyyy}" FontSize="11"
+                                                           Foreground="{StaticResource Faint}" VerticalAlignment="Top" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12"
+                                                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Hidden while the playback overlay is up: showing the verdict behind it gives the
                              result away before the rounds have been watched. -->
                         <Border Style="{StaticResource Card}" Padding="20,15" Margin="0,0,0,16"
@@ -711,56 +861,46 @@
                                            Foreground="{StaticResource Muted}" TextWrapping="Wrap"
                                            TextAlignment="Center" HorizontalAlignment="Center" MaxWidth="460" />
 
-                                <!-- Tale of the tape -->
-                                <TextBlock Text="TALE OF THE TAPE · 1–15" Style="{StaticResource Label}"
-                                           Margin="24,18,24,10" HorizontalAlignment="Center" />
-                                <ItemsControl ItemsSource="{Binding Tape}" Margin="24,0,24,4">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Margin="0,3">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="128" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <!-- mine, growing right-to-left -->
-                                                <Grid x:Name="MineTrack" Grid.Column="0" Height="16">
-                                                    <Border HorizontalAlignment="Right" CornerRadius="3"
-                                                            Background="{StaticResource Accent}">
-                                                        <Border.Width>
-                                                            <MultiBinding Converter="{StaticResource BarWidth}">
-                                                                <Binding Path="MineWidth" />
-                                                                <Binding Path="ActualWidth" ElementName="MineTrack" />
-                                                            </MultiBinding>
-                                                        </Border.Width>
-                                                    </Border>
-                                                    <TextBlock Text="{Binding Mine}" FontSize="11" Margin="0,0,7,0"
-                                                               HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                               Foreground="#06121C" FontWeight="Bold" />
-                                                </Grid>
-                                                <TextBlock Grid.Column="1" Text="{Binding Attribute}" FontSize="11"
-                                                           FontWeight="SemiBold" Foreground="{StaticResource Muted}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                <Grid x:Name="TheirsTrack" Grid.Column="2" Height="16">
-                                                    <Border HorizontalAlignment="Left" CornerRadius="3"
-                                                            Background="{StaticResource Foe}">
-                                                        <Border.Width>
-                                                            <MultiBinding Converter="{StaticResource BarWidth}">
-                                                                <Binding Path="TheirsWidth" />
-                                                                <Binding Path="ActualWidth" ElementName="TheirsTrack" />
-                                                            </MultiBinding>
-                                                        </Border.Width>
-                                                    </Border>
-                                                    <!-- Dark on the bar, matching the player's side: the number sits ON the
-                                                         colour now rather than on an empty track behind it. -->
-                                                    <TextBlock Text="{Binding Theirs}" FontSize="11" Margin="7,0,0,0"
-                                                               HorizontalAlignment="Left" VerticalAlignment="Center"
-                                                               Foreground="#1F0A04" FontWeight="Bold" />
-                                                </Grid>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <!-- The tape, in three groups inside a section that folds away.
+
+                                     Seven bars in a row with the name down the middle gave the eye
+                                     nowhere to rest and no reason for the order. Each group now
+                                     answers one question, and the whole thing collapses — its header
+                                     says who the numbers favour, so folding it loses nothing. -->
+                                <Expander Style="{StaticResource Section}" Margin="24,14,24,0"
+                                          IsExpanded="True" Header="TALE OF THE TAPE · 1–15"
+                                          Tag="{Binding TapeEdge}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="128" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Whose column is whose, said rather than inferred from the colours. -->
+                                            <TextBlock Text="YOU" FontSize="10" FontWeight="SemiBold" TextAlignment="Right"
+                                                       Foreground="{StaticResource Accent}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding OfferOpponent}" FontSize="10"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource Foe}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </Grid>
+                                        <TextBlock Text="WHAT HE HITS WITH" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Quiet}" Margin="0,10,0,4"
+                                                   HorizontalAlignment="Center" />
+                                        <ItemsControl ItemsSource="{Binding TapeAttack}"
+                                                      ItemTemplate="{StaticResource TapeRowTemplate}" />
+                                        <TextBlock Text="WHAT HE CAN TAKE" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Quiet}" Margin="0,10,0,4"
+                                                   HorizontalAlignment="Center" />
+                                        <ItemsControl ItemsSource="{Binding TapeDefence}"
+                                                      ItemTemplate="{StaticResource TapeRowTemplate}" />
+                                        <TextBlock Text="THE ENGINE" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Quiet}" Margin="0,10,0,4"
+                                                   HorizontalAlignment="Center" />
+                                        <ItemsControl ItemsSource="{Binding TapeEngine}"
+                                                      ItemTemplate="{StaticResource TapeRowTemplate}" />
+                                    </StackPanel>
+                                </Expander>
 
                                 <!-- The bill, as a poster. A card is a thing you read BEFORE the night: what
                                      kind of show it is, which hall, who else is on, and where you come on it. -->
@@ -888,87 +1028,6 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Time passes. Everything the sport did between his fights used to happen in
-                                     the single frame between clicking "take the fight" and the opening bell. -->
-                                <Button Content="Wait for fight night" Command="{Binding WaitForFight}"
-                                        Margin="24,0,24,10" Padding="14,10" FontSize="13"
-                                        Visibility="{Binding CanWait, Converter={StaticResource BoolVis}}" />
-                                <Button Content="Stop waiting" Command="{Binding StopWaiting}"
-                                        Margin="24,0,24,10" Padding="14,10" FontSize="13"
-                                        Visibility="{Binding IsWaiting, Converter={StaticResource BoolVis}}" />
-
-                                <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
-                                        BorderThickness="1" CornerRadius="10" Margin="24,0,24,12" Padding="16,12"
-                                        Visibility="{Binding Camp.Count, Converter={StaticResource CountVis}}">
-                                    <StackPanel>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding CampCountdown}" Style="{StaticResource Label}"
-                                                       Foreground="{StaticResource Gold}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding CampDate}" FontSize="11.5"
-                                                       Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
-                                        </Grid>
-
-                                        <!-- A fight in his own division worth stopping for. The round-by-round is
-                                             already stored for these, so it can actually be watched. -->
-                                        <Border Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
-                                                BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,10,0,0"
-                                                Visibility="{Binding HasTheOne, Converter={StaticResource BoolVis}}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="IN YOUR DIVISION, TONIGHT" FontSize="10.5"
-                                                               FontWeight="SemiBold" Foreground="{StaticResource Accent}" />
-                                                    <TextBlock Text="{Binding TheOne}" FontSize="14"
-                                                               Foreground="{StaticResource Text}" Margin="0,3,0,0"
-                                                               TextWrapping="Wrap" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                    <Button Content="Watch it" Command="{Binding WatchTheOne}"
-                                                            Style="{StaticResource PrimaryButton}" Padding="14,7" />
-                                                    <!-- Without this, being stopped by a fight in your own
-                                                         division meant pressing "take the fight" a second
-                                                         time, which reads as the first press having failed. -->
-                                                    <Button Content="On to fight night" Margin="9,0,0,0" Padding="12,7"
-                                                            FontSize="12" Command="{Binding CarryOnToFightNight}" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-
-                                        <!-- Taller than it was. This is the main thing on the page while the
-                                             weeks run — the sport happening on the way to your fight — not a
-                                             footnote under the poster. -->
-                                        <ItemsControl ItemsSource="{Binding Camp}" Margin="0,10,0,0" MaxHeight="420">
-                                            <ItemsControl.Template>
-                                                <ControlTemplate TargetType="ItemsControl">
-                                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                                        <ItemsPresenter />
-                                                    </ScrollViewer>
-                                                </ControlTemplate>
-                                            </ItemsControl.Template>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid Margin="0,3">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="86" />
-                                                            <ColumnDefinition Width="*" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="{Binding On, StringFormat=d MMM yyyy}" FontSize="11"
-                                                                   Foreground="{StaticResource Faint}" VerticalAlignment="Top" />
-                                                        <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12"
-                                                                   Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </Border>
 
                                 <Grid Margin="24,20,24,22">
                                     <Grid.ColumnDefinitions>
@@ -1517,6 +1576,16 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,10,0,0">
+                            <StackPanel>
+                                <CheckBox Content="Wait for me between weeks and bouts" IsChecked="{Binding StepByStep}" />
+                                <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"
+                                           Margin="0,7,0,0"
+                                           Text="The build-up holds until you press Continue, rather than advancing on a timer. Turn this off and it runs itself — a week roughly every half second, a bout on the card every second or so. Either way you can hand the pacing back to the clock for a single night with &quot;Run the rest&quot;." />
+                            </StackPanel>
+                        </Border>
+
                         <TextBlock Text="SOUND" Style="{StaticResource Label}" Margin="0,26,0,0" />
 
                         <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
@@ -2030,9 +2099,19 @@
                     <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,18,0,0">
                         <TextBlock Text="— and now, the main event —" FontSize="12.5" FontStyle="Italic"
                                    Foreground="{StaticResource Quiet}" HorizontalAlignment="Center" />
-                        <Button Content="Straight to the main event" Command="{Binding SkipUndercard}"
-                                Margin="0,14,0,0" Padding="18,9" FontSize="12.5"
-                                HorizontalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
+                            <!-- One bout a press. Disabled between presses so it never looks clickable while
+                                 the next result is already on its way. -->
+                            <Button Content="Continue" Command="{Binding StepForward}"
+                                    Style="{StaticResource PrimaryButton}" Padding="20,9" FontSize="12.5"
+                                    ToolTip="The next bout on the card"
+                                    IsEnabled="{Binding AwaitingStep}" />
+                            <Button Content="Run the rest" Command="{Binding RunTheRest}"
+                                    Margin="9,0,0,0" Padding="16,9" FontSize="12.5"
+                                    ToolTip="Let the remaining bouts come in on their own" />
+                            <Button Content="Straight to the main event" Command="{Binding SkipUndercard}"
+                                    Margin="9,0,0,0" Padding="16,9" FontSize="12.5" />
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </Grid>

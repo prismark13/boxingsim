@@ -23,6 +23,11 @@ public sealed class Prefs
     /// walk-out. Off means the card is a list he reads and the main event starts immediately.</summary>
     public bool LiveUndercard { get; set; } = true;
 
+    /// <summary>Wait for a press between each week of the build-up and each bout on the undercard, instead of
+    /// running on a timer. On by default: a build-up that advances itself is something you watch, and the point
+    /// of putting the weeks on screen was to let them be read.</summary>
+    public bool StepByStep { get; set; } = true;
+
     public bool SoundOn { get; set; } = true;
 
     /// <summary>Playback speed multiplier. Only the three the UI offers are meaningful, but it is stored as

@@ -214,6 +214,74 @@
 
     <!-- A name inside a line of text that opens his card. Not a button that looks like a button — the row is
          prose, and a chrome-heavy control in the middle of it would read as a form field. -->
+    <!-- A collapsible section.
+         The stock Expander arrives with its own pale chrome and a little triangle that matches nothing else
+         here, so the whole control is templated: a header that reads like the panel headers elsewhere, a
+         chevron that turns, a summary line that earns its keep when the section is folded away, and the
+         content underneath. Set Tag to the summary. -->
+    <Style x:Key="Section" TargetType="Expander">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Expander">
+                    <StackPanel>
+                        <!-- Header and summary are handed to the ToggleButton as its Content and Tag. Reading
+                             them off the ToggleButton's own template is the only way its inner TemplateBindings
+                             resolve to them; binding Content inside that inner template without setting it here
+                             first gave a ContentPresenter where a string was wanted, and the header came out
+                             blank. -->
+                        <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                      Cursor="Hand" Focusable="True"
+                                      Content="{TemplateBinding Header}"
+                                      Tag="{TemplateBinding Tag}"
+                                      AutomationProperties.Name="{TemplateBinding Header}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="hb" Background="Transparent" Padding="0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Fixed width and centred: the two glyphs are different widths, so
+                                                 without it the header shifted sideways on every open and close. -->
+                                            <TextBlock x:Name="chev" Text="⌄" FontSize="13" Width="16"
+                                                       TextAlignment="Center" Margin="0,0,6,0"
+                                                       VerticalAlignment="Center" Foreground="{StaticResource Quiet}" />
+                                            <TextBlock x:Name="hd" Text="{TemplateBinding Content}" FontSize="11"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource Muted}" />
+                                            <TextBlock Grid.Column="2" Text="{TemplateBinding Tag}" FontSize="11.5"
+                                                       Margin="14,0,0,0" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{StaticResource Faint}" />
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <!-- Pointing down when open, right when shut. -->
+                                        <Trigger Property="IsChecked" Value="False">
+                                            <Setter TargetName="chev" Property="Text" Value="›" />
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="hd" Property="Foreground" Value="{StaticResource Text}" />
+                                            <Setter TargetName="chev" Property="Foreground" Value="{StaticResource Gold}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter x:Name="body" Visibility="Collapsed" Margin="0,4,0,0" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsExpanded" Value="True">
+                            <Setter TargetName="body" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="LinkName" TargetType="Button">
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Padding" Value="0" />
