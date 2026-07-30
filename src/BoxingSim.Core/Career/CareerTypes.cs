@@ -164,7 +164,13 @@ public sealed record UndercardBout(string A, string B, string? Winner, string Me
 /// <summary>One line of a bill: the fight, the distance, and — once the night has happened — what became
 /// of it. The player's own bout is marked so the card can show it as his.</summary>
 public sealed record BillLine(string Fight, int Rounds, bool IsPlayer, string What,
-                              string Verdict, string Result, string Note)
+                              string Verdict, string Result, string Note,
+                              // Each corner separately, so a bill can read like a bill: who, from where, and
+                              // what he has done. "A vs B" alone told you nothing about either man, which on
+                              // an undercard of seven names you have never heard of is no information at all.
+                              string AName = "", string ACountry = "", string ARecord = "",
+                              string BName = "", string BCountry = "", string BRecord = "",
+                              bool IsTitle = false)
 {
     public bool Fought => Verdict.Length > 0;
     public string Distance => $"{Rounds} rds";

@@ -20,9 +20,16 @@
     <SolidColorBrush x:Key="Line" Color="{StaticResource LineColor}" />
     <SolidColorBrush x:Key="Line2" Color="{StaticResource Line2Color}" />
 
-    <SolidColorBrush x:Key="Text" Color="#F3EFE9" />
-    <SolidColorBrush x:Key="Muted" Color="#9C9285" />
-    <SolidColorBrush x:Key="Faint" Color="#6C6357" />
+    <!-- The four levels of text, re-spaced so every one of them is legible.
+         Measured as WCAG contrast against each of the five surfaces they sit on (Bg, Panel, Panel2,
+         AccentSoft, GoldSoft). Faint was 2.60-3.37:1 — below the 3:1 that even large text needs, let alone
+         the 4.5:1 for body copy, and it was being used at 11px for dates and hints. The ramp was also
+         unevenly spaced (2.02x, 1.47x, 2.29x apart), so Muted and Quiet did nearly the same job while Faint
+         fell off a cliff. These four are ~1.5x apart each and all clear 4.5:1 on every surface except Faint
+         on GoldSoft, which is the award-winner tile and carries no Faint text. -->
+    <SolidColorBrush x:Key="Text" Color="#F5F1EB" />
+    <SolidColorBrush x:Key="Muted" Color="#B0A594" />
+    <SolidColorBrush x:Key="Faint" Color="#948877" />
 
     <!-- ROLES. One colour, one meaning. The blue used to do six different jobs — selected nav, headings,
          links, buttons, the player's bars, the shape-of-the-round lines — and a colour that means everything
@@ -74,11 +81,11 @@
 
     <!-- Neutral emphasis: what nav, links and headings use now that the blue is spoken for. Hierarchy comes
          from weight and brightness instead of from spending the one colour that means something. -->
-    <SolidColorBrush x:Key="Quiet" Color="#B8AE9F" />
+    <SolidColorBrush x:Key="Quiet" Color="#CFC5B4" />
 
     <!-- Type -->
     <Style x:Key="Label" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{StaticResource Muted}" />
 

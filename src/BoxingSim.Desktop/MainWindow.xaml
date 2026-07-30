@@ -50,6 +50,8 @@
         <local:OnOffConverter x:Key="OnOff" />
         <local:AllTrueConverter x:Key="AllTrue" />
         <local:CountToVisibilityConverter x:Key="CountVis" />
+        <local:CountryCodeConverter x:Key="Ctry" />
+        <local:UpperCaseConverter x:Key="Upper" />
 
         <!-- Weight classes read as "Light Heavyweight", never the raw enum name. -->
         <DataTemplate x:Key="DivisionItem">
@@ -129,7 +131,10 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <StackPanel Grid.Column="2">
-                        <StackPanel Orientation="Horizontal">
+                        <!-- WrapPanel, not a horizontal StackPanel: a StackPanel overflows its column rather
+                             than reflowing, so at the narrowest window the belt tag was cut off mid-word —
+                             "WBA Middleweight tit". The tag drops to its own line instead. -->
+                        <WrapPanel>
                             <!-- The row opens the fight; the NAME opens the man. Reading a record is half
                                  "what happened that night" and half "who was he?", and only the first of
                                  those had anywhere to click. A nested button wins the click, so the row
@@ -143,10 +148,10 @@
                                     BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="8,0,0,0"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding IsTitleFight, Converter={StaticResource BoolVis}}">
-                                <TextBlock Text="{Binding Title}" FontSize="8.5" FontWeight="Bold"
+                                <TextBlock Text="{Binding Title}" FontSize="10" FontWeight="Bold"
                                            Foreground="{StaticResource Gold}" />
                             </Border>
-                        </StackPanel>
+                        </WrapPanel>
                         <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource Muted}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -372,7 +377,7 @@
                             </Border>
                             <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding PlayerRecord}" FontSize="15" Foreground="{StaticResource Text}" />
-                                <TextBlock Text="{Binding PlayerStanding}" FontSize="10.5" FontWeight="SemiBold"
+                                <TextBlock Text="{Binding PlayerStanding}" FontSize="11" FontWeight="SemiBold"
                                            Margin="0,2,0,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -391,7 +396,7 @@
                                    Foreground="{StaticResource Text}" Margin="0,14,0,0" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding PlayerIdentity}" FontSize="11.5" Foreground="{StaticResource Faint}"
                                    Margin="0,3,0,0" TextWrapping="Wrap" />
-                        <TextBlock Text="see your attributes ›" FontSize="10.5" Margin="0,8,0,0"
+                        <TextBlock Text="see your attributes ›" FontSize="11" Margin="0,8,0,0"
                                    Foreground="{StaticResource Quiet}" />
                     </StackPanel>
                     </Button>
@@ -405,15 +410,27 @@
                                    Foreground="{StaticResource Faint}" Margin="0,3,0,0" />
                     </StackPanel>
 
-                    <!-- Where you're going -->
-                    <StackPanel Grid.Row="1">
+                    <!-- Where you're going.
+                         A Grid rather than a StackPanel, because a StackPanel hands its children unlimited
+                         height: at the smallest window the app allows (1120x660) the list simply ran off the
+                         bottom and Hall of Fame, Awards, Settings and About could not be reached at all — no
+                         scrollbar, no clipping indicator, the items were just gone. The row is starved to the
+                         space that is actually left and the list scrolls inside it. -->
+                    <Grid Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
                         <!-- The glyph is decoration; the accessible name is the plain word. -->
                         <Button Content="← Back" AutomationProperties.Name="Back" Command="{Binding GoBack}"
                                 Margin="24,0,24,10" Padding="10,6" FontSize="11.5" HorizontalAlignment="Left"
                                 ToolTip="Alt+Left" />
-                        <ListBox ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}"
-                                 ItemContainerStyle="{StaticResource NavItemStyle}" Margin="12,0" />
-                    </StackPanel>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ListBox ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}"
+                                     ItemContainerStyle="{StaticResource NavItemStyle}" Margin="12,0" />
+                        </ScrollViewer>
+                    </Grid>
 
                     <StackPanel Grid.Row="2" Margin="22,0,22,20">
                         <Border Height="1" Background="{StaticResource Line}" Margin="0,0,0,14" />
@@ -715,11 +732,11 @@
                                                             </MultiBinding>
                                                         </Border.Width>
                                                     </Border>
-                                                    <TextBlock Text="{Binding Mine}" FontSize="10.5" Margin="0,0,7,0"
+                                                    <TextBlock Text="{Binding Mine}" FontSize="11" Margin="0,0,7,0"
                                                                HorizontalAlignment="Right" VerticalAlignment="Center"
                                                                Foreground="#06121C" FontWeight="Bold" />
                                                 </Grid>
-                                                <TextBlock Grid.Column="1" Text="{Binding Attribute}" FontSize="10.5"
+                                                <TextBlock Grid.Column="1" Text="{Binding Attribute}" FontSize="11"
                                                            FontWeight="SemiBold" Foreground="{StaticResource Muted}"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 <Grid x:Name="TheirsTrack" Grid.Column="2" Height="16">
@@ -734,7 +751,7 @@
                                                     </Border>
                                                     <!-- Dark on the bar, matching the player's side: the number sits ON the
                                                          colour now rather than on an empty track behind it. -->
-                                                    <TextBlock Text="{Binding Theirs}" FontSize="10.5" Margin="7,0,0,0"
+                                                    <TextBlock Text="{Binding Theirs}" FontSize="11" Margin="7,0,0,0"
                                                                HorizontalAlignment="Left" VerticalAlignment="Center"
                                                                Foreground="#1F0A04" FontWeight="Bold" />
                                                 </Grid>
@@ -769,13 +786,26 @@
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </Border.Style>
+                                                        <!-- A bill line reads like a bill: each corner with his
+                                                             country and his record under his name, and a gold
+                                                             TITLE mark on the one with a belt on it. "A vs B"
+                                                             on its own told you nothing about either man,
+                                                             which across seven unfamiliar undercard names is
+                                                             no information at all. -->
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto" />
+                                                                <RowDefinition Height="Auto" />
+                                                            </Grid.RowDefinitions>
+
                                                             <StackPanel>
-                                                                <TextBlock Text="{Binding Fight}" FontSize="13"
+                                                                <TextBlock Text="{Binding AName}" FontSize="13"
                                                                            TextWrapping="Wrap">
                                                                     <TextBlock.Style>
                                                                         <Style TargetType="TextBlock">
@@ -789,13 +819,52 @@
                                                                         </Style>
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
-                                                                <TextBlock Text="{Binding Note}" FontSize="11.5"
-                                                                           Foreground="{StaticResource Faint}" Margin="0,3,0,0"
-                                                                           TextWrapping="Wrap"
-                                                                           Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                                                <TextBlock FontSize="11" Foreground="{StaticResource Faint}"
+                                                                           Margin="0,2,0,0" TextWrapping="Wrap">
+                                                                    <Run Text="{Binding ACountry, Mode=OneWay, Converter={StaticResource Ctry}}" /><Run Text="  ·  " /><Run Text="{Binding ARecord, Mode=OneWay}" />
+                                                                </TextBlock>
                                                             </StackPanel>
-                                                            <StackPanel Grid.Column="1" Margin="14,0,0,0"
-                                                                        VerticalAlignment="Center">
+
+                                                            <TextBlock Grid.Column="1" Text="vs" FontSize="11"
+                                                                       Margin="14,1,14,0" VerticalAlignment="Top"
+                                                                       Foreground="{StaticResource Faint}" />
+
+                                                            <StackPanel Grid.Column="2">
+                                                                <TextBlock Text="{Binding BName}" FontSize="13"
+                                                                           TextWrapping="Wrap">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsPlayer}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <TextBlock FontSize="11" Foreground="{StaticResource Faint}"
+                                                                           Margin="0,2,0,0" TextWrapping="Wrap">
+                                                                    <Run Text="{Binding BCountry, Mode=OneWay, Converter={StaticResource Ctry}}" /><Run Text="  ·  " /><Run Text="{Binding BRecord, Mode=OneWay}" />
+                                                                </TextBlock>
+                                                            </StackPanel>
+
+                                                            <StackPanel Grid.Column="3" Margin="14,0,0,0"
+                                                                        VerticalAlignment="Top">
+                                                                <!-- The belt on the line, said plainly. The
+                                                                     header above only says the night has a
+                                                                     title on it, never which bout carries it. -->
+                                                                <Border Background="{StaticResource GoldSoft}"
+                                                                        BorderBrush="{StaticResource GoldLine}"
+                                                                        BorderThickness="1" CornerRadius="4"
+                                                                        Padding="6,1" Margin="0,0,0,4"
+                                                                        HorizontalAlignment="Right"
+                                                                        Visibility="{Binding IsTitle, Converter={StaticResource BoolVis}}">
+                                                                    <TextBlock Text="{Binding What, Converter={StaticResource Upper}}"
+                                                                               FontSize="10" FontWeight="Bold"
+                                                                               Foreground="{StaticResource Gold}" />
+                                                                </Border>
                                                                 <TextBlock Text="{Binding Distance}" FontSize="11"
                                                                            Foreground="{StaticResource Faint}" TextAlignment="Right"
                                                                            Visibility="{Binding Fought, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
@@ -803,6 +872,12 @@
                                                                            Foreground="{StaticResource Muted}" TextAlignment="Right"
                                                                            Visibility="{Binding Fought, Converter={StaticResource BoolVis}}" />
                                                             </StackPanel>
+
+                                                            <TextBlock Grid.Row="1" Grid.ColumnSpan="4"
+                                                                       Text="{Binding Note}" FontSize="11.5"
+                                                                       Foreground="{StaticResource Faint}" Margin="0,5,0,0"
+                                                                       TextWrapping="Wrap" FontStyle="Italic"
+                                                                       Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
@@ -846,18 +921,28 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="IN YOUR DIVISION, TONIGHT" FontSize="9.5"
+                                                    <TextBlock Text="IN YOUR DIVISION, TONIGHT" FontSize="10.5"
                                                                FontWeight="SemiBold" Foreground="{StaticResource Accent}" />
                                                     <TextBlock Text="{Binding TheOne}" FontSize="14"
                                                                Foreground="{StaticResource Text}" Margin="0,3,0,0"
                                                                TextWrapping="Wrap" />
                                                 </StackPanel>
-                                                <Button Grid.Column="1" Content="Watch it" Command="{Binding WatchTheOne}"
-                                                        Style="{StaticResource PrimaryButton}" Padding="14,7" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                    <Button Content="Watch it" Command="{Binding WatchTheOne}"
+                                                            Style="{StaticResource PrimaryButton}" Padding="14,7" />
+                                                    <!-- Without this, being stopped by a fight in your own
+                                                         division meant pressing "take the fight" a second
+                                                         time, which reads as the first press having failed. -->
+                                                    <Button Content="On to fight night" Margin="9,0,0,0" Padding="12,7"
+                                                            FontSize="12" Command="{Binding CarryOnToFightNight}" />
+                                                </StackPanel>
                                             </Grid>
                                         </Border>
 
-                                        <ItemsControl ItemsSource="{Binding Camp}" Margin="0,10,0,0" MaxHeight="230">
+                                        <!-- Taller than it was. This is the main thing on the page while the
+                                             weeks run — the sport happening on the way to your fight — not a
+                                             footnote under the poster. -->
+                                        <ItemsControl ItemsSource="{Binding Camp}" Margin="0,10,0,0" MaxHeight="420">
                                             <ItemsControl.Template>
                                                 <ControlTemplate TargetType="ItemsControl">
                                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -872,7 +957,7 @@
                                                             <ColumnDefinition Width="86" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Text="{Binding On, StringFormat=d MMM yyyy}" FontSize="10.5"
+                                                        <TextBlock Text="{Binding On, StringFormat=d MMM yyyy}" FontSize="11"
                                                                    Foreground="{StaticResource Faint}" VerticalAlignment="Top" />
                                                         <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12"
                                                                    Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
@@ -1020,7 +1105,7 @@
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBlock Text="{Binding Belt}" FontSize="9"
+                                                            <TextBlock Text="{Binding Belt}" FontSize="10.5"
                                                                        FontWeight="Bold" VerticalAlignment="Center">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="TextBlock">
@@ -1123,7 +1208,7 @@
                                                         </Style>
                                                     </Border.Style>
                                                     <StackPanel>
-                                                        <TextBlock Text="{Binding Position}" FontSize="9" FontWeight="Bold">
+                                                        <TextBlock Text="{Binding Position}" FontSize="10.5" FontWeight="Bold">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
                                                                     <Setter Property="Foreground" Value="{StaticResource Faint}" />
@@ -1138,12 +1223,12 @@
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5"
                                                                    Foreground="{StaticResource Text}" TextWrapping="Wrap"
                                                                    Margin="0,5,0,0" />
-                                                        <TextBlock Text="{Binding Division}" FontSize="9" FontWeight="Bold"
+                                                        <TextBlock Text="{Binding Division}" FontSize="10.5" FontWeight="Bold"
                                                                    Foreground="{StaticResource Faint}" Margin="0,4,0,0" />
                                                         <TextBlock Text="{Binding Detail}" FontSize="11.5"
                                                                    Foreground="{StaticResource Muted}" TextWrapping="Wrap"
                                                                    Margin="0,5,0,0" />
-                                                        <TextBlock Text="read the citation ›" FontSize="10.5"
+                                                        <TextBlock Text="read the citation ›" FontSize="11"
                                                                    Foreground="{StaticResource Quiet}" Margin="0,7,0,0" />
                                                     </StackPanel>
                                                 </Border>
@@ -1192,7 +1277,7 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                        <TextBlock Grid.Column="2" Text="watch ›" FontSize="10.5" Margin="12,0,0,0"
+                                        <TextBlock Grid.Column="2" Text="watch ›" FontSize="11" Margin="12,0,0,0"
                                                    VerticalAlignment="Center" Foreground="{StaticResource Gold}"
                                                    Visibility="{Binding CanWatch, Converter={StaticResource BoolVis}}" />
                                     </Grid>
@@ -1320,7 +1405,7 @@
                                                                                                 </Style.Triggers>
                                                                                             </Style>
                                                                                         </Border.Style>
-                                                                                        <TextBlock Text="{Binding Tag}" FontSize="10" FontWeight="SemiBold">
+                                                                                        <TextBlock Text="{Binding Tag}" FontSize="11" FontWeight="SemiBold">
                                                                                             <TextBlock.Style>
                                                                                                 <Style TargetType="TextBlock">
                                                                                                     <Setter Property="Foreground" Value="{StaticResource Muted}" />
@@ -1361,6 +1446,54 @@
                             </ItemsControl>
                         </ScrollViewer>
                     </DockPanel>
+                </local:PageHost>
+
+                <!-- ============ SETTINGS ============ -->
+                <!-- Only presentation lives here. Nothing on this page changes how a fight is scored or how the
+                     world behaves — these decide how much of it you are made to sit through, which is a matter
+                     of taste and not of difficulty. Each is written to disk the moment it is toggled. -->
+                <local:PageHost Title="SETTINGS" Subtitle="How much of the night you want to watch"
+                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Settings}">
+                    <StackPanel Margin="18,4,18,18" MaxWidth="720" HorizontalAlignment="Left">
+
+                        <TextBlock Text="THE BUILD-UP" Style="{StaticResource Label}" />
+
+                        <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,10,0,0">
+                            <StackPanel>
+                                <CheckBox Content="Run the weeks to fight night" IsChecked="{Binding FightWeek}" />
+                                <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"
+                                           Margin="0,7,0,0"
+                                           Text="Taking a fight runs the months between signing and the opening bell in front of you, with the sport carrying on as they pass — and it stops if something in your own division is worth watching. Turn this off and a fight begins the moment you accept it." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,10,0,0">
+                            <StackPanel>
+                                <CheckBox Content="Fight the undercard before your bout" IsChecked="{Binding LiveUndercard}" />
+                                <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"
+                                           Margin="0,7,0,0"
+                                           Text="The supporting bouts land one at a time on the night, with a line on each, before you walk out. They are fought either way — this only decides whether you see them happen or read them afterwards. You can skip ahead at any point." />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="SOUND" Style="{StaticResource Label}" Margin="0,26,0,0" />
+
+                        <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,10,0,0">
+                            <StackPanel>
+                                <CheckBox Content="Crowd, bell and punches" IsChecked="{Binding SoundEnabled}" />
+                                <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"
+                                           Margin="0,7,0,0"
+                                           Text="The same switch as the one on the playback bar. It is remembered between sessions now, along with the speed you last watched a fight at." />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock FontSize="11.5" Foreground="{StaticResource Faint}" TextWrapping="Wrap"
+                                   Margin="0,22,0,0"
+                                   Text="Kept in settings.json beside your save, not in the save itself — so they are yours rather than a given fighter's, and they survive abandoning a career." />
+                    </StackPanel>
                 </local:PageHost>
 
                 <!-- ============ ABOUT ============ -->
@@ -1468,7 +1601,7 @@
                                 <TextBlock Text="{Binding LiveClock}" FontSize="20" FontFamily="Consolas"
                                            Foreground="{StaticResource Gold}" HorizontalAlignment="Center"
                                            Margin="0,2,0,0" />
-                                <TextBlock Text="PUNCHES LANDED" FontSize="8.5" FontWeight="Bold"
+                                <TextBlock Text="PUNCHES LANDED" FontSize="10" FontWeight="Bold"
                                            Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
                                            Margin="0,3,0,0" />
                             </StackPanel>
@@ -1514,7 +1647,7 @@
                                 </Border>
                             </Grid>
                         </Grid>
-                        <TextBlock Text="STAMINA" FontSize="8.5" FontWeight="Bold" Margin="0,3,0,0"
+                        <TextBlock Text="STAMINA" FontSize="10" FontWeight="Bold" Margin="0,3,0,0"
                                    HorizontalAlignment="Center" Foreground="{StaticResource Faint}" />
 
                         <!-- A man in trouble is stated plainly, and stays stated while he is. -->
@@ -1523,10 +1656,10 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="HURT" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Loss}"
+                            <TextBlock Text="HURT" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Loss}"
                                        HorizontalAlignment="Right" Margin="0,0,18,0"
                                        Visibility="{Binding MyManHurt, Converter={StaticResource BoolVis}}" />
-                            <TextBlock Grid.Column="1" Text="HURT" FontSize="10" FontWeight="Bold"
+                            <TextBlock Grid.Column="1" Text="HURT" FontSize="11" FontWeight="Bold"
                                        Foreground="{StaticResource Loss}" HorizontalAlignment="Left" Margin="18,0,0,0"
                                        Visibility="{Binding HisManHurt, Converter={StaticResource BoolVis}}" />
                         </Grid>
@@ -1802,6 +1935,69 @@
                 <TextBlock Text="{Binding BusyMessage}" FontSize="12.5" Foreground="#CFE4FF" />
             </Border>
 
+            <!-- ============ THE UNDERCARD, ON THE NIGHT ============ -->
+            <!-- The supporting bouts land one at a time before he walks out. The sim already fought them
+                 before his own — this only stops them arriving as a finished list. Same ZIndex as the
+                 playback overlay it hands over to, because the two are never up at once. -->
+            <Grid Grid.ColumnSpan="2" Panel.ZIndex="10" Background="{StaticResource Bg}"
+                  Visibility="{Binding IsCardRunning, Converter={StaticResource BoolVis}}">
+                <Grid Margin="0,34,0,26" MaxWidth="780">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding BillHeader}" Style="{StaticResource Label}"
+                                   Foreground="{StaticResource Gold}" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding CardNote}" FontSize="12" Margin="0,7,0,0"
+                                   Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
+                                   TextWrapping="Wrap" TextAlignment="Center"
+                                   Visibility="{Binding CardNote, Converter={StaticResource EmptyVis}}" />
+                        <TextBlock Text="THE UNDERCARD" FontSize="11" FontWeight="SemiBold" Margin="0,20,0,0"
+                                   Foreground="{StaticResource Quiet}" HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
+                        <ItemsControl ItemsSource="{Binding CardTonight}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                            BorderThickness="1" CornerRadius="9" Padding="16,12" Margin="0,0,0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Fight}" FontSize="13.5"
+                                                           Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Note}" FontSize="11.5" Margin="0,4,0,0"
+                                                           Foreground="{StaticResource Faint}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"
+                                                           Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding Verdict}" FontSize="12"
+                                                       Margin="14,0,0,0" VerticalAlignment="Center"
+                                                       TextAlignment="Right" Foreground="{StaticResource Gold}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,18,0,0">
+                        <TextBlock Text="— and now, the main event —" FontSize="12.5" FontStyle="Italic"
+                                   Foreground="{StaticResource Quiet}" HorizontalAlignment="Center" />
+                        <Button Content="Straight to the main event" Command="{Binding SkipUndercard}"
+                                Margin="0,14,0,0" Padding="18,9" FontSize="12.5"
+                                HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
             <!-- ============ NEWS DRAWER ============ -->
             <!-- The sport's news used to be a card at the foot of the dashboard, below the fold on a 1366-wide
                  screen and reachable from nowhere else without leaving the page you were on. It slides in from
@@ -1829,7 +2025,7 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock x:Name="c" Text="‹" FontSize="13" Foreground="{StaticResource Quiet}"
                                                VerticalAlignment="Center" Margin="0,0,7,0" />
-                                    <TextBlock x:Name="t" Text="NEWS" FontSize="9.5" FontWeight="SemiBold"
+                                    <TextBlock x:Name="t" Text="NEWS" FontSize="10.5" FontWeight="SemiBold"
                                                Foreground="{StaticResource Quiet}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
@@ -1914,9 +2110,9 @@
                                                 IsHitTestVisible="{Binding CanWatch}">
                                             <StackPanel Margin="20,7,16,7">
                                                 <Grid>
-                                                    <TextBlock Text="{Binding Date}" FontSize="10.5"
+                                                    <TextBlock Text="{Binding Date}" FontSize="11"
                                                                Foreground="{StaticResource Faint}" />
-                                                    <TextBlock Text="watch ›" FontSize="10.5" HorizontalAlignment="Right"
+                                                    <TextBlock Text="watch ›" FontSize="11" HorizontalAlignment="Right"
                                                                Foreground="{StaticResource Gold}"
                                                                Visibility="{Binding CanWatch, Converter={StaticResource BoolVis}}" />
                                                 </Grid>
@@ -2078,11 +2274,11 @@
                                             <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
                                                     BorderThickness="1" CornerRadius="9" Padding="12,10" Margin="4">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding Label}" FontSize="9" FontWeight="Bold"
+                                                    <TextBlock Text="{Binding Label}" FontSize="10.5" FontWeight="Bold"
                                                                Foreground="{StaticResource Faint}" TextWrapping="Wrap" />
                                                     <TextBlock Text="{Binding Value}" FontSize="19" FontWeight="Light"
                                                                Foreground="{StaticResource Text}" Margin="0,5,0,0" />
-                                                    <TextBlock Text="{Binding Note}" FontSize="10.5"
+                                                    <TextBlock Text="{Binding Note}" FontSize="11"
                                                                Foreground="{StaticResource Muted}" TextWrapping="Wrap"
                                                                Margin="0,2,0,0"
                                                                Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
@@ -2293,7 +2489,7 @@
                                             </Style>
                                         </Border.Style>
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Position}" FontSize="10"
+                                            <TextBlock Text="{Binding Position}" FontSize="11"
                                                        FontWeight="SemiBold" Foreground="{StaticResource Gold}" />
                                             <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="Light"
                                                        Foreground="{StaticResource Text}" Margin="0,5,0,0"
@@ -2365,7 +2561,7 @@
                                             Visibility="{Binding Style, Converter={StaticResource EmptyVis}}">
                                     <Border Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
                                             BorderThickness="1" CornerRadius="4" Padding="7,2" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Style}" FontSize="10.5" FontWeight="SemiBold"
+                                        <TextBlock Text="{Binding Style}" FontSize="11" FontWeight="SemiBold"
                                                    Foreground="#CFE4FF" />
                                     </Border>
                                     <TextBlock Text="{Binding StyleNote}" FontSize="11" Margin="9,0,0,0"
@@ -2393,7 +2589,7 @@
                                               DisplayMemberPath="Label"
                                               AutomationProperties.Name="Career stage" />
                                 </Grid>
-                                <TextBlock Text="{Binding StageNote}" FontSize="10.5" Margin="24,2,24,0"
+                                <TextBlock Text="{Binding StageNote}" FontSize="11" Margin="24,2,24,0"
                                            Foreground="{StaticResource Gold}" TextWrapping="Wrap"
                                            Visibility="{Binding IsHistoric, Converter={StaticResource BoolVis}}" />
 
@@ -2519,11 +2715,11 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="0,4,14,8">
-                                                <TextBlock Text="{Binding Label}" FontSize="10.5" FontWeight="SemiBold"
+                                                <TextBlock Text="{Binding Label}" FontSize="11" FontWeight="SemiBold"
                                                            Foreground="{StaticResource Faint}" />
                                                 <TextBlock Text="{Binding Value}" FontSize="17" FontWeight="Light"
                                                            Foreground="{StaticResource Text}" Margin="0,2,0,0" />
-                                                <TextBlock Text="{Binding Note}" FontSize="10.5" TextWrapping="Wrap"
+                                                <TextBlock Text="{Binding Note}" FontSize="11" TextWrapping="Wrap"
                                                            Foreground="{StaticResource Muted}" Margin="0,1,0,0" />
                                             </StackPanel>
                                         </DataTemplate>

@@ -191,13 +191,18 @@ public sealed partial class CareerGame
                 var (a, b, r) = _billed[i];
                 var done = _undercard.FirstOrDefault(u => u.A == a.Name && u.B == b.Name);
                 return new BillLine($"{a.Name} vs {b.Name}", r, false, "",
-                                    done?.Verdict ?? "", done?.Line ?? "", done?.Note ?? "");
+                                    done?.Verdict ?? "", done?.Line ?? "", done?.Note ?? "",
+                                    a.Name, a.Country, a.Record.ToString(),
+                                    b.Name, b.Country, b.Record.ToString());
             }
 
             var all = new List<BillLine>();
             for (int i = 0; i < over && i < _billed.Count; i++) all.Add(Support(i));
             all.Add(new BillLine($"{Player.Name} vs {o.Opponent.Name}", o.Rounds, true,
-                                 o.TitleFight ? $"{o.Belt} title" : o.Context, "", "", ""));
+                                 o.TitleFight ? $"{o.Belt} title" : o.Context, "", "", "",
+                                 Player.Name, Player.Country, Player.Record.ToString(),
+                                 o.Opponent.Name, o.Opponent.Country, o.Opponent.Record.ToString(),
+                                 o.TitleFight));
             for (int i = over; i < _billed.Count; i++) all.Add(Support(i));
             return all;
         }
@@ -372,6 +377,14 @@ public sealed partial class CareerGame
             if (inj.Retires) { Player.Retired = true; LogEvent($"{Player.Name} is forced to retire on medical advice.", playerBout: true); }
             else { PlayerInjury = inj; _layoffDays = inj.LayoffDays; }
         }
+
+        // The bill as it stood tonight, results and all, captured before the next offer replaces it.
+        //
+        // Bill is derived from the CURRENT offer and the undercard drawn alongside it, and the assignment
+        // below draws a fresh card for the next fight — so the moment that line runs, tonight's supporting
+        // bouts and what became of them are gone for good. Anything that wants to show the night after the
+        // event has to read it from here.
+        LastNightsCard = Bill.ToList();
 
         Offer = Player.Retired ? null : BuildOffer();
         return res;

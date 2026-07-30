@@ -48,6 +48,24 @@ public static class Ui
 }
 
 /// <summary>Colours a class number by its tier, so the rating pills read the same as the web build.</summary>
+/// <summary>Text in capitals, for the small badges. Not to be confused with <see cref="ShoutConverter"/>,
+/// which returns a BOOL for whether a line of commentary is dramatic — binding a badge through that one
+/// printed the word "False" where a belt should have been.</summary>
+public sealed class UpperCaseConverter : IValueConverter
+{
+    public object Convert(object? v, Type t, object? p, CultureInfo c) => (v as string ?? "").ToUpperInvariant();
+    public object ConvertBack(object? v, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
+/// <summary>A country as the three letters shown everywhere else. Exists so a bill line can render a
+/// fighter's nationality straight from the model without the view model having to pre-format every corner
+/// of every supporting bout.</summary>
+public sealed class CountryCodeConverter : IValueConverter
+{
+    public object Convert(object? v, Type t, object? p, CultureInfo c) => Ui.Code(v as string);
+    public object ConvertBack(object? v, Type t, object? p, CultureInfo c) => throw new NotSupportedException();
+}
+
 public sealed class ClassColourConverter : IValueConverter
 {
     public object Convert(object? value, Type t, object? p, CultureInfo c) => Ui.Ovr(value is int i ? i : 0);

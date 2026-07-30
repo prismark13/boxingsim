@@ -50,7 +50,7 @@ public sealed class Cmd : ICommand
 
 public enum SetupMode { Career, Universe }
 
-public enum Page { Dashboard, Career, Rankings, P4P, Champions, Hall, Awards, News, Stats, About, Universe }
+public enum Page { Dashboard, Career, Rankings, P4P, Champions, Hall, Awards, News, Stats, About, Universe, Settings }
 
 /// <summary>One division the universe may or may not run. It reports back when toggled so the summary line
 /// above the list stays honest.</summary>
@@ -260,10 +260,19 @@ public sealed class CareerViewModel : Observable
     private readonly DesktopCareerService _svc = new();
     private readonly Random _rng = new();
     private readonly DispatcherTimer _playbackTimer;
+    private readonly Prefs _prefs = Prefs.Load();
 
     public CareerViewModel()
     {
-        TakeFight = new Cmd(Take, () => Game?.Offer is not null && Game?.Player.Retired == false);
+        // Read before anything binds, so the first frame already shows what the player chose last time.
+        _soundOn = _prefs.SoundOn;
+        _speed = _prefs.Speed;
+        Sfx.Enabled = _soundOn;
+
+        TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
+        // Pressing "take the fight" and then being stopped by a fight in your own division left you having to
+        // press it again, which read as the button not having worked. This is the same journey, continued.
+        CarryOnToFightNight = new Cmd(() => Take(resuming: true));
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
         MoveUp = new Cmd(DoMoveUp, () => Game?.CanMoveUp == true);
         StartCareer = new Cmd(Start, () => !Busy && Ready);
@@ -284,6 +293,7 @@ public sealed class CareerViewModel : Observable
         });
         CloseYearAwards = new Cmd(() => { ShowYearAwards = false; Raise(nameof(ShowYearAwards)); });
         ToggleNews = new Cmd(() => NewsOpen = !NewsOpen);
+        SkipUndercard = new Cmd(() => _skipCard = true);
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; Raise(nameof(IsWaiting)); Raise(nameof(CanWait)); });
@@ -445,6 +455,7 @@ public sealed class CareerViewModel : Observable
         new NavItem(Page.Awards, "Awards", Shortcut: "Ctrl+9"),
         // Not a feature — the crowd recordings are CC-BY, and that licence obliges the app itself to carry the
         // credit, not just the repository.
+        new NavItem(Page.Settings, "Settings"),
         new NavItem(Page.About, "About", Shortcut: "Ctrl+0"),
     };
 
@@ -461,6 +472,7 @@ public sealed class CareerViewModel : Observable
         new NavItem(Page.Dashboard, "THE RECORD BOOKS", IsHeader: true),
         new NavItem(Page.Hall, "Hall of Fame", Shortcut: "Ctrl+6"),
         new NavItem(Page.Awards, "Awards", Shortcut: "Ctrl+7"),
+        new NavItem(Page.Settings, "Settings"),
         new NavItem(Page.About, "About", Shortcut: "Ctrl+0"),
     };
 
@@ -627,6 +639,7 @@ public sealed class CareerViewModel : Observable
 
     /// <summary>Let the weeks run to fight night, one at a time, with the sport happening in front of you.</summary>
     public Cmd WaitForFight { get; }
+    public Cmd CarryOnToFightNight { get; }
     public Cmd StopWaiting { get; }
     /// <summary>Watch the fight that came up while you were waiting.</summary>
     public Cmd WatchTheOne { get; }
@@ -762,15 +775,112 @@ public sealed class CareerViewModel : Observable
     /// moment it mattered. The awards can wait; the fight cannot be interrupted.</summary>
     private bool _awardsWait;
 
-    private async void Take()
+    /// <summary>Take the fight — which is a night, not a button.
+    ///
+    /// Taking a fight used to jump from the dashboard to the opening bell in one frame, silently running
+    /// however many months of the sport lay in between. Now the weeks run in front of you on the poster page,
+    /// stopping if something in your own division is worth watching; then the undercard is fought; then you
+    /// walk out. Both stages are preferences, and with both off this is exactly the old single frame.</summary>
+    private async void Take(bool resuming = false)
     {
+        if (Game is null || Game.Player.Retired || Game.Offer is null) return;
+
+        if (_prefs.FightWeek && Game.DaysToFight > 0)
+        {
+            DoNavigate(Page.Career);          // the poster and the weeks live there
+            await RunToFightNight(resuming);
+            // He stopped for something, or the year turned and wants acknowledging. The fight keeps, and
+            // "On to fight night" brings him back here with the weeks so far still on the page.
+            if (Game is null || Game.DaysToFight > 0) return;
+        }
+
         _awardsWait = true;
         await BusyAsync("Fight night…", () => _svc.Take());
         RefreshAll();
+
+        if (_prefs.LiveUndercard) await RunUndercard();
+
         StartPlayback();
         // Nothing to play back — a declined or vanished offer. Without this the flag would stay raised and
         // the year's honours would never be announced again for the rest of the career.
         if (!IsPlayingBack) { _awardsWait = false; CheckForAwards(); }
+    }
+
+    // ---- the undercard, fought in front of you ----
+    //
+    // The card was a list you read before the night and a list you read after it. The supporting bouts are
+    // already fought by the sim before the player's own — StageUndercard does it — so all that was missing
+    // was letting them land one at a time, which is what waiting in a dressing room actually feels like.
+
+    public ObservableCollection<BillLine> CardTonight { get; } = new();
+
+    private bool _cardRunning;
+    public bool IsCardRunning { get => _cardRunning; private set { _cardRunning = value; Raise(); } }
+
+    private bool _skipCard;
+    public Cmd SkipUndercard { get; }
+
+    // ---- the two build-up settings, bound straight to the checkboxes that set them ----
+
+    /// <summary>Whether taking a fight runs the weeks first. Written through to disk on every change: there is
+    /// no apply button, and a preference that does not survive the session is not a preference.</summary>
+    public bool FightWeek
+    {
+        get => _prefs.FightWeek;
+        set { if (_prefs.FightWeek == value) return; _prefs.FightWeek = value; _prefs.Save(); Raise(); }
+    }
+
+    public bool LiveUndercard
+    {
+        get => _prefs.LiveUndercard;
+        set { if (_prefs.LiveUndercard == value) return; _prefs.LiveUndercard = value; _prefs.Save(); Raise(); }
+    }
+
+    /// <summary>The sound toggle, as a checkbox rather than the button on the playback bar, so all three
+    /// presentation choices sit in one place.</summary>
+    public bool SoundEnabled
+    {
+        get => SoundOn;
+        set { SoundOn = value; Raise(); }
+    }
+
+    /// <summary>The supporting bouts fought BEFORE he walks out, in the order they happen.
+    ///
+    /// A poster lists the main event at the top; a card is fought from the bottom up. So the bouts printed
+    /// BELOW his on the bill are the ones he sits through, and reading them in reverse gives the running
+    /// order. Anything above his — if he is not topping the bill — happens after he has gone home, and has
+    /// no business appearing before his walk-out.</summary>
+    private List<BillLine> UndercardBeforeHim()
+    {
+        // LastNightsCard, not Bill: Bill always describes the fight that is NEXT, and by the time we get here
+        // the next offer has already been drawn. This cost a silent "no undercard ever appears" until I
+        // checked what TakeOffer does to Offer on its way out.
+        var bill = (Game?.LastNightsCard ?? Array.Empty<BillLine>()).ToList();
+        int me = bill.FindIndex(l => l.IsPlayer);
+        if (me < 0) return new List<BillLine>();
+        return bill.Skip(me + 1).Where(l => l.Fought).Reverse().ToList();
+    }
+
+    private async Task RunUndercard()
+    {
+        var running = UndercardBeforeHim();
+        if (running.Count == 0) return;          // he is opening the show; there is nothing to wait through
+
+        CardTonight.Clear();
+        _skipCard = false;
+        IsCardRunning = true;
+
+        foreach (var bout in running)
+        {
+            CardTonight.Add(bout);
+            // Paced by the same speed dial the fight itself uses, so a player who watches at 2x is not made
+            // to sit through the undercard at 1x.
+            await Task.Delay((int)(1250 / Math.Max(0.25, Speed)));
+            if (_skipCard) break;
+        }
+
+        if (!_skipCard) await Task.Delay((int)(900 / Math.Max(0.25, Speed)));   // a beat before the main event
+        IsCardRunning = false;
     }
 
     // ---- the wait ----
@@ -797,11 +907,21 @@ public sealed class CareerViewModel : Observable
     public string TheOne { get; private set; } = "";
     public bool HasTheOne => _theOne is not null;
 
-    private async void DoWaitForFight()
+    private async void DoWaitForFight() => await RunToFightNight();
+
+    /// <summary>Run the weeks toward fight night, in front of the player.
+    ///
+    /// Awaitable, because taking a fight now runs this first and has to know when it has finished — and
+    /// whether it finished because the calendar arrived or because the player stopped to watch something.
+    /// The caller checks DaysToFight to tell the difference.</summary>
+    /// <param name="resuming">Carrying on after stopping for a fight worth watching. The weeks already run
+    /// stay on the page: clearing them would throw away the build-up so far every time the sport did
+    /// something interesting, which over four months is most times.</param>
+    private async Task RunToFightNight(bool resuming = false)
     {
         if (Game is null || _waiting) return;
         _waiting = true;
-        Camp.Clear();
+        if (!resuming) Camp.Clear();
         _theOne = null; TheOne = "";
         foreach (var n in new[] { nameof(IsWaiting), nameof(CanWait), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
@@ -1090,6 +1210,7 @@ public sealed class CareerViewModel : Observable
         {
             _soundOn = value;
             Sfx.Enabled = value;
+            _prefs.SoundOn = value; _prefs.Save();
             if (value && IsPlayingBack && _svc.LastResult is { } r) Sfx.StartBed(OccasionOf(r));
             else if (!value) Sfx.StopBed();   // "Sound off" has to actually silence the room
             Raise(); Raise(nameof(SoundLabel));
@@ -1131,6 +1252,7 @@ public sealed class CareerViewModel : Observable
         private set
         {
             _speed = value;
+            _prefs.Speed = value; _prefs.Save();
             foreach (var n in new[] { nameof(Speed), nameof(IsHalfSpeed), nameof(IsNormalSpeed), nameof(IsDoubleSpeed) })
                 Raise(n);
         }

@@ -41,6 +41,10 @@ public sealed partial class CareerGame
     /// go and look at. A year of the sport ending is an occasion — somebody was fighter of the year, some
     /// night was the fight of the year — and the sim knew all of it and said nothing. The world raises this
     /// as it passes the new year; whoever is watching decides what to do about it.</summary>
+    /// <summary>The last card the player actually boxed on, with its results — the whole bill, his own bout
+    /// marked. Kept because <see cref="Bill"/> only ever describes the fight that is NEXT.</summary>
+    public IReadOnlyList<BillLine> LastNightsCard { get; private set; } = Array.Empty<BillLine>();
+
     public AwardsYear? UnseenAwards { get; private set; }
 
     /// <summary>Mark the honours as read.</summary>
