@@ -21,11 +21,40 @@ public static class CareerMileage
     /// on into their fifties. They are process-wide because the mileage rules are pure functions of a fighter
     /// and have nowhere to carry a world with them; a universe sets them when it starts and career mode resets
     /// them, so the two never disagree within a session.</summary>
-    public static double LengthScale { get; set; } = 1.0;
-    public static double ActivityScale { get; set; } = 1.0;
+    public static double LengthScale { get; private set; } = 1.0;
+    public static double ActivityScale { get; private set; } = 1.0;
 
-    /// <summary>Put the dials back to what career mode expects.</summary>
-    public static void ResetScales() { LengthScale = 1.0; ActivityScale = 1.0; }
+    /// <summary>Set the dials for as long as the returned handle is held, and put them back when it is let go.
+    ///
+    /// They used to be plain settable statics with a separate ResetScales() that a caller had to remember —
+    /// and if it did not, a universe's rules leaked silently into the next career and every fighter aged on
+    /// the wrong schedule with nothing to show for it. The test suite had the same obligation and the same
+    /// exposure. The scope makes forgetting impossible, and the previous values are restored rather than
+    /// assumed to be the defaults, so nesting behaves.
+    ///
+    /// This does NOT make them not-global: two worlds still cannot run at once, and that remains the real fix
+    /// — threading a settings object down from CareerGame, which is a change to some thirty-five call sites
+    /// and deserves its own pass with the golden master as the net. What it does is close the leak, which is
+    /// the part that can actually bite today.</summary>
+    public static IDisposable Scale(double length, double activity)
+    {
+        var restore = new Restore(LengthScale, ActivityScale);
+        LengthScale = Math.Clamp(length, 0.3, 3.0);
+        ActivityScale = Math.Clamp(activity, 0.3, 3.0);
+        return restore;
+    }
+
+    private sealed class Restore(double length, double activity) : IDisposable
+    {
+        private bool _done;
+        public void Dispose()
+        {
+            if (_done) return;          // idempotent: releasing twice must not undo somebody else's scope
+            _done = true;
+            LengthScale = length;
+            ActivityScale = activity;
+        }
+    }
 
     /// <summary>Nobody's career is shorter than this unless an injury ends it — a man who can still fight
     /// keeps getting offers.</summary>

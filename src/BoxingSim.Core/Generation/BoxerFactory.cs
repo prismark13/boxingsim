@@ -71,10 +71,6 @@ public sealed class BoxerFactory
         double dev = Development(age, peakAge);
         bool young = age <= peakAge;
 
-        // Per-attribute ceilings scatter around the headline potential so fighters
-        // develop distinct identities (banger, boxer, iron chin, glass jaw, etc.).
-        int Ceiling(int spread) => Ratings.Clamp(potential + _rng.Next(-spread, spread + 1));
-
         // The shape of him — which attributes arrive with a young fighter and which he has to build — lives
         // in FighterShape, because the player is built from the same shape and the two used to drift apart.
         var r = FighterShape.Compose(_rng, potential, dev, young,

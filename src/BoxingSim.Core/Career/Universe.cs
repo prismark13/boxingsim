@@ -41,8 +41,7 @@ public sealed class Universe
 
         // The dials are process-wide because the mileage rules are pure functions of a fighter; set them before
         // anything is built so the warm-up years already obey this world's rules rather than the default sim's.
-        CareerMileage.LengthScale = Math.Clamp(settings.CareerLength, 0.3, 3.0);
-        CareerMileage.ActivityScale = Math.Clamp(settings.Activity, 0.3, 3.0);
+        _scales = CareerMileage.Scale(settings.CareerLength, settings.Activity);
 
         // A universe has no player. One is still needed to build the world - the whole sim is written around
         // there being one - so a placeholder is made and retired before the first week, which takes him out of
@@ -86,6 +85,10 @@ public sealed class Universe
             .ToList();
     }
 
-    /// <summary>Put the process-wide dials back so a career started afterwards behaves normally.</summary>
-    public static void Release() => CareerMileage.ResetScales();
+    /// <summary>The handle on this world's mileage dials, let go by <see cref="Release"/>.</summary>
+    private static IDisposable? _scales;
+
+    /// <summary>Put the process-wide dials back so a career started afterwards behaves normally. Safe to call
+    /// twice, and safe to call when no universe ever ran.</summary>
+    public static void Release() { _scales?.Dispose(); _scales = null; }
 }

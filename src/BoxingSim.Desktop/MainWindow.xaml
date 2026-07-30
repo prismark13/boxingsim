@@ -2145,13 +2145,14 @@
                 <TextBlock Text="{Binding BusyMessage}" FontSize="13" Foreground="#CFE4FF" />
             </Border>
 
-            <!-- ============ THE UNDERCARD, ON THE NIGHT ============ -->
-            <!-- The supporting bouts land one at a time before he walks out. The sim already fought them
-                 before his own — this only stops them arriving as a finished list. Same ZIndex as the
-                 playback overlay it hands over to, because the two are never up at once. -->
+            <!-- ============ FIGHT NIGHT: THE WHOLE CARD ============ -->
+            <!-- A card was a list read before the night and a list read after it, with the player's own bout
+                 the only thing that happened. The bill runs in order now - openers first, his in its proper
+                 place, whatever is above him afterwards - and there is no way out of the arena until the last
+                 man has been out. It stands aside while his own fight is being called. -->
             <Grid Grid.ColumnSpan="2" Panel.ZIndex="10" Background="{StaticResource Bg}"
-                  Visibility="{Binding IsCardRunning, Converter={StaticResource BoolVis}}">
-                <Grid Margin="0,34,0,26" MaxWidth="780">
+                  Visibility="{Binding CardOnScreen, Converter={StaticResource BoolVis}}">
+                <Grid Margin="0,30,0,24" MaxWidth="820">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -2159,38 +2160,81 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="{Binding BillHeader}" Style="{StaticResource Label}"
-                                   Foreground="{StaticResource Gold}" HorizontalAlignment="Center" />
-                        <TextBlock Text="{Binding CardNote}" FontSize="12" Margin="0,7,0,0"
+                        <TextBlock Text="{Binding CardTitle}" Style="{StaticResource Label}"
+                                   Foreground="{StaticResource Gold}" HorizontalAlignment="Center"
+                                   TextWrapping="Wrap" TextAlignment="Center" />
+                        <TextBlock Text="{Binding CardTonightNote}" FontSize="12" Margin="0,7,0,0"
                                    Foreground="{StaticResource Faint}" HorizontalAlignment="Center"
                                    TextWrapping="Wrap" TextAlignment="Center"
-                                   Visibility="{Binding CardNote, Converter={StaticResource EmptyVis}}" />
-                        <TextBlock Text="THE UNDERCARD" FontSize="11" FontWeight="SemiBold" Margin="0,20,0,0"
-                                   Foreground="{StaticResource Quiet}" HorizontalAlignment="Center" />
+                                   Visibility="{Binding CardTonightNote, Converter={StaticResource EmptyVis}}" />
                     </StackPanel>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
-                        <ItemsControl ItemsSource="{Binding CardTonight}">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,18,0,0">
+                        <ItemsControl ItemsSource="{Binding CardNight}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
-                                            BorderThickness="1" CornerRadius="9" Padding="16,12" Margin="0,0,0,8">
+                                    <Border CornerRadius="9" Padding="16,12" Margin="0,0,0,7" BorderThickness="1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <!-- Still to come: quiet. Now: lit. Fought: settled. -->
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource Panel}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource Panel2}" />
+                                                        <Setter Property="BorderBrush" Value="{StaticResource GoldLine}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel>
-                                                <TextBlock Text="{Binding Fight}" FontSize="13"
-                                                           Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Fight}" FontSize="13" TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsPlayer}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <TextBlock Text="{Binding Note}" FontSize="12" Margin="0,4,0,0"
                                                            Foreground="{StaticResource Faint}" FontStyle="Italic"
                                                            TextWrapping="Wrap"
-                                                           Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
+                                                           Visibility="{Binding IsDone, Converter={StaticResource BoolVis}}" />
                                             </StackPanel>
-                                            <TextBlock Grid.Column="1" Text="{Binding Verdict}" FontSize="12"
-                                                       Margin="14,0,0,0" VerticalAlignment="Center"
-                                                       TextAlignment="Right" Foreground="{StaticResource Gold}" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="14,0,0,0"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Distance}" FontSize="12"
+                                                           Foreground="{StaticResource Faint}" VerticalAlignment="Center"
+                                                           Visibility="{Binding IsPending, Converter={StaticResource BoolVis}}" />
+                                                <TextBlock Text="{Binding Verdict}" FontSize="12"
+                                                           Foreground="{StaticResource Gold}" VerticalAlignment="Center"
+                                                           Visibility="{Binding IsDone, Converter={StaticResource BoolVis}}" />
+                                                <StackPanel Orientation="Horizontal"
+                                                            Visibility="{Binding IsCurrent, Converter={StaticResource BoolVis}}">
+                                                    <Button Content="{Binding DataContext.PlayLabel, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            Command="{Binding DataContext.PlayBout, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            Style="{StaticResource PrimaryButton}" Padding="16,7" FontSize="12" />
+                                                    <Button Content="Skip" Padding="14,7" FontSize="12" Margin="8,0,0,0"
+                                                            Command="{Binding DataContext.SkipBout, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            ToolTip="Straight to the result" />
+                                                </StackPanel>
+                                            </StackPanel>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -2198,25 +2242,18 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,18,0,0">
-                        <TextBlock Text="— and now, the main event —" FontSize="13" FontStyle="Italic"
+                    <!-- The only way out, and it is not there until the card is finished. -->
+                    <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,18,0,0"
+                                Visibility="{Binding CardFinished, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="That is the card." FontSize="12" FontStyle="Italic"
                                    Foreground="{StaticResource Quiet}" HorizontalAlignment="Center" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
-                            <!-- One bout a press. Disabled between presses so it never looks clickable while
-                                 the next result is already on its way. -->
-                            <Button Content="Continue" Command="{Binding StepForward}"
-                                    Style="{StaticResource PrimaryButton}" Padding="20,9" FontSize="13"
-                                    ToolTip="The next bout on the card"
-                                    IsEnabled="{Binding AwaitingStep}" />
-                            <Button Content="Run the rest" Command="{Binding RunTheRest}"
-                                    Margin="9,0,0,0" Padding="16,9" FontSize="13"
-                                    ToolTip="Let the remaining bouts come in on their own" />
-                            <Button Content="Straight to the main event" Command="{Binding SkipUndercard}"
-                                    Margin="9,0,0,0" Padding="16,9" FontSize="13" />
-                        </StackPanel>
+                        <Button Content="Leave the arena" Command="{Binding LeaveArena}"
+                                Style="{StaticResource PrimaryButton}" Margin="0,12,0,0"
+                                Padding="24,10" FontSize="13" HorizontalAlignment="Center" />
                     </StackPanel>
                 </Grid>
             </Grid>
+
 
             <!-- ============ NEWS DRAWER ============ -->
             <!-- The sport's news used to be a card at the foot of the dashboard, below the fold on a 1366-wide

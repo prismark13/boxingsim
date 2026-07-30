@@ -1,17 +1,17 @@
-using BoxingSim.Core.Engine;
-using System.Linq;
+using BoxingSim.Core;
+﻿using System.Linq;
 using BoxingSim.Core.Model;
 
-namespace BoxingSim.Desktop;
+namespace BoxingSim.Core.Engine;
 
-/// <summary>How loud a line of the call is — drives its size and colour on the night.</summary>
+/// <summary>How loud a line of the call is â€” drives its size and colour on the night.</summary>
 /// <summary>Card is a judge's scorecard being read out. It is deliberately NOT Score: a Score line is the
 /// end-of-round summary and the playback treats it as a property of the round, overwriting whatever was there
-/// before — so three judges emitted as Score lines silently collapsed into one and only the last was seen.</summary>
+/// before â€” so three judges emitted as Score lines silently collapsed into one and only the last was seen.</summary>
 public enum CallKind { Round, Action, Big, Drama, Score, Verdict, Pattern, Corner, Crowd, Position, Card }
 
 /// <summary>What actually HAPPENED on a line, independent of how it was worded. Sound and effects key off this,
-/// never off the prose — the phrasing rotates, so matching on words silently missed half the knockdowns.</summary>
+/// never off the prose â€” the phrasing rotates, so matching on words silently missed half the knockdowns.</summary>
 public enum CallEvent { None, RoundBell, Knockdown, Stoppage, Cut, Hurt, HardPunch }
 
 /// <summary>One line of the fight being called, carrying the state of the fight AT that moment so the scoreboard
@@ -67,12 +67,12 @@ public sealed class RoundBlock : Observable
 
 /// <summary>Turns the engine's 15-second ticks into a blow-by-blow call.
 ///
-/// The engine records what actually happened in each segment — the punch thrown, whether it was a combination
+/// The engine records what actually happened in each segment â€” the punch thrown, whether it was a combination
 /// or a counter, whether a man was hurt or wobbled or cut. This reads it back out as commentary.
 ///
 /// Two things keep it from reading like a machine. Phrasing rotates, so the same event is never described the
 /// same way twice running. And repetition is treated as the STORY rather than a defect: a fighter who keeps
-/// landing the same punch gets called for it — "he's found a home for the right hand" — which is exactly what
+/// landing the same punch gets called for it â€” "he's found a home for the right hand" â€” which is exactly what
 /// a commentator would notice.</summary>
 public static class FightCall
 {
@@ -95,7 +95,7 @@ public static class FightCall
         return now == 0 ? 0 : Math.Sign(v) * now;
     }
 
-    /// <summary>What to call a man through the fight. His surname, unless both men share one — two Daniels in
+    /// <summary>What to call a man through the fight. His surname, unless both men share one â€” two Daniels in
     /// the ring is exactly when a surname stops identifying anybody, so then they keep their full names.</summary>
     private static string Short(string name, string other)
     {
@@ -245,7 +245,7 @@ public static class FightCall
                 { cutHis = true; lines.Add(Line(caller.CutOpened(my, his, locHis, sevHis), CallKind.Drama, CallEvent.Cut, 0)); }
                 if (!cutMine && openedMine)
                 { cutMine = true; lines.Add(Line(caller.CutOpened(his, my, locMine, sevMine), CallKind.Drama, CallEvent.Cut, 1)); }
-                // A cut getting worse is its own moment, and can be called more than once — it is the story of
+                // A cut getting worse is its own moment, and can be called more than once â€” it is the story of
                 // the rest of the fight for a man who is bleeding badly.
                 if (worseHis) lines.Add(Line(caller.CutWorse(his, locHis, sevHis), CallKind.Drama, CallEvent.Cut, 1));
                 if (worseMine) lines.Add(Line(caller.CutWorse(my, locMine, sevMine), CallKind.Drama, CallEvent.Cut, 0));
@@ -286,7 +286,7 @@ public static class FightCall
             int hisScore = iAmA ? rd.ScoreB : rd.ScoreA;
 
             // Nothing follows the finish. The call used to run on into the shape of the round and then the
-            // card, both written as though the fight were still going — and because a round cut short by a
+            // card, both written as though the fight were still going â€” and because a round cut short by a
             // knockout has barely any punches in it, the quiet-round read was the one that fired: "a cagey
             // round, both men measuring" printed directly underneath a man being counted out. When it is over
             // the finish is the read and the verdict is the card.
@@ -304,7 +304,7 @@ public static class FightCall
                                        CallKind.Score, rd.Round, myTotal, hisTotal));
 
             // The corner, between rounds. Advice follows what actually happened to him, so it lands as counsel
-            // rather than noise — and it is the only voice in the call that is on the player's side.
+            // rather than noise â€” and it is the only voice in the call that is on the player's side.
             if (rd.Round < res.Rounds.Count && caller.Corner(my, his, myLanded, hisLanded, cutMine, hurtMine, hurtHis) is string corner)
                 lines.Add(new CallLine("", corner, CallKind.Corner, rd.Round, myTotal, hisTotal));
         }
@@ -317,7 +317,7 @@ public static class FightCall
     ///
     /// A fight that went the distance simply stopped: the last round was called, and then a single flat line
     /// appeared underneath saying who had won. Every knockout in the sim got a moment and every decision got
-    /// a caption — which is backwards, because the decision is the one where nobody in the building knows yet.
+    /// a caption â€” which is backwards, because the decision is the one where nobody in the building knows yet.
     ///
     /// So the cards are announced. The totals are held back and given one at a time, the last card is the one
     /// that settles it, and the verdict lands on its own line. A split decision reads as a split decision:
@@ -331,7 +331,7 @@ public static class FightCall
         bool iAmA = res.A.Id == me.Id;
         string[] judges = { "Judge 1", "Judge 2", "Judge 3" };
 
-        lines.Add(new CallLine("", "The final bell — and this one is going to the scorecards.",
+        lines.Add(new CallLine("", "The final bell â€” and this one is going to the scorecards.",
                                CallKind.Drama, res.Rounds.Count, myTotal, hisTotal));
         lines.Add(new CallLine("", $"After {res.Rounds.Count} rounds, we go to the judges.",
                                CallKind.Card, res.Rounds.Count, myTotal, hisTotal));
@@ -342,7 +342,7 @@ public static class FightCall
             int mine = iAmA ? a : b, theirs = iAmA ? b : a;
             string name = i < judges.Length ? judges[i] : $"Judge {i + 1}";
             // Read the higher number first, the way a card is actually called, and name who it favours only
-            // after the numbers — that half-second is the whole point of reading them out.
+            // after the numbers â€” that half-second is the whole point of reading them out.
             string card = mine == theirs
                 ? $"{name} scores it {mine} to {theirs}. Even."
                 : mine > theirs
@@ -397,18 +397,18 @@ public static class FightCall
             return variants[i % variants.Length];
         }
 
-        /// <summary>A man has been walked onto the ropes or into a corner. Called on the transition only —
+        /// <summary>A man has been walked onto the ropes or into a corner. Called on the transition only â€”
         /// position is a state, and saying it every ten seconds would drown the round.</summary>
         public string Trapped(string att, string tgt) => Rotate("trapped",
             $"{att} has him on the ropes.",
-            $"{tgt} is being backed up — {att} is cutting the ring off.",
+            $"{tgt} is being backed up â€” {att} is cutting the ring off.",
             $"{att} walks him into the corner.",
             $"{tgt} has nowhere to go, and {att} knows it.",
             $"{att} has him pinned, working him over against the ropes.",
             $"{tgt} finds himself trapped along the ropes again.");
 
-        /// <summary>Pressure without a pin. Most of a fight is spent here — one man walking the other down,
-        /// taking the middle, herding him — and calling only the moment somebody's back hits the ropes meant
+        /// <summary>Pressure without a pin. Most of a fight is spent here â€” one man walking the other down,
+        /// taking the middle, herding him â€” and calling only the moment somebody's back hits the ropes meant
         /// half of all fights never mentioned where they were being fought at all.</summary>
         public string Pressing(string att, string tgt) => Rotate("pressing",
             $"{att} is walking him down.",
@@ -423,25 +423,25 @@ public static class FightCall
             "They meet in the middle again.",
             "Back to centre ring, both circling.",
             "Neither man is giving up the middle now.",
-            "It has evened out — they are both boxing on the move.");
+            "It has evened out â€” they are both boxing on the move.");
 
         /// <summary>And back out. Getting off the ropes is the other half of the story.</summary>
         public string Escaped(string who) => Rotate("escaped",
             $"{who} spins off the ropes and back to centre ring.",
             $"{who} works his way out of the corner.",
             $"{who} gets his feet moving and finds space again.",
-            $"Good feet from {who} — he's back in the middle of the ring.",
+            $"Good feet from {who} â€” he's back in the middle of the ring.",
             $"{who} slides out and resets.");
 
         /// <summary>A cut opened by a shot: who did it, where it is, and how bad. The engine has always known
-        /// the location and the severity — sixteen sites, from a nick on the hairline to a gash over an eye —
+        /// the location and the severity â€” sixteen sites, from a nick on the hairline to a gash over an eye â€”
         /// and none of it was reaching the reader, so every cut was just "he is cut".</summary>
         public string CutOpened(string att, string tgt, string? where, string? how)
         {
             string sev = how ?? "a cut";
             if (where is null)
                 return Rotate("cutOpenPlain",
-                    $"That has opened {tgt} up — there is blood.",
+                    $"That has opened {tgt} up â€” there is blood.",
                     $"{att} has cut him! {tgt} is bleeding.");
             bool eye = where.Contains("eye") || where.Contains("brow") || where.Contains("eyelid");
             bool bad = how is "a deep cut" or "a horrible gash";
@@ -450,24 +450,24 @@ public static class FightCall
             if (eye)
                 return bad
                     ? Rotate("cutEyeBad",
-                        $"{att} has opened {sev} {where} — and that is the worst place to carry one.",
+                        $"{att} has opened {sev} {where} â€” and that is the worst place to carry one.",
                         $"That is {sev} {where}. {tgt} is going to have to see through that.",
                         $"{tgt} has been split {where}, badly, and the blood is running into his eye.")
                     : Rotate("cutEye",
                         $"{att} has nicked him {where}.",
-                        $"There is a graze {where} on {tgt} — the corner will want to watch that one.",
+                        $"There is a graze {where} on {tgt} â€” the corner will want to watch that one.",
                         $"{tgt} has been marked {where}.");
 
             // Anywhere else is blood rather than danger, and a nick is not a gash.
             return bad
                 ? Rotate("cutFaceBad",
-                    $"{att} has opened {sev} {where} — {tgt}'s face is a mess.",
+                    $"{att} has opened {sev} {where} â€” {tgt}'s face is a mess.",
                     $"That is {sev} {where}, and it is pouring.",
                     $"{tgt} has been split {where}. There is blood everywhere.")
                 : Rotate("cutFace",
                     $"{att} has opened him {where}.",
                     $"A trickle of blood {where} from {tgt}.",
-                    $"{tgt} is marked {where} — nothing serious yet.");
+                    $"{tgt} is marked {where} â€” nothing serious yet.");
         }
 
         /// <summary>An existing cut worked over for three minutes. The corner has a job now.</summary>
@@ -476,9 +476,9 @@ public static class FightCall
             string sev = how ?? "the cut";
             string at = where is null ? "" : " " + where;
             return Rotate("cutWorse",
-                $"{who}'s cut{at} has opened up further — it is {sev} now.",
+                $"{who}'s cut{at} has opened up further â€” it is {sev} now.",
                 $"They have been working that cut{at}, and it is worse. {who} is wearing a mask of blood.",
-                $"That is {sev}{at} on {who} now — the corner will have their work cut out.",
+                $"That is {sev}{at} on {who} now â€” the corner will have their work cut out.",
                 $"More blood from {who}{at}. The referee has had a look at it.");
         }
 
@@ -495,17 +495,17 @@ public static class FightCall
             if (inRound >= 3 || n >= 5)
                 return Rotate("again3",
                     $"{att} keeps going back to the {bare} and it keeps arriving.",
-                    $"The {bare} again — {att} can do no wrong with it.",
+                    $"The {bare} again â€” {att} can do no wrong with it.",
                     $"Every time {att} lets the {bare} go, it finds a home.",
                     $"{tgt} still has no answer to that {bare}.");
             if (n >= 3)
                 return Rotate("again2",
-                    $"That's the {bare} again — {att} has found a home for it.",
+                    $"That's the {bare} again â€” {att} has found a home for it.",
                     $"{att} goes back to the {bare}, and again it lands{to}.",
                     $"The {bare} once more from {att}; {tgt} isn't reading it.");
             if (n == 2)
                 return Rotate("again1",
-                    $"There it is again — the {bare} from {att}.",
+                    $"There it is again â€” the {bare} from {att}.",
                     $"{att} repeats the {bare}{to}.",
                     $"Another {bare} from {att}.");
 
@@ -513,14 +513,14 @@ public static class FightCall
                 return Rotate("counter",
                     $"{att} times him beautifully with {shot}.",
                     $"{att} waits on it and counters with {shot}.",
-                    $"Lovely counter from {att} — {shot}.",
+                    $"Lovely counter from {att} â€” {shot}.",
                     $"{tgt} walks onto {shot}.");
             if (combo > 1)
                 return Rotate("combo",
                     $"{att} lets his hands go, finishing with {shot}.",
                     $"A burst from {att}, capped by {shot}.",
                     $"{att} strings them together and ends it with {shot}.",
-                    $"Combination from {att} — {shot} on the end of it.");
+                    $"Combination from {att} â€” {shot} on the end of it.");
 
             // Ordinary work ends on a full stop. When every routine punch shouted, five lines in ten carried an
             // exclamation mark and the knockdown three lines later had nothing left to raise its voice with;
@@ -534,9 +534,9 @@ public static class FightCall
         }
 
         public string Hurt(string att, string tgt) => Rotate("hurt",
-            $"{tgt} is badly hurt — his legs have gone!",
+            $"{tgt} is badly hurt â€” his legs have gone!",
             $"{tgt} is in real trouble now!",
-            $"{tgt} is hanging on — {att} has him going!",
+            $"{tgt} is hanging on â€” {att} has him going!",
             $"{tgt} is hurt, and {att} knows it!");
 
         public string Stagger(string att, string tgt) => Rotate("stagger",
@@ -547,7 +547,7 @@ public static class FightCall
         public string Down(string att, string tgt, bool body, int count)
         {
             if (body) return Rotate("downbody",
-                $"{tgt} IS DOWN — and it was to the body!",
+                $"{tgt} IS DOWN â€” and it was to the body!",
                 $"{tgt} goes down clutching his ribs!");
             if (count >= 2) return Rotate("downagain",
                 $"{tgt} IS DOWN AGAIN!",
@@ -560,7 +560,7 @@ public static class FightCall
         }
 
         public string Cut(string who) => Rotate("cut",
-            $"{who} has been opened up — there's blood.",
+            $"{who} has been opened up â€” there's blood.",
             $"A cut on {who}, and it's leaking badly.",
             $"{who} is marked up now; the doctor will want a look.");
 
@@ -569,48 +569,48 @@ public static class FightCall
             ? Rotate("crowdUp",
                 "The crowd is on its feet!",
                 "A roar goes round the arena!",
-                "They can smell it — the place has erupted!",
+                "They can smell it â€” the place has erupted!",
                 "You can barely hear yourself in here!")
             : Rotate("crowdDown",
-                "The crowd draws breath — they saw that one.",
+                "The crowd draws breath â€” they saw that one.",
                 "A gasp goes round the hall.",
                 "The place has gone quiet.");
 
         /// <summary>The corner between rounds. Advice tracks what actually happened to him last round, so it
-        /// reads as counsel rather than filler — and it is the one voice in the call on the player's side.</summary>
+        /// reads as counsel rather than filler â€” and it is the one voice in the call on the player's side.</summary>
         public string? Corner(string my, string his, int mine, int theirs, bool cut, bool wasHurt, bool hurtHim)
         {
             if (wasHurt) return Rotate("cnrHurt",
-                "CORNER: “Sit down. Clear your head, hold if you have to — you're not losing this in one round.”",
-                "CORNER: “Breathe. Tie him up, take your time and let it pass.”");
+                "CORNER: â€œSit down. Clear your head, hold if you have to â€” you're not losing this in one round.â€",
+                "CORNER: â€œBreathe. Tie him up, take your time and let it pass.â€");
             if (cut) return Rotate("cnrCut",
-                "CORNER: “Let me work on it. Keep that side away from him and don't let him see it bother you.”",
-                "CORNER: “It's under control. Guard high, don't lean into that right hand.”");
+                "CORNER: â€œLet me work on it. Keep that side away from him and don't let him see it bother you.â€",
+                "CORNER: â€œIt's under control. Guard high, don't lean into that right hand.â€");
             if (hurtHim) return Rotate("cnrGo",
-                "CORNER: “He's there for the taking. Go and finish it — don't let him breathe.”",
-                "CORNER: “You've hurt him. Straight down the middle and don't stop punching.”");
+                "CORNER: â€œHe's there for the taking. Go and finish it â€” don't let him breathe.â€",
+                "CORNER: â€œYou've hurt him. Straight down the middle and don't stop punching.â€");
             if (theirs > mine + 3) return Rotate("cnrBehind",
-                "CORNER: “You're giving this away. Double the jab and get off first.”",
-                "CORNER: “He's beating you to the punch. Move your head and come back at him.”",
-                "CORNER: “You need this round. Let your hands go.”");
+                "CORNER: â€œYou're giving this away. Double the jab and get off first.â€",
+                "CORNER: â€œHe's beating you to the punch. Move your head and come back at him.â€",
+                "CORNER: â€œYou need this round. Let your hands go.â€");
             if (mine > theirs + 3) return Rotate("cnrAhead",
-                "CORNER: “You're on top. Keep it long, don't get greedy.”",
-                "CORNER: “That's the round. Same again — behind the jab, don't stand with him.”");
+                "CORNER: â€œYou're on top. Keep it long, don't get greedy.â€",
+                "CORNER: â€œThat's the round. Same again â€” behind the jab, don't stand with him.â€");
             return Rotate("cnrLevel",
-                "CORNER: “It's close. Whoever wants it more takes this.”",
-                "CORNER: “Nothing in it. Be first, and be busier.”");
+                "CORNER: â€œIt's close. Whoever wants it more takes this.â€",
+                "CORNER: â€œNothing in it. Be first, and be busier.â€");
         }
 
         public string Hand(string who) => Rotate("hand",
-            $"{who} shakes his hand out — that looked painful.",
+            $"{who} shakes his hand out â€” that looked painful.",
             $"{who} is favouring that hand.");
 
         public string Warned(string who, string type) => Rotate("warn",
             $"{who} is warned for {type}.",
-            $"The referee steps in — {type} from {who}.");
+            $"The referee steps in â€” {type} from {who}.");
 
         /// <summary>How a fight ended, told the way it happened. A knockout inside two rounds, a man broken
-        /// down over twelve, one who had already been on the floor twice, a body shot that folded him — these
+        /// down over twelve, one who had already been on the floor twice, a body shot that folded him â€” these
         /// are different endings and were all reaching the reader as the same two or three sentences.
         /// The pools are separated by the shape of the finish so the right kind of line gets picked.</summary>
         public string Finish(string w, string l, StopInfo fin, int round, bool hadBeenDown)
@@ -618,11 +618,11 @@ public static class FightCall
             bool early = round <= 2;
             bool late = round >= 9;
 
-            if (fin.Method == "DQ") return $"{l} is disqualified — it's over.";
+            if (fin.Method == "DQ") return $"{l} is disqualified â€” it's over.";
 
             if (fin.Method == "cut")
                 return Rotate("cut",
-                    $"The doctor takes one look and waves it off — {l} can't continue with that cut.",
+                    $"The doctor takes one look and waves it off â€” {l} can't continue with that cut.",
                     $"The referee calls the doctor over, and that is that. {l} is out on the cut.",
                     $"They can't stem it. The cut has ended {l}'s night.");
 
@@ -631,24 +631,24 @@ public static class FightCall
                 // A man who has been down before is not caught cold; he is worn down and finally caught.
                 if (hadBeenDown)
                     return Rotate("koAgain",
-                        $"{l} goes down again — and this time he does not get up. {w} has knocked him out!",
+                        $"{l} goes down again â€” and this time he does not get up. {w} has knocked him out!",
                         $"He had nothing left to get up with. {w} KNOCKS OUT {l}!",
-                        $"That is the end of it — {l} has been on the floor once too often. {w} wins by knockout!");
+                        $"That is the end of it â€” {l} has been on the floor once too often. {w} wins by knockout!");
                 if (early)
                     return Rotate("koEarly",
                         $"OUT OF NOWHERE! {w} has knocked {l} spark out in the {Ord(round)}!",
                         $"{l} never saw it. {w} KNOCKS HIM OUT in the {Ord(round)}!",
-                        $"One punch — and it is finished. {w} flattens {l} inside {round} round{(round == 1 ? "" : "s")}!");
+                        $"One punch â€” and it is finished. {w} flattens {l} inside {round} round{(round == 1 ? "" : "s")}!");
                 if (late)
                     return Rotate("koLate",
-                        $"{l} is out on his feet no longer — he is out cold. {w} KNOCKS HIM OUT in the {Ord(round)}!",
+                        $"{l} is out on his feet no longer â€” he is out cold. {w} KNOCKS HIM OUT in the {Ord(round)}!",
                         $"After all of that, it ends with one shot. {w} KNOCKS OUT {l}!",
                         $"{l} has been carried into the deep water and drowned there. {w} wins by knockout!");
                 return Rotate("ko",
                     $"{w} KNOCKS OUT {l}!",
-                    $"IT'S ALL OVER — {w} has knocked him cold!",
+                    $"IT'S ALL OVER â€” {w} has knocked him cold!",
                     $"{l} is out! {w} has finished it!",
-                    $"Flat on his back — the referee does not even begin the count. {w} KNOCKS OUT {l}!",
+                    $"Flat on his back â€” the referee does not even begin the count. {w} KNOCKS OUT {l}!",
                     $"{l} is gone. He was unconscious before he landed. {w} has knocked him out!",
                     $"Timber! {l} goes over stiff and {w} has his knockout!");
             }
@@ -656,9 +656,9 @@ public static class FightCall
             if (fin.Body)
                 return Rotate("tkobody",
                     $"{l} turns away from the body shots and the referee jumps straight in! {w} STOPS him!",
-                    $"The body work has done it — the referee waves it off! {w} STOPS {l}!",
+                    $"The body work has done it â€” the referee waves it off! {w} STOPS {l}!",
                     $"{l} sinks to a knee, hand on his ribs, and the referee has seen enough! {w} wins it!",
-                    $"That is what all that body work was for. {l} cannot straighten up and it is waved off — {w} wins!");
+                    $"That is what all that body work was for. {l} cannot straighten up and it is waved off â€” {w} wins!");
 
             if (hadBeenDown)
                 return Rotate("tkoAgain",
@@ -667,14 +667,14 @@ public static class FightCall
                     $"Enough. The referee has seen a man who has stopped defending himself. {w} STOPS {l}!");
             if (late)
                 return Rotate("tkoLate",
-                    $"He has broken him down over {round} rounds — the referee waves it off! {w} STOPS {l}!",
+                    $"He has broken him down over {round} rounds â€” the referee waves it off! {w} STOPS {l}!",
                     $"{l} has nothing left to hold him up and the referee saves him in the {Ord(round)}. {w} wins it!",
-                    $"The corner will not send him out again. It is over — {w} beats {l}.");
+                    $"The corner will not send him out again. It is over â€” {w} beats {l}.");
             return Rotate("tko",
                 $"The referee jumps in to save him! {w} STOPS {l}!",
-                $"The referee has seen enough — he waves it off! {w} STOPS {l}!",
+                $"The referee has seen enough â€” he waves it off! {w} STOPS {l}!",
                 $"The towel comes in from {l}'s corner! {w} wins it!",
-                $"That is all — the referee steps between them and saves {l}. {w} STOPS him!",
+                $"That is all â€” the referee steps between them and saves {l}. {w} STOPS him!",
                 $"{l} is taking them without answer and the referee has stepped in. {w} STOPS him!");
         }
 
@@ -710,36 +710,36 @@ public static class FightCall
 
             if (myBody >= 3 && myBody > hisBody + 1)
                 return Rotate("bodyMe",
-                    $"{my} has been banking body shots all round — that tells late.",
+                    $"{my} has been banking body shots all round â€” that tells late.",
                     $"Note the investment downstairs from {my}; {his} is starting to wear it.");
             if (hisBody >= 3 && hisBody > myBody + 1)
                 return Rotate("bodyHim",
-                    $"{his} keeps digging to the body — {my} is taking a toll there.",
+                    $"{his} keeps digging to the body â€” {my} is taking a toll there.",
                     $"That body work from {his} will be felt in the later rounds.");
 
             // A one-sided round is a story too.
             if (myAll >= 8 && myAll >= hisAll * 3)
                 return Rotate("dominateMe",
                     $"{my} is putting a beating on him now.",
-                    $"{his} has no answer — {my} is landing at will.");
+                    $"{his} has no answer â€” {my} is landing at will.");
             if (hisAll >= 8 && hisAll >= myAll * 3)
                 return Rotate("dominateHim",
                     $"{his} is taking {my} apart in there.",
-                    $"{my} is shipping a lot of leather — he needs to hold on.");
+                    $"{my} is shipping a lot of leather â€” he needs to hold on.");
 
             if (myAll + hisAll >= 16 && Math.Abs(myAll - hisAll) <= 4)
                 return Rotate("war",
-                    "Neither man will take a backward step — they're trading in the pocket.",
+                    "Neither man will take a backward step â€” they're trading in the pocket.",
                     "This has turned into a war; both are standing and letting them go.");
 
             if (mySecond >= myFirst * 2 && mySecond >= 4)
                 return Rotate("surgeMe",
-                    $"{my} finished the round on top — he took over in the last minute.",
+                    $"{my} finished the round on top â€” he took over in the last minute.",
                     $"A strong close from {my}; he stole that one late.");
             if (hisSecond >= hisFirst * 2 && hisSecond >= 4)
                 return Rotate("surgeHim",
                     $"{his} came on strong at the end of that round.",
-                    $"{his} finished the stronger — {my} faded in the last minute.");
+                    $"{his} finished the stronger â€” {my} faded in the last minute.");
 
             if (myFirst >= 4 && mySecond * 2 <= myFirst)
                 return Rotate("fadeMe", $"{my} started fast and his output dropped away.");
@@ -751,19 +751,19 @@ public static class FightCall
             if (hisCounters >= 3)
                 return Rotate("ctrHim", $"{his} is picking his moments, countering as {my} comes in.");
 
-            // Low punch counts usually mean a quiet round — but not when the reason the punches stopped is that
+            // Low punch counts usually mean a quiet round â€” but not when the reason the punches stopped is that
             // somebody was on the floor. A round with a knockdown or a man badly hurt in it is never a
             // feeling-out round, however few shots landed.
             //
             // The threshold used to be 8, which turns out to catch 0.0% of rounds that are actually fought to
-            // the bell — so this read only ever appeared on rounds cut short by a stoppage, describing a
+            // the bell â€” so this read only ever appeared on rounds cut short by a stoppage, describing a
             // knockout as "both men measuring". With those correctly excluded it would have been dead code, so
             // it is set where genuinely quiet rounds live: 14 or fewer is about one round in forty-five.
             bool violent = rd.KnockdownsA + rd.KnockdownsB > 0
                            || ticks.Any(t => t.RockA >= 2 || t.RockB >= 2);
             if (myAll + hisAll <= 14 && !violent)
                 return Rotate("cagey",
-                    "A cagey round — both men measuring, little committed.",
+                    "A cagey round â€” both men measuring, little committed.",
                     "Not much doing there; a feeling-out round.");
 
             return null;
@@ -771,19 +771,19 @@ public static class FightCall
 
         public string Recap(int round, string my, string his, int mine, int theirs, int myScore, int hisScore)
         {
-            string card = $"{myScore}–{hisScore}, {mine}–{theirs} landed.";
+            string card = $"{myScore}â€“{hisScore}, {mine}â€“{theirs} landed.";
             if (mine > theirs + 2)
                 return Rotate("recapMe",
-                    $"End of {round} — {my} takes it. {card}",
+                    $"End of {round} â€” {my} takes it. {card}",
                     $"Round {round} to {my}. {card}",
                     $"That's {my}'s round. {card}");
             if (theirs > mine + 2)
                 return Rotate("recapHim",
-                    $"End of {round} — {his} takes it. {card}",
+                    $"End of {round} â€” {his} takes it. {card}",
                     $"Round {round} to {his}. {card}",
                     $"That one belonged to {his}. {card}");
             return Rotate("recapClose",
-                $"End of {round} — hard round to split. {card}",
+                $"End of {round} â€” hard round to split. {card}",
                 $"Nothing between them in {round}. {card}",
                 $"You could score round {round} either way. {card}");
         }

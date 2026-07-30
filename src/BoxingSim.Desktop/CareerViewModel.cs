@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using BoxingSim.Core;
 using BoxingSim.Core.Analysis;
 using System.Windows.Threading;
 using BoxingSim.Core.Career;
@@ -11,12 +12,6 @@ using BoxingSim.Core.Model;
 
 namespace BoxingSim.Desktop;
 
-public class Observable : INotifyPropertyChanged
-{
-    public event PropertyChangedEventHandler? PropertyChanged;
-    protected void Raise([CallerMemberName] string? name = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-}
 
 /// <summary>A command backed by a plain delegate — enough for this app, no framework needed.</summary>
 public sealed class Cmd : ICommand
@@ -79,6 +74,33 @@ public sealed record BeltRow(string Belt, string Holder, string Detail, bool Lin
 public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyList<BeltRow> Belts, bool IsPlayerDivision);
 /// <summary>One option in the news feed's division filter. Null means every division; its string form is the
 /// label, because a ComboBox's closed state falls back to ToString() and would otherwise show the type name.</summary>
+/// <summary>One bout on tonight's card, as the night runs through it. Mutable, because a row goes from
+/// pending to current to fought while you are looking at it.</summary>
+public sealed class CardBout : Observable
+{
+    public required string Fight { get; init; }
+    public required string Distance { get; init; }
+    public required string What { get; init; }
+    public string Verdict { get; init; } = "";
+    public string Note { get; init; } = "";
+    public bool IsPlayer { get; init; }
+
+    private string _state = "pending";           // pending | current | done
+    public string State
+    {
+        get => _state;
+        set
+        {
+            _state = value;
+            foreach (var n in new[] { nameof(State), nameof(IsPending), nameof(IsCurrent), nameof(IsDone) })
+                Raise(n);
+        }
+    }
+    public bool IsPending => _state == "pending";
+    public bool IsCurrent => _state == "current";
+    public bool IsDone    => _state == "done";
+}
+
 /// <summary>One line of the build-up feed, with how much it matters already worked out. The view should not be
 /// comparing weight classes to decide how brightly to draw a row.</summary>
 public sealed record CampRow(string Date, string Text, bool Mine, bool IsTitle, bool IsUpset,
@@ -321,6 +343,9 @@ public sealed class CareerViewModel : Observable
         });
         ToggleNews = new Cmd(() => NewsOpen = !NewsOpen);
         // Held between weeks: let the next one land. Stopped altogether: pick the walk up where it left off.
+        PlayBout = new Cmd(DoPlayBout);
+        SkipBout = new Cmd(DoSkipBout);
+        LeaveArena = new Cmd(DoLeaveArena);
         StepForward = new Cmd(() =>
         {
             if (AwaitingStep) ReleaseGate();
@@ -334,7 +359,6 @@ public sealed class CareerViewModel : Observable
             else if (!_waiting) Take(resuming: true);
         });
         // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
-        SkipUndercard = new Cmd(() => { _skipCard = true; ReleaseGate(); });
         SetDetail = new Cmd(p => { if (p is string t && Enum.TryParse<CampDetail>(t, out var d)) Detail = d; });
         ClearNewsFilter = new Cmd(() =>
         {
@@ -862,6 +886,9 @@ public sealed class CareerViewModel : Observable
         }
 
         _awardsWait = true;
+        // Where tonight is, captured before the bout replaces the offer with the next one.
+        _nightTitle = Game.BillHeader;
+        _nightNote = Game.CardNote;
         await BusyAsync("Fight night…", () => _svc.Take());
         // The bout is in the books and a fresh offer has been drawn behind it: out of camp, and the weeks just
         // walked belong to a fight that has already happened.
@@ -869,27 +896,117 @@ public sealed class CareerViewModel : Observable
         Camp.Clear(); _campAll.Clear(); Raise(nameof(CampCountLabel)); Raise(nameof(ShowCamp));
         RefreshAll();
 
-        if (_prefs.LiveUndercard) await RunUndercard();
+        if (_prefs.LiveUndercard)
+        {
+            BuildCardNight();
+            IsCardRunning = CardNight.Count > 0;
+        }
 
-        StartPlayback();
-        // Nothing to play back — a declined or vanished offer. Without this the flag would stay raised and
-        // the year's honours would never be announced again for the rest of the career.
-        if (!IsPlayingBack) { _awardsWait = false; CheckForAwards(); }
+        if (!IsCardRunning)
+        {
+            StartPlayback();
+            // Nothing to play back — a declined or vanished offer. Without this the flag would stay raised and
+            // the year's honours would never be announced again for the rest of the career.
+            if (!IsPlayingBack) { _awardsWait = false; CheckForAwards(); }
+        }
     }
 
-    // ---- the undercard, fought in front of you ----
+    // ---- the night, run through bout by bout ----
     //
-    // The card was a list you read before the night and a list you read after it. The supporting bouts are
-    // already fought by the sim before the player's own — StageUndercard does it — so all that was missing
-    // was letting them land one at a time, which is what waiting in a dressing room actually feels like.
+    // A card used to be a list you read before the night and a list you read after it, with your own bout the
+    // only thing that actually happened. Now the whole bill runs in order — the openers first, yours in its
+    // proper place on the bill, whatever is above you afterwards — and you stay in the arena until the last
+    // man has been out.
 
-    public ObservableCollection<BillLine> CardTonight { get; } = new();
+    public ObservableCollection<CardBout> CardNight { get; } = new();
 
     private bool _cardRunning;
-    public bool IsCardRunning { get => _cardRunning; private set { _cardRunning = value; Raise(); } }
+    public bool IsCardRunning { get => _cardRunning; private set { _cardRunning = value; Raise(); Raise(nameof(CardOnScreen)); } }
 
-    private bool _skipCard;
-    public Cmd SkipUndercard { get; }
+    /// <summary>The card is up, but stands aside while the player's own bout is being called.</summary>
+    public bool CardOnScreen => _cardRunning && !IsPlayingBack;
+
+    public CardBout? Current => CardNight.FirstOrDefault(b => b.IsCurrent);
+    public bool CardFinished => _cardRunning && CardNight.Count > 0 && CardNight.All(b => b.IsDone);
+    private string _nightTitle = "", _nightNote = "";
+    public string CardTitle => _nightTitle;
+    public string CardTonightNote => _nightNote;
+
+    /// <summary>"Play" on somebody else's bout; "walk out" on your own.</summary>
+    public string PlayLabel => Current?.IsPlayer == true ? "Walk out" : "Play";
+
+    public Cmd PlayBout { get; private set; } = null!;
+    public Cmd SkipBout { get; private set; } = null!;
+    public Cmd LeaveArena { get; private set; } = null!;
+
+    private void RaiseCard()
+    {
+        foreach (var n in new[] { nameof(Current), nameof(CardFinished), nameof(PlayLabel), nameof(CardOnScreen),
+                                  nameof(CardTitle), nameof(CardTonightNote) })
+            Raise(n);
+    }
+
+    /// <summary>Build the night in the order it is actually boxed.
+    ///
+    /// A poster lists the main event at the top; a card is fought from the bottom up, so the running order is
+    /// simply the bill reversed — which puts the player in his own slot without any special casing. Bouts the
+    /// sim did not stage (a man hurt, a man retired) are left off rather than shown as fights that never
+    /// happened.</summary>
+    private void BuildCardNight()
+    {
+        CardNight.Clear();
+        var bill = (Game?.LastNightsCard ?? Array.Empty<BillLine>()).ToList();
+        foreach (var l in Enumerable.Reverse(bill))
+        {
+            if (!l.Fought && !l.IsPlayer) continue;
+            CardNight.Add(new CardBout
+            {
+                Fight = l.Fight, Distance = l.Distance, What = l.What,
+                Verdict = l.Verdict, Note = l.Note, IsPlayer = l.IsPlayer,
+            });
+        }
+        if (CardNight.Count > 0) CardNight[0].State = "current";
+        RaiseCard();
+    }
+
+    private void AdvanceCard()
+    {
+        var cur = Current;
+        if (cur is not null) cur.State = "done";
+        var next = CardNight.FirstOrDefault(b => b.IsPending);
+        if (next is not null) next.State = "current";
+        RaiseCard();
+    }
+
+    private async void DoPlayBout()
+    {
+        if (Current is not { } b) return;
+        if (b.IsPlayer) { StartPlayback(); return; }   // AdvanceCard happens when the call ends
+        await Task.Delay((int)(700 / Math.Max(0.25, Speed)));
+        AdvanceCard();
+    }
+
+    private void DoSkipBout()
+    {
+        if (Current is not { } b) return;
+        if (b.IsPlayer)
+        {
+            // Straight to the verdict, without the round-by-round.
+            StartPlayback();
+            EndPlayback();   // reveals the whole call at once, exactly as the skip button in the ring does
+            return;
+        }
+        AdvanceCard();
+    }
+
+    private void DoLeaveArena()
+    {
+        IsCardRunning = false;
+        CardNight.Clear();
+        RaiseCard();
+        _awardsWait = false;
+        CheckForAwards();   // the night may have carried the calendar into a new year
+    }
 
     // ---- going at your own pace ----
     //
@@ -1015,47 +1132,6 @@ public sealed class CareerViewModel : Observable
     {
         get => SoundOn;
         set { SoundOn = value; Raise(); }
-    }
-
-    /// <summary>The supporting bouts fought BEFORE he walks out, in the order they happen.
-    ///
-    /// A poster lists the main event at the top; a card is fought from the bottom up. So the bouts printed
-    /// BELOW his on the bill are the ones he sits through, and reading them in reverse gives the running
-    /// order. Anything above his — if he is not topping the bill — happens after he has gone home, and has
-    /// no business appearing before his walk-out.</summary>
-    private List<BillLine> UndercardBeforeHim()
-    {
-        // LastNightsCard, not Bill: Bill always describes the fight that is NEXT, and by the time we get here
-        // the next offer has already been drawn. This cost a silent "no undercard ever appears" until I
-        // checked what TakeOffer does to Offer on its way out.
-        var bill = (Game?.LastNightsCard ?? Array.Empty<BillLine>()).ToList();
-        int me = bill.FindIndex(l => l.IsPlayer);
-        if (me < 0) return new List<BillLine>();
-        return bill.Skip(me + 1).Where(l => l.Fought).Reverse().ToList();
-    }
-
-    private async Task RunUndercard()
-    {
-        var running = UndercardBeforeHim();
-        if (running.Count == 0) return;          // he is opening the show; there is nothing to wait through
-
-        CardTonight.Clear();
-        _skipCard = false;
-        _autoRest = false;          // "run the rest" is per-night, not a standing choice
-        IsCardRunning = true;
-
-        foreach (var bout in running)
-        {
-            CardTonight.Add(bout);
-            // Held for a press, or paced by the same speed dial the fight itself uses so a player watching at
-            // 2x is not made to sit through the undercard at 1x.
-            await Gate(1250);
-            if (_skipCard) break;
-        }
-
-        // One more hold before the main event, so walking out is something you decide to do.
-        if (!_skipCard) await Gate(900);
-        IsCardRunning = false;
     }
 
     // ---- the wait ----
@@ -1341,7 +1417,7 @@ public sealed class CareerViewModel : Observable
     public bool IsPlayingBack
     {
         get => _isPlayingBack;
-        private set { _isPlayingBack = value; Raise(); Raise(nameof(ShowResultBanner)); }
+        private set { _isPlayingBack = value; Raise(); Raise(nameof(ShowResultBanner)); Raise(nameof(CardOnScreen)); }
     }
 
     /// <summary>The verdict banner stays hidden behind the fight night — showing it there would give the
@@ -1718,6 +1794,14 @@ public sealed class CareerViewModel : Observable
             return;
         }
         IsPlayingBack = false;
+        if (IsCardRunning)
+        {
+            // Back out to the card: there may be bouts above his still to come, and the honours belong to the
+            // end of the night rather than to the moment he stops fighting.
+            AdvanceCard();
+            Sfx.StopBed();
+            return;
+        }
         _awardsWait = false;
         CheckForAwards();   // the fight itself may have carried the calendar into a new year
         // The crowd goes home with you. Without this the bed played on under the rankings, the news and every
@@ -2291,22 +2375,19 @@ public sealed class CareerViewModel : Observable
         BuildTape();
         BuildStats();
 
-        foreach (var n in new[]
-        {
-            nameof(InCareer), nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav), nameof(CanWait),
-            nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(Game), nameof(PlayerHeadline), nameof(StandingLine), nameof(PlayerClass), nameof(PlayerRecord),
-            nameof(TakeFightLabel), nameof(TakeFightHint), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer),
-            nameof(PlayerIdentity), nameof(PlayerStanding), nameof(PlayerIsChampion),
-            nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),
-            nameof(OfferOpponentClass), nameof(OfferOpponentRecord), nameof(OfferOpponentMeta),
-            nameof(OfferRounds), nameof(OfferContext), nameof(OfferIsTitle),
-            nameof(PlayerFrame), nameof(OfferOpponentFrame), nameof(OfferOpponentFighter), nameof(PlayerOutput), nameof(OfferOpponentOutput),
-            nameof(MoveUpLabel), nameof(HasResult), nameof(ResultHeadline), nameof(LastBoutWon),
-            nameof(LastBoutLost), nameof(PlayerRetired), nameof(HasSave), nameof(SaveError),
-            nameof(ShowResultBanner), nameof(HasLedger), nameof(RankingDivisions),
-            nameof(ViewDivision), nameof(RankingsSubtitle), nameof(CanGoBack),
-            nameof(IsAwayDivision), nameof(AwayDivisionNote), nameof(HomeDivisionLabel)
-        }) Raise(n);
+        // Everything, rather than a list of fifty-four names kept by hand.
+        //
+        // A null property name is WPF's "assume all of them changed": every binding on this object
+        // re-evaluates. That is the whole point — the hand-written list was a bug generator. Add a computed
+        // property, forget to add its name here, and the UI silently shows a stale value with nothing to
+        // catch it. It cost a shipped release: InCamp and FightIsStillAnOffer both derive from the fight
+        // countdown, neither was in the list, and at zero the page still believed it was in camp and offered
+        // no way to start the fight.
+        //
+        // The cost is re-evaluating every binding on a turn. RefreshAll already rebuilds fifteen collections
+        // immediately above this, so it is lost in the noise, and correctness is worth more than the
+        // microseconds either way.
+        RaiseAll();
         RefreshCommands();
     }
 
