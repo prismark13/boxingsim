@@ -27,7 +27,7 @@
   <Identity
     Name="Prismark.TheFinalBell"
     Publisher="CN=6D48472E-F6B3-45EB-9398-938A34F4C879"
-    Version="0.5.3.0"
+    Version="0.6.0.0"
     ProcessorArchitecture="x64" />
 
   <Properties>

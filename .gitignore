@@ -10,3 +10,7 @@ publish/
 
 # MSIX build output — a 65 MB package and a throwaway test certificate.
 out-msix/
+
+# Release assets: a ~68 MB single-file exe, a ~64 MB zip, and the loose folder build they come from.
+# These belong on a GitHub release, not in the history — 130 MB that every clone would pay for ever after.
+out-release/
