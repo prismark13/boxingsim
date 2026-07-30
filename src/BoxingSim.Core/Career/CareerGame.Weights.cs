@@ -52,7 +52,11 @@ public sealed partial class CareerGame
             LogEvent($"{b.Name} relinquishes the {string.Join(", ", vacated)} title{(vacated.Count > 1 ? "s" : "")} to move up to {to.DisplayName()}.", b.Id == Player.Id, kind: "title", div: from);
         b.WeightClass = to;
         if (b.Id != Player.Id && (WorldRanked(b) || b.Class >= 8))
-            LogEvent($"{b.Name} campaigns up to {to.DisplayName()}{(vacated.Count > 0 ? $", vacating the {string.Join(", ", vacated)}" : "")}.", false, kind: "title", div: to);
+            // "move", not "title". It can vacate belts, which is why it was filed as title news, but a man
+            // changing division is not a title fight — and with a title filter on the news feed it was the one
+            // thing showing up in a list of championship results that had not been a fight at all. Nothing
+            // depended on the old kind: WorthWatching only considers events that carry a bout, and this has none.
+            LogEvent($"{b.Name} campaigns up to {to.DisplayName()}{(vacated.Count > 0 ? $", vacating the {string.Join(", ", vacated)}" : "")}.", false, kind: "move", div: to);
         RebalanceRatings(b.Ratings);
         b.Potential = b.Overall;
         if (_historical.TryGetValue(b.Id, out var h)) { var prime = h.Prime.Clone(); RebalanceRatings(prime); _historical[b.Id] = (prime, h.Peak); }

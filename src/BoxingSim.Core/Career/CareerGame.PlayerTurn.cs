@@ -192,16 +192,16 @@ public sealed partial class CareerGame
                 var done = _undercard.FirstOrDefault(u => u.A == a.Name && u.B == b.Name);
                 return new BillLine($"{a.Name} vs {b.Name}", r, false, "",
                                     done?.Verdict ?? "", done?.Line ?? "", done?.Note ?? "",
-                                    a.Name, a.Country, a.Record.ToString(),
-                                    b.Name, b.Country, b.Record.ToString());
+                                    a.Name, a.Country ?? "", a.Record.ToString(),
+                                    b.Name, b.Country ?? "", b.Record.ToString());
             }
 
             var all = new List<BillLine>();
             for (int i = 0; i < over && i < _billed.Count; i++) all.Add(Support(i));
             all.Add(new BillLine($"{Player.Name} vs {o.Opponent.Name}", o.Rounds, true,
                                  o.TitleFight ? $"{o.Belt} title" : o.Context, "", "", "",
-                                 Player.Name, Player.Country, Player.Record.ToString(),
-                                 o.Opponent.Name, o.Opponent.Country, o.Opponent.Record.ToString(),
+                                 Player.Name, Player.Country ?? "", Player.Record.ToString(),
+                                 o.Opponent.Name, o.Opponent.Country ?? "", o.Opponent.Record.ToString(),
                                  o.TitleFight));
             for (int i = over; i < _billed.Count; i++) all.Add(Support(i));
             return all;

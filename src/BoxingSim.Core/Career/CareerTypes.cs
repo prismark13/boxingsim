@@ -69,7 +69,7 @@ public sealed class CareerEvent
     public DateOnly On { get; init; }
     public required string Text { get; init; }
     public bool PlayerBout { get; init; }
-    public string? Kind { get; init; }   // "title", "upset", "ko", "debut", "retire", "streak", "hof" — for the news feed
+    public string? Kind { get; init; }   // "title", "upset", "ko", "debut", "retire", "streak", "hof", "move" — for the news feed
     public WeightClass? Div { get; init; }   // which division this event belongs to (for the news filter)
     public int Year => On.Year;
     public string DateLabel => On.ToString("d MMM yyyy");

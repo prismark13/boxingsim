@@ -77,6 +77,13 @@ public sealed record RankRow(string Rank, int Class, string Name, string Detail,
                              bool IsPlayer, bool IsChampion, Boxer? Fighter, HallOfFamer? Legend = null);
 public sealed record BeltRow(string Belt, string Holder, string Detail, bool Lineal, bool Vacant, Boxer? Fighter);
 public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyList<BeltRow> Belts, bool IsPlayerDivision);
+/// <summary>One option in the news feed's division filter. Null means every division; its string form is the
+/// label, because a ComboBox's closed state falls back to ToString() and would otherwise show the type name.</summary>
+public sealed record NewsDivChoice(string Label, WeightClass? Div)
+{
+    public override string ToString() => Label;
+}
+
 public sealed record NewsRow(string Date, string Text, string Kind, bool PlayerBout, BoutRef? Bout = null)
 {
     /// <summary>A headline reporting a fight can be opened and watched; the rest are just news.</summary>
@@ -294,6 +301,13 @@ public sealed class CareerViewModel : Observable
         CloseYearAwards = new Cmd(() => { ShowYearAwards = false; Raise(nameof(ShowYearAwards)); });
         ToggleNews = new Cmd(() => NewsOpen = !NewsOpen);
         SkipUndercard = new Cmd(() => _skipCard = true);
+        ClearNewsFilter = new Cmd(() =>
+        {
+            _newsTitlesOnly = false;
+            _newsDiv = NewsDivisions.FirstOrDefault();
+            foreach (var n in new[] { nameof(NewsTitlesOnly), nameof(NewsDivision) }) Raise(n);
+            BuildNews();
+        });
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; Raise(nameof(IsWaiting)); Raise(nameof(CanWait)); });
@@ -827,8 +841,31 @@ public sealed class CareerViewModel : Observable
     public bool FightWeek
     {
         get => _prefs.FightWeek;
-        set { if (_prefs.FightWeek == value) return; _prefs.FightWeek = value; _prefs.Save(); Raise(); }
+        set
+        {
+            if (_prefs.FightWeek == value) return;
+            _prefs.FightWeek = value; _prefs.Save(); Raise();
+            Raise(nameof(TakeFightLabel)); Raise(nameof(TakeFightHint));
+        }
     }
+
+    /// <summary>What the button actually does, said on the button.
+    ///
+    /// It read "Take the fight" whatever it was about to do, and once taking a fight started four months of
+    /// build-up instead of a bout that was simply untrue — you pressed a button promising a fight and got a
+    /// calendar. Three different things can happen depending on the setting and how far off the date is, so
+    /// the label says which.</summary>
+    public string TakeFightLabel =>
+        Game?.Offer is null ? "Take the fight"
+        : Game.DaysToFight == 0 ? "Fight now"
+        : FightWeek ? "Go to fight night"
+        : "Take the fight";
+
+    public string TakeFightHint =>
+        Game?.Offer is null ? ""
+        : Game.DaysToFight == 0 ? "The date has come — first bell"
+        : FightWeek ? $"Accept, and run the {Game.DaysToFight / 7} weeks between now and the first bell"
+        : "Accept, and start the fight straight away";
 
     public bool LiveUndercard
     {
@@ -1519,6 +1556,7 @@ public sealed class CareerViewModel : Observable
             Raise(n);
         BuildRankings();
         BuildChampions();
+        BuildDivisionChoices();
         BuildNews();
         BuildHof();
         BuildAwards();
@@ -2010,6 +2048,7 @@ public sealed class CareerViewModel : Observable
         BuildAwards();
         BuildRival();
         BuildUndercard();
+        BuildDivisionChoices();
         BuildNews();
         BuildLedger();
         BuildTape();
@@ -2019,6 +2058,7 @@ public sealed class CareerViewModel : Observable
         {
             nameof(InCareer), nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav), nameof(CanWait),
             nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(Game), nameof(PlayerHeadline), nameof(StandingLine), nameof(PlayerClass), nameof(PlayerRecord),
+            nameof(TakeFightLabel), nameof(TakeFightHint),
             nameof(PlayerIdentity), nameof(PlayerStanding), nameof(PlayerIsChampion),
             nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),
             nameof(OfferOpponentClass), nameof(OfferOpponentRecord), nameof(OfferOpponentMeta),
@@ -2247,17 +2287,75 @@ public sealed class CareerViewModel : Observable
         return Game.Player.Name == name ? Game.Player : null;
     }
 
+    // ---- filtering the feed ----
+    //
+    // Twelve divisions all reporting at once buries the two things anyone actually scans a boxing feed for:
+    // what happened to the belts, and what happened in a weight he cares about. CareerEvent has carried Div
+    // and Kind all along for exactly this.
+
+    private bool _newsTitlesOnly;
+    public bool NewsTitlesOnly
+    {
+        get => _newsTitlesOnly;
+        set { if (_newsTitlesOnly == value) return; _newsTitlesOnly = value; Raise(); BuildNews(); }
+    }
+
+    /// <summary>The divisions the feed can be narrowed to — only those that have actually reported something,
+    /// so the list never offers a weight with nothing in it. Heaviest first, matching the rankings.</summary>
+    public ObservableCollection<NewsDivChoice> NewsDivisions { get; } = new();
+
+    private NewsDivChoice? _newsDiv;
+    public NewsDivChoice? NewsDivision
+    {
+        get => _newsDiv ??= NewsDivisions.FirstOrDefault();
+        set { _newsDiv = value; Raise(); BuildNews(); }
+    }
+
+    public bool NewsIsFiltered => _newsTitlesOnly || NewsDivision?.Div is not null;
+    public bool NewsIsEmpty => News.Count == 0;
+
+    private void BuildDivisionChoices()
+    {
+        var had = _newsDiv?.Div;
+        NewsDivisions.Clear();
+        NewsDivisions.Add(new NewsDivChoice("Every division", null));
+        if (Game is not null)
+            foreach (var d in Game.Log.Where(e => e.Div is not null)
+                                      .Select(e => e.Div!.Value)
+                                      .Distinct()
+                                      .OrderByDescending(d => (int)d))
+                NewsDivisions.Add(new NewsDivChoice(d.DisplayName(), d));
+
+        // Hold the player's choice across a rebuild; the collection is replaced every turn.
+        _newsDiv = NewsDivisions.FirstOrDefault(c => c.Div == had) ?? NewsDivisions.FirstOrDefault();
+        Raise(nameof(NewsDivision));
+    }
+
     private void BuildNews()
     {
         News.Clear();
-        if (Game is null) return;
+        if (Game is null) { RaiseNewsState(); return; }
+
+        var div = NewsDivision?.Div;
         // By DATE, newest first — the world resolves a division at a time, so the order events are logged in is
-        // not the order they happened in.
+        // not the order they happened in. Filtered BEFORE the cap, or narrowing to one weight would show only
+        // whatever survived from the newest 120 across all of them.
         foreach (var (e, _) in Game.Log.Select((e, i) => (e, i))
+                                       .Where(x => !_newsTitlesOnly || x.e.Kind == "title")
+                                       .Where(x => div is null || x.e.Div == div)
                                        .OrderByDescending(x => x.e.On).ThenByDescending(x => x.i)
                                        .Take(120))
             News.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout, e.Bout));
+
+        RaiseNewsState();
     }
+
+    private void RaiseNewsState()
+    {
+        foreach (var n in new[] { nameof(NewsIsFiltered), nameof(NewsIsEmpty) }) Raise(n);
+    }
+
+    public Cmd ClearNewsFilter { get; }
 
     private void BuildLedger()
     {

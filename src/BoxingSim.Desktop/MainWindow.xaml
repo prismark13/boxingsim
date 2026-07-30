@@ -536,7 +536,9 @@
                                         </TextBlock>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Button Content="Take the fight" Command="{Binding TakeFight}"
+                                                <Button Content="{Binding TakeFightLabel}" Command="{Binding TakeFight}"
+                                                ToolTip="{Binding TakeFightHint}"
+                                                AutomationProperties.Name="{Binding TakeFightLabel}"
                                                 Style="{StaticResource PrimaryButton}" Padding="22,10" />
                                         <Button Content="Hold out" Command="{Binding HoldOut}" Margin="10,0,0,0" />
                                         <Button Content="Tale of the tape ›" Command="{Binding Navigate}"
@@ -974,7 +976,9 @@
                                         <ColumnDefinition Width="12" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Content="Take the fight" Command="{Binding TakeFight}"
+                                    <Button Content="{Binding TakeFightLabel}" Command="{Binding TakeFight}"
+                                            ToolTip="{Binding TakeFightHint}"
+                                            AutomationProperties.Name="{Binding TakeFightLabel}"
                                             Style="{StaticResource PrimaryButton}" />
                                     <Button Grid.Column="2" Content="Hold out" Command="{Binding HoldOut}" />
                                 </Grid>
@@ -1247,7 +1251,41 @@
                 <!-- ============ NEWS ============ -->
                 <local:PageHost Title="NEWS" Subtitle="Across the whole sport, most recent first"
                                 Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=News}">
-                    <ItemsControl ItemsSource="{Binding News}">
+                  <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Twelve divisions reporting at once buries the two things anyone scans a boxing feed
+                         for: the belts, and one weight in particular. -->
+                    <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                            BorderThickness="1" CornerRadius="9" Padding="14,10" Margin="18,4,18,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Content="Title fights only" IsChecked="{Binding NewsTitlesOnly}"
+                                      VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding NewsDivisions}"
+                                      SelectedItem="{Binding NewsDivision}" Margin="20,0,0,0"
+                                      MinWidth="190" AutomationProperties.Name="Division" />
+                            <Button Grid.Column="3" Content="Clear" Command="{Binding ClearNewsFilter}"
+                                    Padding="12,6" FontSize="11.5"
+                                    Visibility="{Binding NewsIsFiltered, Converter={StaticResource BoolVis}}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- A filter that matches nothing must say so, or an empty page reads as a broken feed. -->
+                    <TextBlock Grid.Row="1" Margin="20,10,20,0" FontSize="12.5" TextWrapping="Wrap"
+                               Foreground="{StaticResource Muted}" VerticalAlignment="Top"
+                               Text="Nothing in the feed matches that. Try another division, or clear the filter."
+                               Visibility="{Binding NewsIsEmpty, Converter={StaticResource BoolVis}}" />
+
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding News}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <!-- A headline that reports a fight is a way INTO that fight. The rest of the
@@ -1285,6 +1323,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                  </Grid>
                 </local:PageHost>
 
                 <!-- ============ CAREER STATS ============ -->
@@ -2081,8 +2120,9 @@
 
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />   <!-- heading -->
+                            <RowDefinition Height="Auto" />   <!-- filters -->
+                            <RowDefinition Height="*" />      <!-- the feed -->
                         </Grid.RowDefinitions>
 
                         <Grid Margin="20,18,14,12">
@@ -2096,7 +2136,25 @@
                                     AutomationProperties.Name="Close the news" />
                         </Grid>
 
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                        <!-- The same two filters as the News page, stacked because 430px will not take a row.
+                             They share the state, so narrowing here narrows there. -->
+                        <StackPanel Grid.Row="1" Margin="20,0,16,12">
+                            <ComboBox ItemsSource="{Binding NewsDivisions}" SelectedItem="{Binding NewsDivision}"
+                                      AutomationProperties.Name="Division in the news" />
+                            <Grid Margin="0,9,0,0">
+                                <CheckBox Content="Title fights only" IsChecked="{Binding NewsTitlesOnly}"
+                                          VerticalAlignment="Center" />
+                                <Button Content="Clear" Command="{Binding ClearNewsFilter}" Padding="10,4"
+                                        FontSize="11" HorizontalAlignment="Right"
+                                        Visibility="{Binding NewsIsFiltered, Converter={StaticResource BoolVis}}" />
+                            </Grid>
+                            <TextBlock Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{StaticResource Muted}"
+                                       Text="Nothing matches that. Try another division, or clear the filter."
+                                       Visibility="{Binding NewsIsEmpty, Converter={StaticResource BoolVis}}" />
+                        </StackPanel>
+
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled" Padding="0,0,0,14">
                             <ItemsControl ItemsSource="{Binding News}">
                                 <ItemsControl.ItemTemplate>
