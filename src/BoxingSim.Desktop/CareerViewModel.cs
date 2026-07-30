@@ -335,6 +335,7 @@ public sealed class CareerViewModel : Observable
         });
         // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
         SkipUndercard = new Cmd(() => { _skipCard = true; ReleaseGate(); });
+        SetDetail = new Cmd(p => { if (p is string t && Enum.TryParse<CampDetail>(t, out var d)) Detail = d; });
         ClearNewsFilter = new Cmd(() =>
         {
             _newsTitlesOnly = false;
@@ -492,7 +493,7 @@ public sealed class CareerViewModel : Observable
     private static readonly NavItem[] CareerNav =
     {
         new NavItem(Page.Dashboard, "Dashboard", Shortcut: "Ctrl+1"),
-        new NavItem(Page.Career, "Next fight", Shortcut: "Ctrl+2"),
+        new NavItem(Page.Career, "Camp", Shortcut: "Ctrl+2"),
         new NavItem(Page.Stats, "My record", Shortcut: "Ctrl+3"),
         new NavItem(Page.Dashboard, "THE SPORT", IsHeader: true),
         new NavItem(Page.Rankings, "Rankings", Shortcut: "Ctrl+4"),
@@ -802,6 +803,7 @@ public sealed class CareerViewModel : Observable
             _viewDivision = div;
         }
         catch (Exception ex) { BusyMessage = ex.Message; return; }
+        SetCommitted(false);
         SelectedNav = Nav[0];
         RefreshAll();
     }
@@ -810,7 +812,7 @@ public sealed class CareerViewModel : Observable
     {
         bool ok = false;
         await BusyAsync("Loading your career…", () => ok = _svc.Load());
-        if (ok) { _viewDivision = _svc.Game!.Player.WeightClass; SelectedNav = Nav[0]; RefreshAll(); }
+        if (ok) { SetCommitted(false); _viewDivision = _svc.Game!.Player.WeightClass; SelectedNav = Nav[0]; RefreshAll(); }
         else { ContinueCareer.Refresh(); Raise(nameof(HasSave)); }
     }
 
@@ -1069,24 +1071,50 @@ public sealed class CareerViewModel : Observable
     /// already gone past. Camp is what the page shows; this is what it is drawn from.</summary>
     private readonly List<CampRow> _campAll = new();
 
-    private bool _campMineOnly;
-    /// <summary>Narrow the build-up feed to the player's own division. Twelve divisions reporting over four
-    /// months is a wall of text in which the one fight that concerns him reads exactly like the other fifty.</summary>
-    public bool CampMineOnly
+    /// <summary>How much of the sport to report while he waits.
+    ///
+    /// Twelve divisions over four months is a wall of text in which the one fight that concerns him reads
+    /// exactly like the other fifty — but "only my division" was too blunt the other way, hiding the belts
+    /// moving elsewhere that decide who he ends up fighting.</summary>
+    public enum CampDetail { Titles, Normal, Detailed }
+
+    private CampDetail _campDetail = CampDetail.Normal;
+    public CampDetail Detail
     {
-        get => _campMineOnly;
-        set { if (_campMineOnly == value) return; _campMineOnly = value; Raise(); RedrawCamp(); }
+        get => _campDetail;
+        set
+        {
+            if (_campDetail == value) return;
+            _campDetail = value;
+            foreach (var n in new[] { nameof(Detail), nameof(IsTitlesOnly), nameof(IsNormalDetail),
+                                      nameof(IsFullDetail), nameof(CampCountLabel) }) Raise(n);
+            RedrawCamp();
+        }
     }
+
+    public bool IsTitlesOnly   => _campDetail == CampDetail.Titles;
+    public bool IsNormalDetail => _campDetail == CampDetail.Normal;
+    public bool IsFullDetail   => _campDetail == CampDetail.Detailed;
+    public Cmd SetDetail { get; }
+
+    /// <summary>Titles: belts only. Normal: adds his own division and any upset. Detailed: the lot, which is
+    /// where the prospects coming through and the movement below the champion live.</summary>
+    private bool Shows(CampRow r) => _campDetail switch
+    {
+        CampDetail.Titles => r.IsTitle,
+        CampDetail.Normal => r.IsTitle || r.IsUpset || r.Mine || r.PlayerBout,
+        _ => true,
+    };
 
     public string CampCountLabel =>
         _campAll.Count == 0 ? ""
-        : _campMineOnly ? $"{Camp.Count} of {_campAll.Count}"
-        : $"{_campAll.Count} in the sport";
+        : _campDetail == CampDetail.Detailed ? $"{_campAll.Count} in the sport"
+        : $"{Camp.Count} of {_campAll.Count}";
 
     private void RedrawCamp()
     {
         Camp.Clear();
-        foreach (var r in _campAll.Where(r => !_campMineOnly || r.Mine)) Camp.Add(r);
+        foreach (var r in _campAll.Where(Shows)) Camp.Add(r);
         Raise(nameof(CampCountLabel));
     }
 
@@ -1147,13 +1175,19 @@ public sealed class CareerViewModel : Observable
         _theOne = null; TheOne = "";
         foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
-        while (_waiting && Game?.WaitAWeek() is IReadOnlyList<CareerEvent> week)
+        while (_waiting)
         {
+            IReadOnlyList<CareerEvent>? week;
+            System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+            try { week = await Task.Run(() => Game?.WaitAWeek()); }
+            finally { System.Windows.Input.Mouse.OverrideCursor = null; }
+            if (week is null) break;
+
             foreach (var e in week)
             {
                 var row = ToCamp(e);
                 _campAll.Insert(0, row);
-                if (!_campMineOnly || row.Mine) Camp.Insert(0, row);
+                if (Shows(row)) Camp.Insert(0, row);
             }
             Raise(nameof(CampCountLabel));
             // Something in his own weight worth watching stops the clock and asks.
@@ -1291,7 +1325,7 @@ public sealed class CareerViewModel : Observable
     // Both of these end whatever camp was under way: the fight it was for is no longer the fight.
     private async void Decline() { SetCommitted(false); await BusyAsync("Waiting for the next offer…", () => _svc.Decline()); RefreshAll(); }
     private async void DoMoveUp() { SetCommitted(false); await BusyAsync("Moving up…", () => _svc.MoveUp()); RefreshAll(); }
-    private void Abandon() { EndPlayback(); SelectedCard = null; SelectedFight = null; SelectedAward = null; _svc.Abandon(); RefreshAll(); }
+    private void Abandon() { EndPlayback(); SetCommitted(false); SelectedCard = null; SelectedFight = null; SelectedAward = null; _svc.Abandon(); RefreshAll(); }
 
     public static bool HasSave => DesktopCareerService.HasSave;
     public string? SaveError => _svc.LastSaveError;

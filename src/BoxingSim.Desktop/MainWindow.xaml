@@ -590,9 +590,10 @@
                                                 CommandParameter="Career" Style="{StaticResource PrimaryButton}"
                                                 Padding="22,10"
                                                 Visibility="{Binding InCamp, Converter={StaticResource BoolVis}}" />
-                                        <!-- No "turn it down" and no "see the card" here. Refusing a fight is
-                                             done where you can see the man; the card is what the sidebar's
-                                             "Next fight" has always opened. -->
+                                        <Button Content="Turn it down" Command="{Binding HoldOut}"
+                                                Margin="10,0,0,0" Padding="18,10"
+                                                ToolTip="Refuse this fight and wait for another offer"
+                                                Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -733,8 +734,25 @@
                                 <!-- Something to do with the wall of text. Twelve divisions reporting over four
                                      months buries the one fight that concerns him among fifty that do not. -->
                                 <Grid Margin="0,12,0,0">
-                                    <CheckBox Content="Only my division" IsChecked="{Binding CampMineOnly}"
-                                              VerticalAlignment="Center" FontSize="12" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="SHOWING" Style="{StaticResource Label}"
+                                                   VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <RadioButton Content="Titles" GroupName="campdetail" FontSize="12"
+                                                     VerticalAlignment="Center" Margin="0,0,12,0"
+                                                     IsChecked="{Binding IsTitlesOnly, Mode=OneWay}"
+                                                     Command="{Binding SetDetail}" CommandParameter="Titles"
+                                                     ToolTip="Belts changing hands, and nothing else" />
+                                        <RadioButton Content="Normal" GroupName="campdetail" FontSize="12"
+                                                     VerticalAlignment="Center" Margin="0,0,12,0"
+                                                     IsChecked="{Binding IsNormalDetail, Mode=OneWay}"
+                                                     Command="{Binding SetDetail}" CommandParameter="Normal"
+                                                     ToolTip="Belts, upsets anywhere, and everything in your own division" />
+                                        <RadioButton Content="Detailed" GroupName="campdetail" FontSize="12"
+                                                     VerticalAlignment="Center"
+                                                     IsChecked="{Binding IsFullDetail, Mode=OneWay}"
+                                                     Command="{Binding SetDetail}" CommandParameter="Detailed"
+                                                     ToolTip="The whole sport — including the prospects coming through, who become your rivals" />
+                                    </StackPanel>
                                     <TextBlock Text="{Binding CampCountLabel}" FontSize="11"
                                                HorizontalAlignment="Right" VerticalAlignment="Center"
                                                Foreground="{StaticResource Faint}" />
@@ -771,26 +789,26 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Date}" FontSize="11"
                                                                Foreground="{StaticResource Faint}" VerticalAlignment="Top" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="12"
-                                                               TextWrapping="Wrap">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Major}" Value="True">
-                                                                        <Setter Property="Foreground" Value="{StaticResource Text}" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding PlayerBout}" Value="True">
-                                                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Detail}"
-                                                               FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"
-                                                               Foreground="{StaticResource Faint}"
-                                                               Visibility="{Binding Detail, Converter={StaticResource EmptyVis}}" />
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="{Binding Text}" FontSize="12" TextWrapping="Wrap">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Major}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding PlayerBout}" Value="True">
+                                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding Detail}" FontSize="11" Margin="0,3,0,0"
+                                                                   TextWrapping="Wrap" Foreground="{StaticResource Faint}"
+                                                                   Visibility="{Binding Detail, Converter={StaticResource EmptyVis}}" />
+                                                    </StackPanel>
                                                     <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Margin="10,1,0,0"
                                                             VerticalAlignment="Top" BorderThickness="1"
                                                             Visibility="{Binding HasTag, Converter={StaticResource BoolVis}}">
@@ -1104,23 +1122,8 @@
                                 </Expander>
 
 
-                                <!-- Gone once you are in camp. Offering "go to fight night" and "turn it down"
-                                     with the countdown to that very fight running above read as though the
-                                     fight were still a decision. It is not: you took it. -->
-                                <Grid Margin="24,20,24,22"
-                                      Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button Content="{Binding TakeFightLabel}" Command="{Binding TakeFight}"
-                                            ToolTip="{Binding TakeFightHint}"
-                                            AutomationProperties.Name="{Binding TakeFightLabel}"
-                                            Style="{StaticResource PrimaryButton}" />
-                                    <Button Grid.Column="2" Content="Turn it down" Command="{Binding HoldOut}"
-                                            ToolTip="Refuse this fight and wait for another offer" />
-                                </Grid>
+                                <!-- No accept or refuse here. Home is where a fight is taken or turned down;
+                                     this page is the fight you already took. -->
                             </StackPanel>
                         </Border>
 
