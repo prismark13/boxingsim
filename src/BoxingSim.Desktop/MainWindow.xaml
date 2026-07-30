@@ -579,15 +579,20 @@
                                         </TextBlock>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Button Content="{Binding TakeFightLabel}" Command="{Binding TakeFight}"
+                                        <Button Content="{Binding TakeFightLabel}" Command="{Binding TakeFight}"
                                                 ToolTip="{Binding TakeFightHint}"
                                                 AutomationProperties.Name="{Binding TakeFightLabel}"
-                                                Style="{StaticResource PrimaryButton}" Padding="22,10" />
-                                        <!-- No "turn it down" here. The dashboard offers the fight; the
-                                             decision to refuse one is made on the page that shows you the
-                                             man, the tape and the card. -->
-                                        <Button Content="See the card ›" Command="{Binding Navigate}"
-                                                CommandParameter="Career" Margin="10,0,0,0" FontSize="12" />
+                                                Style="{StaticResource PrimaryButton}" Padding="22,10"
+                                                Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
+                                        <!-- In camp the fight is taken, so the only thing to do from here is go
+                                             back and watch the weeks run out. -->
+                                        <Button Content="Back to camp" Command="{Binding Navigate}"
+                                                CommandParameter="Career" Style="{StaticResource PrimaryButton}"
+                                                Padding="22,10"
+                                                Visibility="{Binding InCamp, Converter={StaticResource BoolVis}}" />
+                                        <!-- No "turn it down" and no "see the card" here. Refusing a fight is
+                                             done where you can see the man; the card is what the sidebar's
+                                             "Next fight" has always opened. -->
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -663,7 +668,7 @@
                         <!-- Held between weeks, so the build-up can be read rather than watched going
                              past. "Run the rest" hands the pacing back to the clock for this one run. -->
                         <Grid Margin="24,0,24,10"
-                              Visibility="{Binding IsWaiting, Converter={StaticResource BoolVis}}">
+                              Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="9" />
@@ -673,14 +678,11 @@
                             </Grid.ColumnDefinitions>
                             <Button Content="Continue" Command="{Binding StepForward}"
                                     Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
-                                    ToolTip="One more week"
-                                    IsEnabled="{Binding AwaitingStep}" />
+                                    ToolTip="One more week" />
                             <Button Grid.Column="2" Content="Run the rest" Command="{Binding RunTheRest}"
                                     Padding="14,10" FontSize="13"
                                     ToolTip="Let the remaining weeks run on their own" />
-                            <Button Grid.Column="4" Content="Stop here" Command="{Binding StopWaiting}"
-                                    Padding="14,10" FontSize="13"
-                                    ToolTip="Leave the rest of the wait for later" />
+
                         </Grid>
 
                         <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
@@ -721,8 +723,6 @@
                                             <!-- Without this, being stopped by a fight in your own
                                                  division meant pressing "take the fight" a second
                                                  time, which reads as the first press having failed. -->
-                                            <Button Content="On to fight night" Margin="9,0,0,0" Padding="12,7"
-                                                    FontSize="12" Command="{Binding CarryOnToFightNight}" />
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -936,7 +936,7 @@
                                      answers one question, and the whole thing collapses — its header
                                      says who the numbers favour, so folding it loses nothing. -->
                                 <Expander Style="{StaticResource Section}" Margin="24,14,24,0"
-                                          IsExpanded="True" Header="TALE OF THE TAPE · 1–15"
+                                          IsExpanded="{Binding FightIsStillAnOffer, Mode=OneWay}" Header="TALE OF THE TAPE · 1–15"
                                           Tag="{Binding TapeEdge}">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,6">
@@ -973,7 +973,7 @@
                                 <!-- The bill, as a poster. A card is a thing you read BEFORE the night: what
                                      kind of show it is, which hall, who else is on, and where you come on it. -->
                                 <Expander Style="{StaticResource Section}" Margin="24,10,24,0"
-                                          IsExpanded="True" Header="THE CARD"
+                                          IsExpanded="{Binding FightIsStillAnOffer, Mode=OneWay}" Header="THE CARD"
                                           Tag="{Binding BillHeader}"
                                           Visibility="{Binding HasBill, Converter={StaticResource BoolVis}}">
                                 <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource GoldLine}"
@@ -1100,7 +1100,11 @@
                                 </Expander>
 
 
-                                <Grid Margin="24,20,24,22">
+                                <!-- Gone once you are in camp. Offering "go to fight night" and "turn it down"
+                                     with the countdown to that very fight running above read as though the
+                                     fight were still a decision. It is not: you took it. -->
+                                <Grid Margin="24,20,24,22"
+                                      Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="12" />
@@ -1115,7 +1119,8 @@
                                 </Grid>
                                 <Button Content="{Binding MoveUpLabel}" Command="{Binding MoveUp}"
                                         Margin="24,0,24,22" Padding="12,8" FontSize="12"
-                                        Visibility="{Binding MoveUpLabel, Converter={StaticResource EmptyVis}}" />
+                                        Visibility="{Binding MoveUpLabel, Converter={StaticResource EmptyVis}}"
+                                        IsEnabled="{Binding FightIsStillAnOffer}" />
                             </StackPanel>
                         </Border>
 

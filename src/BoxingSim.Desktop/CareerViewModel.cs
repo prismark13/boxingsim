@@ -288,9 +288,6 @@ public sealed class CareerViewModel : Observable
         Sfx.Enabled = _soundOn;
 
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
-        // Pressing "take the fight" and then being stopped by a fight in your own division left you having to
-        // press it again, which read as the button not having worked. This is the same journey, continued.
-        CarryOnToFightNight = new Cmd(() => Take(resuming: true));
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
         MoveUp = new Cmd(DoMoveUp, () => Game?.CanMoveUp == true);
         StartCareer = new Cmd(Start, () => !Busy && Ready);
@@ -317,8 +314,19 @@ public sealed class CareerViewModel : Observable
             if (_resumeAfterAwards) { _resumeAfterAwards = false; Take(resuming: true); }
         });
         ToggleNews = new Cmd(() => NewsOpen = !NewsOpen);
-        StepForward = new Cmd(ReleaseGate);
-        RunTheRest = new Cmd(() => { _autoRest = true; ReleaseGate(); });
+        // Held between weeks: let the next one land. Stopped altogether: pick the walk up where it left off.
+        StepForward = new Cmd(() =>
+        {
+            if (AwaitingStep) ReleaseGate();
+            else if (!_waiting) Take(resuming: true);
+        });
+        RunTheRest = new Cmd(() =>
+        {
+            _autoRest = true;
+            _autoRestPending = true;      // survives into a resumed run, which resets _autoRest
+            if (AwaitingStep) ReleaseGate();
+            else if (!_waiting) Take(resuming: true);
+        });
         // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
         SkipUndercard = new Cmd(() => { _skipCard = true; ReleaseGate(); });
         ClearNewsFilter = new Cmd(() =>
@@ -330,7 +338,7 @@ public sealed class CareerViewModel : Observable
         });
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
-        StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); });
+        StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
@@ -673,7 +681,6 @@ public sealed class CareerViewModel : Observable
 
     /// <summary>Let the weeks run to fight night, one at a time, with the sport happening in front of you.</summary>
     public Cmd WaitForFight { get; }
-    public Cmd CarryOnToFightNight { get; }
     public Cmd StopWaiting { get; }
     /// <summary>Watch the fight that came up while you were waiting.</summary>
     public Cmd WatchTheOne { get; }
@@ -826,6 +833,7 @@ public sealed class CareerViewModel : Observable
         if (_prefs.FightWeek && Game.DaysToFight > 0)
         {
             DoNavigate(Page.Career);          // the poster and the weeks live there
+            SetCommitted(true);
             await RunToFightNight(resuming);
 
             // He stopped for something, or the year turned and wants acknowledging. The fight keeps, and
@@ -846,6 +854,10 @@ public sealed class CareerViewModel : Observable
 
         _awardsWait = true;
         await BusyAsync("Fight night…", () => _svc.Take());
+        // The bout is in the books and a fresh offer has been drawn behind it: out of camp, and the weeks just
+        // walked belong to a fight that has already happened.
+        SetCommitted(false);
+        Camp.Clear(); _campAll.Clear(); Raise(nameof(CampCountLabel)); Raise(nameof(ShowCamp));
         RefreshAll();
 
         if (_prefs.LiveUndercard) await RunUndercard();
@@ -877,6 +889,38 @@ public sealed class CareerViewModel : Observable
 
     private TaskCompletionSource<bool>? _gate;
     private bool _autoRest;
+    private bool _autoRestPending;
+
+    /// <summary>Whether there is any wait left to carry on with — held between weeks OR stopped for something.
+    ///
+    /// Continue used to appear only while the run was actively holding, so stopping for a fight in your own
+    /// division made it vanish and left "On to fight night" as the only way onward: a different control, in a
+    /// different place, labelled as though it skipped to the end when it actually resumed week by week. One
+    /// control, one place, whatever the reason for the pause.</summary>
+    public bool CanCarryOn => Game?.Offer is not null && Game?.Player.Retired == false && Game?.DaysToFight > 0;
+
+    /// <summary>Whether the fight has been taken and the run-up is under way.
+    ///
+    /// The page went on offering "go to fight night" and "turn it down" all the way through the build-up, as
+    /// though the fight were still a decision — while the countdown to it ran above. It is not a decision any
+    /// more: you took it. In camp, the page is the camp, and the poster below it is what you are heading
+    /// towards rather than something to accept.
+    ///
+    /// Deliberately not saved. Reopening a career mid-camp puts the choice back, which is the kinder reading of
+    /// a session you walked away from.</summary>
+    private bool _committed;
+
+    public bool InCamp => _committed && Game?.DaysToFight > 0 && Game?.Player.Retired == false;
+
+    /// <summary>The opposite, for the controls that only make sense while the fight is still an offer.</summary>
+    public bool FightIsStillAnOffer => Game?.Offer is not null && Game?.Player.Retired == false && !InCamp;
+
+    private void SetCommitted(bool v)
+    {
+        if (_committed == v) return;
+        _committed = v;
+        foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer) }) Raise(n);
+    }
 
     /// <summary>True while the run is holding, waiting to be told to go on. What the Continue button hangs off.</summary>
     public bool AwaitingStep => _gate is not null;
@@ -1084,10 +1128,12 @@ public sealed class CareerViewModel : Observable
     {
         if (Game is null || _waiting) return;
         _waiting = true;
-        _autoRest = false;          // asked for once, for this run, not remembered
+        // Asked for once, for this run — except when "run the rest" is what restarted it.
+        _autoRest = _autoRestPending;
+        _autoRestPending = false;
         if (!resuming) { Camp.Clear(); _campAll.Clear(); }
         _theOne = null; TheOne = "";
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
         while (_waiting && Game?.WaitAWeek() is IReadOnlyList<CareerEvent> week)
         {
@@ -1106,7 +1152,7 @@ public sealed class CareerViewModel : Observable
                 _waiting = false;
                 foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
             }
-            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait) }) Raise(n);
+            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn) }) Raise(n);
             CheckForAwards();
             if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
 
@@ -1114,7 +1160,7 @@ public sealed class CareerViewModel : Observable
             if (_waiting) await Gate(550);
         }
         _waiting = false;
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
         RefreshAll();
         CheckForAwards();
     }
@@ -1230,8 +1276,9 @@ public sealed class CareerViewModel : Observable
             Raise(n);
     }
 
-    private async void Decline() { await BusyAsync("Waiting for the next offer…", () => _svc.Decline()); RefreshAll(); }
-    private async void DoMoveUp() { await BusyAsync("Moving up…", () => _svc.MoveUp()); RefreshAll(); }
+    // Both of these end whatever camp was under way: the fight it was for is no longer the fight.
+    private async void Decline() { SetCommitted(false); await BusyAsync("Waiting for the next offer…", () => _svc.Decline()); RefreshAll(); }
+    private async void DoMoveUp() { SetCommitted(false); await BusyAsync("Moving up…", () => _svc.MoveUp()); RefreshAll(); }
     private void Abandon() { EndPlayback(); SelectedCard = null; SelectedFight = null; SelectedAward = null; _svc.Abandon(); RefreshAll(); }
 
     public static bool HasSave => DesktopCareerService.HasSave;
@@ -2192,7 +2239,7 @@ public sealed class CareerViewModel : Observable
         {
             nameof(InCareer), nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav), nameof(CanWait),
             nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(Game), nameof(PlayerHeadline), nameof(StandingLine), nameof(PlayerClass), nameof(PlayerRecord),
-            nameof(TakeFightLabel), nameof(TakeFightHint),
+            nameof(TakeFightLabel), nameof(TakeFightHint), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer),
             nameof(PlayerIdentity), nameof(PlayerStanding), nameof(PlayerIsChampion),
             nameof(DateLabel), nameof(OfferDateLabel), nameof(HasOffer), nameof(OfferOpponent),
             nameof(OfferOpponentClass), nameof(OfferOpponentRecord), nameof(OfferOpponentMeta),
