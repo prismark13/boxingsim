@@ -187,6 +187,31 @@ public sealed partial class CareerGame
     /// Both are rationed. One or two superfights a year across the whole sport, and an eliminator in perhaps
     /// half the divisions - any more and being great stops meaning anything, because everyone has beaten
     /// everyone.</summary>
+    /// <summary>The turn-of-the-year pass, with the calendar pinned to the day it began on.
+    ///
+    /// The stagers below move <see cref="Date"/> to place each bout on the card and never put it back, so the
+    /// calendar was left wherever the last superfight of the year happened to fall — up to twelve months after
+    /// the day the player was living in. Transient, because the next week's step reset it, but not harmless:
+    /// a year that turned on the LAST week before a fight collapsed DaysToFight to zero, which is what opened
+    /// the year's honours on top of a bout and let it run on behind them.
+    ///
+    /// <see cref="_asOf"/> also stops the spread running into the future. These bouts are resolved here and
+    /// now — their results are applied to records immediately — so dating them months ahead showed the player
+    /// fights that had not happened yet, and put news in the feed below older news.</summary>
+    private void YearlyPass()
+    {
+        var resume = Date;
+        _asOf = resume;
+        try { InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights(); }
+        finally { _asOf = null; Date = resume; }
+    }
+
+    /// <summary>The day the yearly pass began, while it is running; null the rest of the time, when SpreadDate
+    /// is doing its ordinary job of laying a year of history out across its months.</summary>
+    private DateOnly? _asOf;
+
+    private DateOnly NoLaterThanAsOf(DateOnly d) => _asOf is DateOnly c && d > c ? c : d;
+
     private void StageSuperfights()
     {
         // Two looks a year. Most come to nothing - the same two men are rarely both free, both in form and
@@ -260,7 +285,7 @@ public sealed partial class CareerGame
                      : IbfOf(heavier.WeightClass)?.Id == heavier.Id ? "IBF" : null;
         string note = belt is not null ? $"{belt} title" : "superfight";
 
-        Date = SpreadDate(Date.Year, 1 + _rng.Next(4), 6);
+        Date = NoLaterThanAsOf(SpreadDate(Date.Year, 1 + _rng.Next(4), 6));
         var res = FastBout(a, b, 12);
         ApplyOutcome(res, a, b, note);
         ReportBout(res);
@@ -304,7 +329,7 @@ public sealed partial class CareerGame
         if (RecentFoes(a, 3).Contains(b.Name)) return;
 
         _cursor = wc;
-        Date = SpreadDate(Date.Year, _rng.Next(6), 6);
+        Date = NoLaterThanAsOf(SpreadDate(Date.Year, _rng.Next(6), 6));
         var res = FastBout(a, b, 12);
         ApplyOutcome(res, a, b, "eliminator");
         ReportBout(res);

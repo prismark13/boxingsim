@@ -47,7 +47,7 @@ public sealed partial class CareerGame
                 // universe, which has no player to hand them to.
                 if (Universe is null && !Player.Retired)
                     UnseenAwards = _awards.FirstOrDefault(a => a.Year == Date.Year - 1);
-                InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights();
+                YearlyPass();
             }
         RunEvent();
         return _log.Skip(before).ToList();
@@ -190,7 +190,11 @@ public sealed partial class CareerGame
 
         var (savedDate, savedCursor) = (Date, _cursor);
         _cursor = wc;
-        Date = SpreadDateFrom(Date);
+        // Spread forward through the rest of the year while a year of history is being laid out, but never past
+        // the day the player is living in. Crowning a vacant belt is settled here and now — the result is
+        // applied to records immediately — so dating it months ahead announced a champion the player could not
+        // yet have watched being crowned, and put the headline below older news in a feed sorted by date.
+        Date = NoLaterThanAsOf(SpreadDateFrom(Date));
         var res = FastBout(field[0], field[1], 12);
         ApplyOutcome(res, field[0], field[1], $"{belt} title");
         var winner = res.IsDraw ? field[0] : res.Winner!;   // a draw leaves the belt with the higher-ranked man

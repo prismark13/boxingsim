@@ -196,7 +196,7 @@ public sealed partial class CareerGame
                 // universe, which has no player to hand them to.
                 if (Universe is null && !Player.Retired)
                     UnseenAwards = _awards.FirstOrDefault(a => a.Year == Date.Year - 1);
-                InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights();
+                YearlyPass();
             }
             RunEvent();
         }
