@@ -236,41 +236,65 @@
                                       AutomationProperties.Name="{TemplateBinding Header}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="hb" Background="Transparent" Padding="0,8">
+                                    <!-- A bar you can see is a control.
+                                         The first cut was a bare chevron beside a small caption on a transparent
+                                         background, which read as a heading and not as something to press —
+                                         nobody could tell the section folded. It has a surface, a border, a
+                                         chevron in its own bevelled square and the word "hide" or "show" on the
+                                         right, which is the part that removes all doubt. -->
+                                    <Border x:Name="hb" Background="{StaticResource Panel2}"
+                                            BorderBrush="{StaticResource Line2}" BorderThickness="1"
+                                            CornerRadius="8" Padding="11,7">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <!-- Fixed width and centred: the two glyphs are different widths, so
-                                                 without it the header shifted sideways on every open and close. -->
-                                            <TextBlock x:Name="chev" Text="⌄" FontSize="13" Width="16"
-                                                       TextAlignment="Center" Margin="0,0,6,0"
-                                                       VerticalAlignment="Center" Foreground="{StaticResource Quiet}" />
-                                            <TextBlock x:Name="hd" Text="{TemplateBinding Content}" FontSize="11"
-                                                       FontWeight="SemiBold" VerticalAlignment="Center"
+
+                                            <Border x:Name="chevbox" Width="19" Height="19" CornerRadius="5"
+                                                    Background="{StaticResource Panel}"
+                                                    BorderBrush="{StaticResource Line2}" BorderThickness="1"
+                                                    Margin="0,0,10,0" VerticalAlignment="Center">
+                                                <!-- Fixed box and centred glyph: the two arrows are different
+                                                     widths, so without it the header shifted on every toggle. -->
+                                                <TextBlock x:Name="chev" Text="▾" FontSize="10"
+                                                           TextAlignment="Center" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource Quiet}" />
+                                            </Border>
+
+                                            <TextBlock x:Name="hd" Grid.Column="1" Text="{TemplateBinding Content}"
+                                                       FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"
                                                        Foreground="{StaticResource Muted}" />
                                             <TextBlock Grid.Column="2" Text="{TemplateBinding Tag}" FontSize="11.5"
                                                        Margin="14,0,0,0" VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis"
                                                        Foreground="{StaticResource Faint}" />
+                                            <TextBlock x:Name="act" Grid.Column="3" Text="hide" FontSize="11"
+                                                       Margin="14,0,2,0" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource Quiet}" />
                                         </Grid>
                                     </Border>
                                     <ControlTemplate.Triggers>
-                                        <!-- Pointing down when open, right when shut. -->
+                                        <!-- Pointing down when open, right when shut, and the verb flips with it. -->
                                         <Trigger Property="IsChecked" Value="False">
-                                            <Setter TargetName="chev" Property="Text" Value="›" />
+                                            <Setter TargetName="chev" Property="Text" Value="▸" />
+                                            <Setter TargetName="act" Property="Text" Value="show" />
                                         </Trigger>
                                         <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="hb" Property="BorderBrush" Value="{StaticResource GoldLine}" />
+                                            <Setter TargetName="chevbox" Property="BorderBrush" Value="{StaticResource GoldLine}" />
                                             <Setter TargetName="hd" Property="Foreground" Value="{StaticResource Text}" />
                                             <Setter TargetName="chev" Property="Foreground" Value="{StaticResource Gold}" />
+                                            <Setter TargetName="act" Property="Foreground" Value="{StaticResource Gold}" />
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <ContentPresenter x:Name="body" Visibility="Collapsed" Margin="0,4,0,0" />
+                        <ContentPresenter x:Name="body" Visibility="Collapsed" Margin="0,8,0,0" />
                     </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsExpanded" Value="True">
