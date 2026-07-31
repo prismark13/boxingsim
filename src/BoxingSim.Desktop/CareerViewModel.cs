@@ -383,7 +383,7 @@ public sealed class CareerViewModel : Observable
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn));
-            Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); Raise(nameof(ReadyToFight)); Raise(nameof(ShowCampActions)); });
+            Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); Raise(nameof(ReadyToFight)); Raise(nameof(ShowCampActions)); Raise(nameof(ShowResultBanner)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
@@ -1090,7 +1090,8 @@ public sealed class CareerViewModel : Observable
     {
         if (_committed == v) return;
         _committed = v;
-        foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions) }) Raise(n);
+        foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight),
+                                  nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
     }
 
     /// <summary>True while the run is holding, waiting to be told to go on. What the Continue button hangs off.</summary>
@@ -1318,7 +1319,7 @@ public sealed class CareerViewModel : Observable
         _autoRestPending = false;
         if (!resuming) { Camp.Clear(); _campAll.Clear(); }
         _theOne = null; TheOne = "";
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
         while (_waiting)
         {
@@ -1343,7 +1344,7 @@ public sealed class CareerViewModel : Observable
                 _waiting = false;
                 foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
             }
-            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions) }) Raise(n);
+            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
             CheckForAwards();
             if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
 
@@ -1351,7 +1352,7 @@ public sealed class CareerViewModel : Observable
             if (_waiting) await Gate(550);
         }
         _waiting = false;
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
         RefreshAll();
         CheckForAwards();
     }
@@ -1491,7 +1492,13 @@ public sealed class CareerViewModel : Observable
 
     /// <summary>The verdict banner stays hidden behind the fight night — showing it there would give the
     /// result away before a punch had been thrown.</summary>
-    public bool ShowResultBanner => HasResult && !IsPlayingBack;
+    /// <summary>The verdict of the fight just had — until the next one is accepted.
+    ///
+    /// It used to sit there for as long as the result did, so a man six weeks into camp for October read a
+    /// green "WIN — beat Duane Reeves by TKO" about a fight in July, above a poster for a different opponent,
+    /// with the same result already listed in his record underneath. It is the last thing that happened only
+    /// until something else is happening.</summary>
+    public bool ShowResultBanner => HasResult && !IsPlayingBack && !InCamp && !IsCardRunning;
 
     /// <summary>The call, grouped by round. A finished round folds down to its one-line verdict so the round
     /// being fought is always the thing in front of you; any of them can be opened again.</summary>
