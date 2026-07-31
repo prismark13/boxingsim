@@ -680,9 +680,9 @@
                             <Button Content="Continue" Command="{Binding StepForward}"
                                     Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
                                     ToolTip="One more week" />
-                            <Button Grid.Column="2" Content="Run the rest" Command="{Binding RunTheRest}"
+                            <Button Grid.Column="2" Content="Go to fight night" Command="{Binding RunTheRest}"
                                     Padding="14,10" FontSize="13"
-                                    ToolTip="Let the remaining weeks run on their own" />
+                                    ToolTip="Run the remaining weeks straight through to the first bell" />
 
                         </Grid>
 
@@ -737,21 +737,14 @@
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="SHOWING" Style="{StaticResource Label}"
                                                    VerticalAlignment="Center" Margin="0,0,10,0" />
-                                        <RadioButton Content="Titles" GroupName="campdetail" FontSize="12"
-                                                     VerticalAlignment="Center" Margin="0,0,12,0"
-                                                     IsChecked="{Binding IsTitlesOnly, Mode=OneWay}"
-                                                     Command="{Binding SetDetail}" CommandParameter="Titles"
-                                                     ToolTip="Belts changing hands, and nothing else" />
-                                        <RadioButton Content="Normal" GroupName="campdetail" FontSize="12"
-                                                     VerticalAlignment="Center" Margin="0,0,12,0"
-                                                     IsChecked="{Binding IsNormalDetail, Mode=OneWay}"
-                                                     Command="{Binding SetDetail}" CommandParameter="Normal"
-                                                     ToolTip="Belts, upsets anywhere, and everything in your own division" />
-                                        <RadioButton Content="Detailed" GroupName="campdetail" FontSize="12"
-                                                     VerticalAlignment="Center"
-                                                     IsChecked="{Binding IsFullDetail, Mode=OneWay}"
-                                                     Command="{Binding SetDetail}" CommandParameter="Detailed"
-                                                     ToolTip="The whole sport — including the prospects coming through, who become your rivals" />
+                                        <ComboBox ItemsSource="{Binding DetailChoices}"
+                                                  SelectedItem="{Binding SelectedDetail}"
+                                                  MinWidth="150" VerticalAlignment="Center"
+                                                  AutomationProperties.Name="Level of detail"
+                                                  ToolTip="{Binding SelectedDetail.Explains}" />
+                                        <CheckBox Content="My weight only" IsChecked="{Binding CampMineOnly}"
+                                                  VerticalAlignment="Center" FontSize="12" Margin="16,0,0,0"
+                                                  ToolTip="Narrow whichever level you have chosen to your own division" />
                                     </StackPanel>
                                     <TextBlock Text="{Binding CampCountLabel}" FontSize="11"
                                                HorizontalAlignment="Right" VerticalAlignment="Center"

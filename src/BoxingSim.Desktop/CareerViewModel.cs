@@ -101,6 +101,13 @@ public sealed class CardBout : Observable
     public bool IsDone    => _state == "done";
 }
 
+/// <summary>One of the three levels the build-up feed can be read at. Its string form IS its label, because a
+/// ComboBox falls back to ToString() when it is closed and would otherwise show the type name.</summary>
+public sealed record DetailChoice(CareerViewModel.CampDetail Level, string Label, string Explains)
+{
+    public override string ToString() => Label;
+}
+
 /// <summary>One line of the build-up feed, with how much it matters already worked out. The view should not be
 /// comparing weight classes to decide how brightly to draw a row.</summary>
 public sealed record CampRow(string Date, string Text, bool Mine, bool IsTitle, bool IsUpset,
@@ -311,6 +318,8 @@ public sealed class CareerViewModel : Observable
     public CareerViewModel()
     {
         // Read before anything binds, so the first frame already shows what the player chose last time.
+        _campDetail = Enum.TryParse<CampDetail>(_prefs.CampDetail, out var cd) ? cd : CampDetail.Normal;
+        _campMineOnly = _prefs.CampMineOnly;
         _soundOn = _prefs.SoundOn;
         _speed = _prefs.Speed;
         Sfx.Enabled = _soundOn;
@@ -359,7 +368,6 @@ public sealed class CareerViewModel : Observable
             else if (!_waiting) Take(resuming: true);
         });
         // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
-        SetDetail = new Cmd(p => { if (p is string t && Enum.TryParse<CampDetail>(t, out var d)) Detail = d; });
         ClearNewsFilter = new Cmd(() =>
         {
             _newsTitlesOnly = false;
@@ -1006,6 +1014,7 @@ public sealed class CareerViewModel : Observable
         RaiseCard();
         _awardsWait = false;
         CheckForAwards();   // the night may have carried the calendar into a new year
+        DoNavigate(Page.Dashboard);   // out of the arena and back to the career, not to an empty camp
     }
 
     // ---- going at your own pace ----
@@ -1105,14 +1114,13 @@ public sealed class CareerViewModel : Observable
     public string TakeFightLabel =>
         Game?.Offer is null ? "Take the fight"
         : Game.DaysToFight == 0 ? "Fight now"
-        : FightWeek ? "Go to fight night"
-        : "Take the fight";
+        : "Accept fight";
 
     public string TakeFightHint =>
         Game?.Offer is null ? ""
         : Game.DaysToFight == 0 ? "The date has come — first bell"
-        : FightWeek ? $"Accept, and run the {Game.DaysToFight / 7} weeks between now and the first bell"
-        : "Accept, and start the fight straight away";
+        : FightWeek ? $"Agree to it, and run the {Game.DaysToFight / 7} weeks between now and the first bell"
+        : "Agree to it, and start the fight straight away";
 
     public bool LiveUndercard
     {
@@ -1154,7 +1162,7 @@ public sealed class CareerViewModel : Observable
     /// moving elsewhere that decide who he ends up fighting.</summary>
     public enum CampDetail { Titles, Normal, Detailed }
 
-    private CampDetail _campDetail = CampDetail.Normal;
+    private CampDetail _campDetail;
     public CampDetail Detail
     {
         get => _campDetail;
@@ -1162,29 +1170,58 @@ public sealed class CareerViewModel : Observable
         {
             if (_campDetail == value) return;
             _campDetail = value;
-            foreach (var n in new[] { nameof(Detail), nameof(IsTitlesOnly), nameof(IsNormalDetail),
-                                      nameof(IsFullDetail), nameof(CampCountLabel) }) Raise(n);
+            _prefs.CampDetail = value.ToString(); _prefs.Save();
+            foreach (var n in new[] { nameof(Detail), nameof(SelectedDetail), nameof(CampCountLabel) }) Raise(n);
             RedrawCamp();
         }
     }
 
-    public bool IsTitlesOnly   => _campDetail == CampDetail.Titles;
-    public bool IsNormalDetail => _campDetail == CampDetail.Normal;
-    public bool IsFullDetail   => _campDetail == CampDetail.Detailed;
-    public Cmd SetDetail { get; }
+    private bool _campMineOnly;
+    /// <summary>His own weight only, on top of the level. Two separate questions — how much of the sport, and
+    /// whose part of it — so two separate controls rather than one that tries to be both.</summary>
+    public bool CampMineOnly
+    {
+        get => _campMineOnly;
+        set
+        {
+            if (_campMineOnly == value) return;
+            _campMineOnly = value;
+            _prefs.CampMineOnly = value; _prefs.Save();
+            Raise(); Raise(nameof(CampCountLabel));
+            RedrawCamp();
+        }
+    }
+
+    /// <summary>The three levels as a list, so the panel spends one control on them rather than three.</summary>
+    public IReadOnlyList<DetailChoice> DetailChoices { get; } = new[]
+    {
+        new DetailChoice(CampDetail.Titles,   "Titles only",  "Belts changing hands, and nothing else"),
+        new DetailChoice(CampDetail.Normal,   "Normal",       "Belts, upsets anywhere, and your own division"),
+        new DetailChoice(CampDetail.Detailed, "Detailed",     "The whole sport, including the prospects coming through"),
+    };
+
+    public DetailChoice SelectedDetail
+    {
+        get => DetailChoices.First(c => c.Level == _campDetail);
+        set { if (value is not null) Detail = value.Level; Raise(); }
+    }
 
     /// <summary>Titles: belts only. Normal: adds his own division and any upset. Detailed: the lot, which is
     /// where the prospects coming through and the movement below the champion live.</summary>
-    private bool Shows(CampRow r) => _campDetail switch
+    private bool Shows(CampRow r)
     {
-        CampDetail.Titles => r.IsTitle,
-        CampDetail.Normal => r.IsTitle || r.IsUpset || r.Mine || r.PlayerBout,
-        _ => true,
-    };
+        if (_campMineOnly && !r.Mine && !r.PlayerBout) return false;
+        return _campDetail switch
+        {
+            CampDetail.Titles => r.IsTitle,
+            CampDetail.Normal => r.IsTitle || r.IsUpset || r.Mine || r.PlayerBout,
+            _ => true,
+        };
+    }
 
     public string CampCountLabel =>
         _campAll.Count == 0 ? ""
-        : _campDetail == CampDetail.Detailed ? $"{_campAll.Count} in the sport"
+        : Camp.Count == _campAll.Count ? $"{_campAll.Count} in the sport"
         : $"{Camp.Count} of {_campAll.Count}";
 
     private void RedrawCamp()

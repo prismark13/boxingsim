@@ -28,6 +28,14 @@ public sealed class Prefs
     /// of putting the weeks on screen was to let them be read.</summary>
     public bool StepByStep { get; set; } = true;
 
+    /// <summary>How much of the sport the build-up feed reports: Titles, Normal or Detailed. Remembered,
+    /// because it is a standing preference about how you like to follow boxing and not a per-fight choice.</summary>
+    public string CampDetail { get; set; } = "Normal";
+
+    /// <summary>Narrow the feed to the player's own weight, on top of whichever level is chosen. Independent
+    /// of the level: a man can want titles only, and only in his own division.</summary>
+    public bool CampMineOnly { get; set; }
+
     public bool SoundOn { get; set; } = true;
 
     /// <summary>Playback speed multiplier. Only the three the UI offers are meaningful, but it is stored as
