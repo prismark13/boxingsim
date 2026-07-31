@@ -100,6 +100,17 @@ public sealed partial class CareerGame
         Offer = o;
     }
 
+    /// <summary>What a fight on the slate is worth — the same measure the card uses to decide its running
+    /// order. Exposed so the choice can be described in terms of what each night IS, rather than leaving the
+    /// player to compare two records of men he has never heard of.</summary>
+    public double ValueOf(FightOffer o) =>
+        BoutValue.Of(Player, o.Opponent, StakesOf(o), Player.WeightClass,
+                     BoardPlace(Player), BoardPlace(o.Opponent));
+
+    /// <summary>Where a man stands on his division's board, or 0. For the UI, which cannot see the ranking
+    /// internals but has to say "#4" beside a name for it to mean anything.</summary>
+    public int PlaceOf(Boxer b) => BoardPlace(b);
+
     /// <summary>This cycle's choices. At most one of them can be a belt.</summary>
     private List<FightOffer> BuildSlate()
     {

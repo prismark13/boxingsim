@@ -602,7 +602,17 @@ public sealed partial class CareerGame
 
         OfferDate = ParseDate(s.OfferDate, Date.AddDays(42));
         if (s.Offer is OfferSave o && byId.TryGetValue(o.OpponentId, out var opp))
-            Offer = new FightOffer { Opponent = opp, Rounds = o.Rounds, TitleFight = o.TitleFight, Belt = o.Belt, Context = o.Context };
+        {
+            // The saved offer goes back on the table AND onto the slate. A career reopened without this had
+            // a fight in front of it and no alternatives at all, because the slate lives in memory and the
+            // save predates it — so the choice silently vanished across a reload.
+            //
+            // A save written before slates existed keeps its single fight for this cycle, which is right: it
+            // is the fight that was agreed. The next cycle draws a full slate.
+            var back = new FightOffer { Opponent = opp, Rounds = o.Rounds, TitleFight = o.TitleFight, Belt = o.Belt, Context = o.Context };
+            _slate.Add(back);
+            Offer = back;
+        }
         else
             NewSlate();
     }
