@@ -85,6 +85,11 @@ public sealed class CardBout : Observable
     public string Note { get; init; } = "";
     public bool IsPlayer { get; init; }
 
+    /// <summary>The line under the names: division, what is at stake, and where each man stands. A card of
+    /// unfamiliar names tells you nothing about which of them matters without it.</summary>
+    public string Billing { get; init; } = "";
+    public bool HasBilling => Billing.Length > 0;
+
     private string _state = "pending";           // pending | current | done
     public string State
     {
@@ -971,10 +976,27 @@ public sealed class CareerViewModel : Observable
             {
                 Fight = l.Fight, Distance = l.Distance, What = l.What,
                 Verdict = l.Verdict, Note = l.Note, IsPlayer = l.IsPlayer,
+                Billing = BillingLine(l),
             });
         }
         if (CardNight.Count > 0) CardNight[0].State = "current";
         RaiseCard();
+    }
+
+    /// <summary>"Middleweight · WBA title · champion vs #4" — as much of that as is true.</summary>
+    private static string BillingLine(BillLine l)
+    {
+        var bits = new List<string> { l.Div.DisplayName() };
+        if (l.What.Length > 0) bits.Add(l.What);
+        string ranks = (l.ARank, l.BRank) switch
+        {
+            ("", "") => "",
+            (var a, "") => a,
+            ("", var b) => b,
+            var (a, b) => $"{a} vs {b}",
+        };
+        if (ranks.Length > 0) bits.Add(ranks);
+        return string.Join("  ·  ", bits);
     }
 
     private void AdvanceCard()
@@ -1512,7 +1534,10 @@ public sealed class CareerViewModel : Observable
     {
         if (line.IsRound)
         {
-            if (_live is not null) _live.IsExpanded = false;   // the round just fought folds away
+            // Rounds used to fold away as the next one began, so only the round being fought was ever on
+            // screen and everything said before it collapsed to a one-line summary. The call itself is not
+            // sparse — it averages four or more lines a round, and there is a test that says so — it was the
+            // display throwing them away. A fight reads as a log now: it grows, and it scrolls.
             _live = new RoundBlock { Round = line.Round };
             Rounds.Add(_live);
         }

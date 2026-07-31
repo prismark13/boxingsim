@@ -122,6 +122,15 @@ public sealed partial class CareerGame
     }
 
     /// <summary>Fight the bouts that were announced, and say a word about each.</summary>
+    /// <summary>Where a man stands, for a bill: "champion", "#4", or nothing at all if he is not on the board.
+    /// A card of unfamiliar names says nothing about who matters without it.</summary>
+    private string RankLabel(Boxer b)
+    {
+        if (IsWorldChampion(b)) return "champion";
+        int place = BoardPlace(b);
+        return place > 0 ? $"#{place}" : "";
+    }
+
     private void StageUndercard()
     {
         _undercard.Clear();
@@ -193,7 +202,9 @@ public sealed partial class CareerGame
                 return new BillLine($"{a.Name} vs {b.Name}", r, false, "",
                                     done?.Verdict ?? "", done?.Line ?? "", done?.Note ?? "",
                                     a.Name, a.Country ?? "", a.Record.ToString(),
-                                    b.Name, b.Country ?? "", b.Record.ToString());
+                                    b.Name, b.Country ?? "", b.Record.ToString(),
+                                    IsTitle: false, Div: a.WeightClass,
+                                    ARank: RankLabel(a), BRank: RankLabel(b));
             }
 
             var all = new List<BillLine>();
@@ -202,7 +213,9 @@ public sealed partial class CareerGame
                                  o.TitleFight ? $"{o.Belt} title" : o.Context, "", "", "",
                                  Player.Name, Player.Country ?? "", Player.Record.ToString(),
                                  o.Opponent.Name, o.Opponent.Country ?? "", o.Opponent.Record.ToString(),
-                                 o.TitleFight));
+                                 o.TitleFight,
+                                 Div: Player.WeightClass,
+                                 ARank: RankLabel(Player), BRank: RankLabel(o.Opponent)));
             for (int i = over; i < _billed.Count; i++) all.Add(Support(i));
             return all;
         }

@@ -138,6 +138,7 @@ public static class FightCall
             bool endedFight = false;
             foreach (var t in rd.Ticks)
             {
+                int saidBefore = lines.Count;
                 // "A" and "B" are the engine's corners; flip them so the call is always from the player's side.
                 int kdAgainstMe = iAmA ? t.KnockdownsA : t.KnockdownsB;
                 int kdAgainstHim = iAmA ? t.KnockdownsB : t.KnockdownsA;
@@ -278,6 +279,16 @@ public static class FightCall
                     lines.Add(Line(caller.Crowd(w == my), CallKind.Crowd));
                     endedFight = true;
                 }
+
+                // Nothing worth a headline happened in these fifteen seconds — which is most of boxing, and
+                // is not the same as nothing happening. A round that passes in silence reads as a round the
+                // app forgot to describe. So the quiet ticks get the quiet truth: who is coming forward, who
+                // is circling off, whose legs are going. Skipped once the fight is over, because the finish
+                // is the last word.
+                if (!endedFight && lines.Count == saidBefore)
+                    lines.Add(Line(caller.Lull(my, his, iAmA ? t.Ring : -t.Ring, gasMine, gasHis,
+                                               punchMine is not null, punchHis is not null),
+                                   CallKind.Action));
             }
 
             int myLanded = iAmA ? rd.LandedA : rd.LandedB;
@@ -390,6 +401,56 @@ public static class FightCall
         public void NewRound() => _roundLanded.Clear();
 
         /// <summary>Walk through a family's variants so the same wording never lands twice in a row.</summary>
+        /// <summary>What is happening when nothing is happening.
+        ///
+        /// Twelve ticks a round and only the loud ones spoke, so a technical round read as an empty one. These
+        /// are the lines a commentator fills with — and they are not filler if they are true, so each branch
+        /// is keyed off what the tick actually held: the ring, the legs, whether anything was thrown.</summary>
+        public string Lull(string me, string him, double ring, double gasMine, double gasHis,
+                           bool threwMine, bool threwHis)
+        {
+            // A man visibly emptying is the most interesting thing in a quiet round.
+            if (gasMine < 0.35 && gasMine < gasHis - 0.1)
+                return Rotate("lull-gasme", $"{me} is breathing hard now.",
+                                            $"{me}'s hands are coming down.",
+                                            $"The legs are going under {me}.");
+            if (gasHis < 0.35 && gasHis < gasMine - 0.1)
+                return Rotate("lull-gashim", $"{him} is blowing.",
+                                             $"{him}'s work rate has dropped away.",
+                                             $"{him} is holding on between exchanges.");
+
+            // Somebody is making the fight even if nothing lands.
+            if (ring > 0.25)
+                return Rotate("lull-mine", $"{me} keeps walking him down.",
+                                           $"{me} cuts the ring off again.",
+                                           $"{me} is the one coming forward.",
+                                           $"{him} gives ground, and {me} follows.");
+            if (ring < -0.25)
+                return Rotate("lull-his", $"{him} takes the centre.",
+                                          $"{him} is walking {me} onto shots.",
+                                          $"{me} circles away to his right.",
+                                          $"{him} presses, and {me} moves.");
+
+            if (threwMine && threwHis)
+                return Rotate("lull-trade", "They meet in the middle and neither gives an inch.",
+                                            "A short exchange, nothing clean out of it.",
+                                            "Both men working inside, no room for either.");
+            if (threwMine)
+                return Rotate("lull-jabme", $"{me} pumps the jab out, measuring him.",
+                                            $"{me} paws at the guard, looking for the opening.",
+                                            $"{me} works behind the jab.");
+            if (threwHis)
+                return Rotate("lull-jabhim", $"{him} flicks the jab out.",
+                                             $"{him} feints and resets.",
+                                             $"{him} keeps the range with the left.");
+
+            return Rotate("lull-quiet", "They circle, neither man committing.",
+                                        "A feeling-out spell, both hands high.",
+                                        "Nothing in it — the pair of them measuring.",
+                                        "They tie up, and the referee steps in to break it.",
+                                        "A quiet half-minute, the crowd restless.");
+        }
+
         private string Rotate(string family, params string[] variants)
         {
             int i = _cursor.GetValueOrDefault(family);

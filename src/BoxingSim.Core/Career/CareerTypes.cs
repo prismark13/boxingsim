@@ -174,7 +174,7 @@ public sealed record BillLine(string Fight, int Rounds, bool IsPlayer, string Wh
                               // an undercard of seven names you have never heard of is no information at all.
                               string AName = "", string ACountry = "", string ARecord = "",
                               string BName = "", string BCountry = "", string BRecord = "",
-                              bool IsTitle = false)
+                              bool IsTitle = false, WeightClass Div = WeightClass.Heavyweight, string ARank = "", string BRank = "")
 {
     public bool Fought => Verdict.Length > 0;
     public string Distance => $"{Rounds} rds";

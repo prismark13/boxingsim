@@ -100,4 +100,38 @@ public class FightCallTests
         Assert.NotEmpty(call);
         Assert.Contains(call, l => l.Kind == CallKind.Verdict);
     }
+
+    /// <summary>How much is actually said, round by round.
+    ///
+    /// A round is twelve fifteen-second ticks, and only the loud ones used to speak — so a technical round
+    /// passed in near silence even though two men were in there working. Every tick says something now, so a
+    /// round should run to a dozen lines or more: the punches that landed, and the circling in between.</summary>
+    [Fact]
+    public void EachRoundIsActuallyCalled()
+    {
+        var thin = new System.Collections.Generic.List<string>();
+        double total = 0; int rounds = 0;
+
+        for (int seed = 1; seed <= 20; seed++)
+        {
+            var (res, me) = Fight(seed, rounds: 10);
+            var call = FightCall.Build(res, me);
+
+            foreach (var grp in call.Where(l => l.Round > 0).GroupBy(l => l.Round))
+            {
+                // The round a fight ENDS in is short by nature — a man counted out at 1:10 has nothing after
+                // it, and padding that would be a lie.
+                if (grp.Key == res.EndRound && res.Outcome is FightOutcome.Knockout
+                                                          or FightOutcome.TechnicalKnockout) continue;
+                int spoken = grp.Count(l => !string.IsNullOrWhiteSpace(l.Text));
+                total += spoken; rounds++;
+                if (spoken < 12) thin.Add($"seed {seed} round {grp.Key}: {spoken}");
+            }
+        }
+
+        double perRound = total / System.Math.Max(1, rounds);
+        Assert.True(thin.Count == 0,
+                    $"rounds under twelve lines (average {perRound:F1} over {rounds}): "
+                    + string.Join(", ", thin.Take(8)));
+    }
 }

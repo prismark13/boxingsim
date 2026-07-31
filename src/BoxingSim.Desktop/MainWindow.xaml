@@ -2212,6 +2212,9 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
+                                                <TextBlock Text="{Binding Billing}" FontSize="11" Margin="0,3,0,0"
+                                                           Foreground="{StaticResource Quiet}" TextWrapping="Wrap"
+                                                           Visibility="{Binding HasBilling, Converter={StaticResource BoolVis}}" />
                                                 <TextBlock Text="{Binding Note}" FontSize="12" Margin="0,4,0,0"
                                                            Foreground="{StaticResource Faint}" FontStyle="Italic"
                                                            TextWrapping="Wrap"
