@@ -6,6 +6,9 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Theme.xaml" />
+                <!-- After Theme, never before: Shared's templates reference Theme's brushes and styles by
+                     StaticResource, and a merged dictionary can only see keys merged ahead of it. -->
+                <ResourceDictionary Source="Shared.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
