@@ -103,7 +103,7 @@ public class GoldenMasterTests
 
         var body = Fingerprint(g);
         Dump("career", body);
-        Assert.Equal("27C5CABFD5417BCB", Hash(body));
+        Assert.Equal("A6694BC3EF2FA89F", Hash(body));
     }
 
     [Fact]
@@ -119,6 +119,6 @@ public class GoldenMasterTests
         var body = Fingerprint(u.World);
         Dump("universe", body);
         Universe.Release();
-        Assert.Equal("27BE586322147B31", Hash(body));
+        Assert.Equal("BF3BBA6241417D32", Hash(body));
     }
 }

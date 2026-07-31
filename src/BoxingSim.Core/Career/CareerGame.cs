@@ -45,6 +45,10 @@ public sealed partial class CareerGame
     /// marked. Kept because <see cref="Bill"/> only ever describes the fight that is NEXT.</summary>
     public IReadOnlyList<BillLine> LastNightsCard { get; private set; } = Array.Empty<BillLine>();
 
+    /// <summary>The last calendar year whose turn-of-the-year pass has been run. Nothing else decides when
+    /// the world ages: see CatchUpYears.</summary>
+    private int _lastYearRun;
+
     public AwardsYear? UnseenAwards { get; private set; }
 
     /// <summary>Mark the honours as read.</summary>
@@ -191,14 +195,11 @@ public sealed partial class CareerGame
             Date = next;
             if (yearTurned)
             {
-                ComputeAwardsFor(Date.Year - 1);
-                // A year of the sport just ended. Hand its honours to whoever is watching — but not in a
-                // universe, which has no player to hand them to.
-                if (Universe is null && !Player.Retired)
-                    UnseenAwards = _awards.FirstOrDefault(a => a.Year == Date.Year - 1);
                 YearlyPass();
             }
+            CatchUpYears();
             RunEvent();
+            CatchUpYears();
         }
     }
     private static readonly WeightClass[] AllDivisions = WeightClasses.All;

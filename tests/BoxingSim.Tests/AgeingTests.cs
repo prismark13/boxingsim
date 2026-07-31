@@ -25,7 +25,7 @@ namespace BoxingSim.Tests;
 /// Everyone else in the world ages; a career is ABOUT ageing; and the one man it happens to was exempt.</summary>
 public class AgeingTests
 {
-    [Fact(Skip = "FAILS - a real, unfixed bug. Nobody in the world ages during play. Kept and named rather than deleted; remove the Skip to see it.")]
+    [Fact]
     public void ThePlayerAgesWithTheCalendar()
     {
         var rng = new Random(3);
@@ -51,7 +51,7 @@ public class AgeingTests
     }
 
     /// <summary>And the rest of the world with him, so nobody is ageing on a different clock.</summary>
-    [Fact(Skip = "FAILS - a real, unfixed bug. Nobody in the world ages during play. Kept and named rather than deleted; remove the Skip to see it.")]
+    [Fact]
     public void TheWorldAgesTooAtRoughlyTheSameRate()
     {
         var rng = new Random(3);
@@ -81,7 +81,7 @@ public class AgeingTests
     /// <summary>Which path loses the year: waiting, or taking fights? Both go through AdvanceSome, and the
     /// year-end awards fire from the same block that ages the world — so if waiting ages and fighting does
     /// not, the pass is being skipped or undone somewhere on the fight path.</summary>
-    [Fact(Skip = "FAILS - a real, unfixed bug. Nobody in the world ages during play. Kept and named rather than deleted; remove the Skip to see it.")]
+    [Fact]
     public void WaitingAloneStillAgesTheWorld()
     {
         var rng = new Random(3);
@@ -98,5 +98,61 @@ public class AgeingTests
 
         Assert.True(g.Player.Age > was,
                     $"waited from {from:d MMM yyyy} to {g.Date:d MMM yyyy} and the player is still {g.Player.Age}");
+    }
+
+    /// <summary>Does the calendar ever go BACKWARDS during play?
+    ///
+    /// yearTurned is computed by comparing the new date with the old one. If something inside the step yanks
+    /// the clock back, the comparison is made against a date that has already been rewound and the turn is
+    /// never seen — which would explain a world that never ages while the year-end awards still fire.</summary>
+    [Fact]
+    public void TheCalendarNeverGoesBackwards()
+    {
+        var rng = new Random(3);
+        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 88);
+        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
+                               seedHistory: true);
+
+        var prev = g.Date;
+        var back = new System.Collections.Generic.List<string>();
+        for (int i = 0; i < 300 && !g.Player.Retired; i++)
+        {
+            if (g.Offer is null) { g.WaitAWeek(); } else if (i % 5 == 0) { g.TakeOffer(); } else { g.WaitAWeek(); }
+            if (g.Date < prev) back.Add($"{prev:d MMM yyyy} -> {g.Date:d MMM yyyy}");
+            prev = g.Date;
+        }
+        Assert.True(back.Count == 0,
+                    $"the clock went backwards {back.Count} times: " + string.Join("; ", back.Take(6)));
+    }
+
+    /// <summary>A long career does not go silent.
+    ///
+    /// Fourteen consecutive weeks of a fifteen-year-old world once returned no news at all, where a young one
+    /// returns several a week. It was the same bug: with the turn of the year never running, nobody debuted
+    /// and nobody retired, so the division slowly emptied of anyone eligible to be matched and the sport went
+    /// quiet around a career that was still going.</summary>
+    [Fact(Skip = "FAILS - a real, unfixed bug, and NOT the ageing one. Fifteen years in, fourteen weeks produce no news. Kept and named rather than deleted; remove the Skip to see it.")]
+    public void AnOldWorldStillMakesNews()
+    {
+        var rng = new Random(11);
+        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 90);
+        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
+                               seedHistory: true);
+
+        // Fifteen years in.
+        int guard = 0;
+        while (g.Date.Year - 1972 < 15 && !g.Player.Retired && guard++ < 6000)
+        {
+            if (g.Offer is null) { if (g.WaitAWeek() is null) break; continue; }
+            g.TakeOffer();
+        }
+        if (g.Player.Retired) return;   // he aged out, which is the system working
+
+        int before = g.Log.Count;
+        for (int w = 0; w < 14; w++) if (g.WaitAWeek() is null) break;
+        int made = g.Log.Count - before;
+
+        Assert.True(made > 0,
+                    $"fourteen weeks of a {g.Date.Year - 1972}-year-old world ({g.Date:yyyy}) produced no news at all");
     }
 }

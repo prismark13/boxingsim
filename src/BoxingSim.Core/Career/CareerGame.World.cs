@@ -22,6 +22,35 @@ public sealed partial class CareerGame
         }
     }
 
+    /// <summary>Run the turn of the year for every year that has gone by since the last one was run.
+    ///
+    /// This used to ask whether THIS STEP crossed New Year — and the step is not the only thing that moves the
+    /// clock. Every staged bout sets Date to put itself on a night, the yearly pass moves it while it works,
+    /// and a fight can carry the calendar months forward on its own. Miss the boundary once and the year was
+    /// never noticed again: nobody aged, nobody retired, nobody debuted, and no superfight was ever made. A
+    /// fighter could be nine fights into his career and still eighteen, and a world fifteen years old could
+    /// go silent because none of the things that make news were happening any more.
+    ///
+    /// Asking "which years have I not run yet" instead cannot be missed, whatever moved the clock or by how
+    /// much. It is a loop rather than an if because a fight can jump more than a year.</summary>
+    private void CatchUpYears()
+    {
+        // First call of a world: adopt the current year rather than running every year since the calendar
+        // began. A loaded save does the same, so reopening a career never re-runs a year it already had.
+        if (_lastYearRun == 0) { _lastYearRun = Date.Year; return; }
+
+        while (Date.Year > _lastYearRun)
+        {
+            _lastYearRun++;
+            ComputeAwardsFor(_lastYearRun - 1);
+            // A year of the sport just ended. Hand its honours to whoever is watching — but not in a
+            // universe, which has no player to hand them to.
+            if (Universe is null && !Player.Retired)
+                UnseenAwards = _awards.FirstOrDefault(a => a.Year == _lastYearRun - 1);
+            YearlyPass();
+        }
+    }
+
     /// <summary>Move the world forward by one step and hand back what happened in it.
     ///
     /// Everything the sport does between the player's fights used to happen inside a single call that ran
@@ -38,18 +67,10 @@ public sealed partial class CareerGame
         int before = _log.Count;
         var next = Date.AddDays(days);
         if (next > target) next = target;
-        bool yearTurned = next.Year != Date.Year;
         Date = next;
-        if (yearTurned)
-            {
-                ComputeAwardsFor(Date.Year - 1);
-                // A year of the sport just ended. Hand its honours to whoever is watching — but not in a
-                // universe, which has no player to hand them to.
-                if (Universe is null && !Player.Retired)
-                    UnseenAwards = _awards.FirstOrDefault(a => a.Year == Date.Year - 1);
-                YearlyPass();
-            }
+        CatchUpYears();
         RunEvent();
+        CatchUpYears();   // the cards move the clock themselves, and can carry it over New Year on their own
         return _log.Skip(before).ToList();
     }
 
