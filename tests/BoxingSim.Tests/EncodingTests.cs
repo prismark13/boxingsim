@@ -33,10 +33,10 @@ public class EncodingTests
     [Fact]
     public void TheNewsIsNotMangled()
     {
-        var rng = new System.Random(7);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 88);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               seedHistory: true);
+        // A warmed copy: what is being read here is the TEXT of the news, and mojibake is in the source file
+        // rather than in the world. Six fights' worth of headlines is as good a sample from a warm world as
+        // from one seeded across sixty-five years, and it does not cost a minute to get.
+        var g = Worlds.Fresh(potential: 88, seed: 7);
         for (int i = 0; i < 6 && g.Offer is not null && !g.Player.Retired; i++) g.TakeOffer();
 
         foreach (var e in g.Log)

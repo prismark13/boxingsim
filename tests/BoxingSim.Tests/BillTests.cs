@@ -15,13 +15,10 @@ namespace BoxingSim.Tests;
 /// decided by a coin rather than by how big his fight was.</summary>
 public class BillTests
 {
-    private static CareerGame Career(int seed = 4)
-    {
-        var rng = new Random(seed);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 86);
-        return new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                              seedHistory: true);
-    }
+    /// <summary>A warmed copy. A bill is drawn from the divisions active on the night, which a warm world has
+    /// as surely as a seeded one — five of these each stood up their own sixty-five years of boxing to look at
+    /// a dozen fight cards.</summary>
+    private static CareerGame Career(int seed = 4) => Worlds.Fresh(potential: 86, seed: seed);
 
     [Fact]
     public void ABillRunsAcrossTheWeights()
@@ -69,17 +66,20 @@ public class BillTests
     public void TheTopOfTheBillIsTheMainEvent()
     {
         var g = Career();
+        int looked = 0;
         for (int i = 0; i < 8 && g.Offer is not null && !g.Player.Retired; i++)
         {
             var bill = g.Bill;
             if (bill.Count > 2)
             {
+                looked++;
                 Assert.Equal("MAIN EVENT", bill[0].Slot);
                 Assert.Equal("CHIEF SUPPORT", bill[1].Slot);
                 Assert.Equal("OPENER", bill[^1].Slot);
             }
             g.TakeOffer();
         }
+        Assert.True(looked > 0, "no card of any size came up to look at");
     }
 
     /// <summary>Where the player is billed agrees with where his fight actually sits on the card. These are
@@ -88,12 +88,14 @@ public class BillTests
     public void WhereHeIsBilledIsWhereHeIsOnTheCard()
     {
         var g = Career();
+        int placed = 0;
         for (int i = 0; i < 12 && g.Offer is not null && !g.Player.Retired; i++)
         {
             var bill = g.Bill;
             int at = bill.ToList().FindIndex(l => l.IsPlayer);
             if (at >= 0)
             {
+                placed++;
                 var expected = at switch
                 {
                     0 => Billing.MainEvent,
@@ -105,10 +107,23 @@ public class BillTests
             }
             g.TakeOffer();
         }
+        Assert.True(placed > 0, "the player never appeared on his own card, so nothing was compared");
     }
 
     /// <summary>A card is listed main event first and BOXED from the foot upward. The openers go on while the
-    /// hall is filling; the main event goes last.</summary>
+    /// hall is filling; the main event goes last.
+    ///
+    /// READ THIS BEFORE TRUSTING IT: as written, this test checks nothing, and has never checked anything.
+    /// It reads Undercard AFTER TakeOffer, and TakeOffer ends by assigning the next Offer — whose setter runs
+    /// AnnounceUndercard, which opens by clearing _undercard. So the list is empty by the time any caller can
+    /// look at it, the "poster.Count &lt; 2 || fought.Count &lt; 2" guard skips every night, and the loop runs off
+    /// the end having compared nothing. Measured over thirty fights it is boxed=0 every time, on a warmed
+    /// world and on the sixty-five-year one this used to build alike — so this is not the warm world's doing.
+    ///
+    /// It is left in its original shape deliberately. The boxing ORDER is not recoverable from outside: the
+    /// one post-fight view Core keeps, LastNightsCard, is Bill.ToList() and therefore poster order, top-first.
+    /// Making this test real needs Core to expose the order the supports were fought in, which is not this
+    /// window's to change. Pinning the invariant means fixing that first.</summary>
     [Fact]
     public void TheCardIsBoxedFromTheFootUpward()
     {
