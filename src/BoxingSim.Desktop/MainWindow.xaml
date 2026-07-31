@@ -279,12 +279,17 @@
                     </StackPanel>
                     </Button>
 
-                    <!-- A universe has no fighter to head the sidebar, so it says what it is instead. -->
+                    <!-- A universe has no fighter to head the sidebar, so it says what it is instead.
+
+                         The clock is read through UniversePage rather than moved into the shell: this is the
+                         same state the THIS WEEK page shows, and one clock with two readers beats two that can
+                         disagree. The path form rather than a DataContext override, because the Visibility on
+                         this panel is the shell's own InUniverse and has to stay in the shell's context. -->
                     <StackPanel Margin="22,26,22,20" Visibility="{Binding InUniverse, Converter={StaticResource BoolVis}}">
                         <TextBlock Text="UNIVERSE" Style="{StaticResource Label}" Foreground="{StaticResource Gold}" />
-                        <TextBlock Text="{Binding UniverseDate}" FontSize="21" FontWeight="Light"
+                        <TextBlock Text="{Binding UniversePage.UniverseDate}" FontSize="21" FontWeight="Light"
                                    Foreground="{StaticResource Text}" Margin="0,8,0,0" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding UniverseWeekLabel}" FontSize="12"
+                        <TextBlock Text="{Binding UniversePage.UniverseWeekLabel}" FontSize="12"
                                    Foreground="{StaticResource Faint}" Margin="0,3,0,0" />
                     </StackPanel>
 
@@ -1055,141 +1060,9 @@
                                  Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
                                               Converter={StaticResource PageVis}, ConverterParameter=Stats}" />
 
-                <!-- ============ THIS WEEK (UNIVERSE) ============ -->
-                <!-- A week of boxing as it is actually followed: not one long list of results, but what
-                     happened in Britain, what happened in Mexico. Region first, because a Tuesday in
-                     Bethnal Green and a Tuesday in Tijuana are not the same sport. -->
-                <local:PageHost Title="THIS WEEK" Subtitle="{Binding UniverseDate}"
-                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Universe}">
-                    <DockPanel Margin="18,4,18,18">
-                        <Border DockPanel.Dock="Top" Background="{StaticResource Panel2}"
-                                BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10"
-                                Padding="16,12" Margin="0,0,0,14">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding UniverseWeekLabel}" Style="{StaticResource Label}"
-                                               Foreground="{StaticResource Gold}" />
-                                    <TextBlock Text="{Binding UniverseSummary}" FontSize="13"
-                                               Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="Next week" Command="{Binding PlayWeek}"
-                                            Style="{StaticResource PrimaryButton}" Padding="18,8" />
-                                    <Button Content="A month" Command="{Binding PlayMonth}" Margin="8,0,0,0" Padding="14,8" />
-                                    <Button Content="A year" Command="{Binding PlayYear}" Margin="8,0,0,0" Padding="14,8" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <TextBlock DockPanel.Dock="Top" FontSize="13" Foreground="{StaticResource Faint}"
-                                   Margin="2,10,0,0" Text="Nothing was scheduled anywhere this week."
-                                   Visibility="{Binding UniverseQuiet, Converter={StaticResource BoolVis}}" />
-
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding UniverseWeek}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="0,0,0,20">
-                                            <Grid Margin="2,0,2,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Region}" FontSize="15" FontWeight="Light"
-                                                           Foreground="{StaticResource Text}" />
-                                                <TextBlock Grid.Column="1" FontSize="12" VerticalAlignment="Center"
-                                                           Foreground="{StaticResource Faint}">
-                                                    <Run Text="{Binding Bouts, Mode=OneWay}" />
-                                                    <Run Text="bouts" />
-                                                </TextBlock>
-                                            </Grid>
-
-                                            <ItemsControl ItemsSource="{Binding Countries}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
-                                                                BorderThickness="1" CornerRadius="10" Margin="0,0,0,8">
-                                                            <StackPanel>
-                                                                <TextBlock Text="{Binding Country}" Style="{StaticResource Label}"
-                                                                           Margin="16,11,0,2" />
-                                                                <ItemsControl ItemsSource="{Binding Bouts}">
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate>
-                                                                            <Grid Margin="16,5,16,5">
-                                                                                <Grid.ColumnDefinitions>
-                                                                                    <ColumnDefinition Width="{Binding DataContext.DivisionColumn, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                                                                    <ColumnDefinition Width="*" />
-                                                                                    <ColumnDefinition Width="Auto" />
-                                                                                </Grid.ColumnDefinitions>
-
-                                                                                <!-- A title fight is the reason to read the card at all, so it is marked before the names. -->
-                                                                                <TextBlock Text="{Binding Division, Converter={StaticResource DivName}}"
-                                                                                           FontSize="11" Foreground="{StaticResource Faint}"
-                                                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                                                           Visibility="{Binding DataContext.UniverseManyDivisions, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}" />
-
-                                                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                                                    <!-- Gold is for a belt. A superfight, an eliminator or a return is
-                                                                                         still why the night exists, so it is marked - just not in gold. -->
-                                                                                    <Border CornerRadius="4" Padding="6,1" Margin="0,0,8,0"
-                                                                                            VerticalAlignment="Center"
-                                                                                            Visibility="{Binding Tag, Converter={StaticResource EmptyVis}}">
-                                                                                        <Border.Style>
-                                                                                            <Style TargetType="Border">
-                                                                                                <Setter Property="Background" Value="{StaticResource Panel2}" />
-                                                                                                <Style.Triggers>
-                                                                                                    <DataTrigger Binding="{Binding IsTitle}" Value="True">
-                                                                                                        <Setter Property="Background" Value="{StaticResource GoldSoft}" />
-                                                                                                    </DataTrigger>
-                                                                                                </Style.Triggers>
-                                                                                            </Style>
-                                                                                        </Border.Style>
-                                                                                        <TextBlock Text="{Binding Tag}" FontSize="11" FontWeight="SemiBold">
-                                                                                            <TextBlock.Style>
-                                                                                                <Style TargetType="TextBlock">
-                                                                                                    <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                                                                                                    <Style.Triggers>
-                                                                                                        <DataTrigger Binding="{Binding IsTitle}" Value="True">
-                                                                                                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                                                        </DataTrigger>
-                                                                                                    </Style.Triggers>
-                                                                                                </Style>
-                                                                                            </TextBlock.Style>
-                                                                                        </TextBlock>
-                                                                                    </Border>
-                                                                                    <Button Style="{StaticResource LinkName}" Content="{Binding Winner}"
-                                                                                            CommandParameter="{Binding Winner}"
-                                                                                            Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                                                                    <TextBlock Text="{Binding Joiner}" FontSize="13" Margin="6,0"
-                                                                                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
-                                                                                    <Button Style="{StaticResource LinkName}" Content="{Binding Loser}"
-                                                                                            CommandParameter="{Binding Loser}"
-                                                                                            Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                                                                </StackPanel>
-
-                                                                                <TextBlock Grid.Column="2" Text="{Binding Verdict}" FontSize="12"
-                                                                                           Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
-                                                                            </Grid>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                                <Border Height="8" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </DockPanel>
-                </local:PageHost>
+                <pages:UniverseView DataContext="{Binding UniversePage}"
+                                    Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
+                                                 Converter={StaticResource PageVis}, ConverterParameter=Universe}" />
 
                 <!-- ============ SETTINGS ============ -->
                 <!-- Only presentation lives here. Nothing on this page changes how a fight is scored or how the

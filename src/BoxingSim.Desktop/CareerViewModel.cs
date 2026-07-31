@@ -346,6 +346,7 @@ public sealed class CareerViewModel : Observable
         AwardsPage = new AwardsViewModel(() => Game);
         NewsPage = new NewsViewModel(() => Game, () => InCareer);
         StatsPage = new StatsViewModel(() => Game);
+        UniversePage = new UniverseViewModel(() => _svc.Universe);
 
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
@@ -361,7 +362,7 @@ public sealed class CareerViewModel : Observable
         LeaveUniverse = new Cmd(() =>
         {
             _svc.EndUniverse();
-            UniverseWeek.Clear();
+            UniversePage.Clear();
             _selectedNav = CareerNav[0];
             RefreshAll();
             Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
@@ -511,25 +512,10 @@ public sealed class CareerViewModel : Observable
         }
     }
 
-    /// <summary>The week just played, region by region.</summary>
-    public ObservableCollection<RegionCard> UniverseWeek { get; } = new();
 
-    public string UniverseDate => _svc.Universe is { } u ? u.Date.ToString("d MMMM yyyy") : "";
-    public string UniverseWeekLabel => _svc.Universe is { } u ? $"WEEK {u.Week}" : "";
-    /// <summary>Whether the division is worth naming on every row. In a one-division universe it is the same
-    /// word 17 times down the page.</summary>
-    public bool UniverseManyDivisions => _svc.Universe is null || _svc.Universe.Settings.Divisions.Count != 1;
 
-    /// <summary>The width the division column needs — none at all when there is only one.</summary>
-    public System.Windows.GridLength DivisionColumn =>
-        new(UniverseManyDivisions ? 126 : 0, System.Windows.GridUnitType.Pixel);
 
-    /// <summary>A week where nothing was on anywhere. It happens, and an empty page with no explanation
-    /// looks like a bug rather than a quiet week.</summary>
-    public bool UniverseQuiet => _svc.Universe is not null && UniverseWeek.Count == 0;
 
-    public string UniverseSummary => _svc.Universe is null ? ""
-        : $"{UniverseWeek.Sum(r => r.Bouts)} bouts · {UniverseWeek.Sum(r => r.TitleBouts)} for a title";
 
     // ---- navigation ----
     // Career mode is the app; the boards are reference you dip into. The sidebar says so — your own two screens
@@ -670,6 +656,9 @@ public sealed class CareerViewModel : Observable
 
     /// <summary>What this fighter has done so far. See StatsViewModel.</summary>
     public StatsViewModel StatsPage { get; }
+
+    /// <summary>A week of the whole sport, region by region. See UniverseViewModel.</summary>
+    public UniverseViewModel UniversePage { get; }
 
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
@@ -1928,7 +1917,7 @@ public sealed class CareerViewModel : Observable
         };
         // Warming a world through years of history is the slow part, so it runs off the UI thread.
         await BusyAsync("Building a world…", () => _svc.StartUniverse(settings));
-        UniverseWeek.Clear();
+        UniversePage.Clear();
         _selectedNav = UniverseNav[0];
         RefreshAll();
         Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
@@ -1938,9 +1927,7 @@ public sealed class CareerViewModel : Observable
     private void DoPlayWeek()
     {
         if (_svc.Universe is not { } u) return;
-        var cards = u.PlayWeek();
-        UniverseWeek.Clear();
-        foreach (var c in cards) UniverseWeek.Add(c);
+        UniversePage.Show(u.PlayWeek());
         RefreshUniverse();
     }
 
@@ -1952,8 +1939,7 @@ public sealed class CareerViewModel : Observable
         {
             for (int i = 0; i < 52; i++) last = u.PlayWeek();
         });
-        UniverseWeek.Clear();
-        foreach (var c in last) UniverseWeek.Add(c);
+        UniversePage.Show(last);
         RefreshUniverse();
     }
 
@@ -1961,8 +1947,8 @@ public sealed class CareerViewModel : Observable
     /// rankings, champions, news and hall of fame that a universe shares with a career.</summary>
     private void RefreshUniverse()
     {
-        foreach (var n in new[] { nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(UniverseQuiet), nameof(UniverseManyDivisions), nameof(DivisionColumn),
-                                  nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav) })
+        UniversePage.Refresh();
+        foreach (var n in new[] { nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav) })
             Raise(n);
         RankingsPage.Rebuild();
         ChampionsPage.Rebuild();
