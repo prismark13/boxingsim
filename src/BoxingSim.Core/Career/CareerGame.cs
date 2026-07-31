@@ -101,12 +101,11 @@ public sealed partial class CareerGame
 
     // The division the world-sim is currently resolving (RunEvent/RunNpcSeason loop over all eight and set
     // this). Cursor-scoped belt accessors let the season logic stay division-agnostic.
-    private WeightClass _cursor;
-    private Boxer? Champ { get => ChampOf(_cursor); set => _champions[_cursor] = value; }
-    private Boxer? Wbc { get => WbcOf(_cursor); set => _wbc[_cursor] = value; }
-    private Boxer? Ibf { get => IbfOf(_cursor); set => _ibf[_cursor] = value; }
-    private bool CursorUnified => Champ is not null && Wbc is not null && Champ.Id == Wbc.Id;
-    private IEnumerable<Boxer> ActiveHere => ActiveIn(_cursor);
+    // There was a _cursor here — "the division currently being resolved" — with Champ, Wbc, Ibf, ActiveHere
+    // and CursorUnified reading off it, and fourteen places that set it and mostly remembered to put it back.
+    // It was the world clock's fault in miniature: ambient context standing in for a parameter, where the
+    // only thing keeping a headline in the right division was that nothing had moved the cursor in between.
+    // The weight is passed now, so it cannot be wrong.
 
     public WeightClass Division => Player.WeightClass;
     public Boxer? Champion { get => _champions.GetValueOrDefault(Division); private set => _champions[Division] = value; }
@@ -519,7 +518,6 @@ public sealed partial class CareerGame
         _factory.Reserve(reserved);
         _oppNames.Reserve(reserved);
         _factory.StartIdsAt(_roster.Select(b => b.Id).Append(Player.Id).DefaultIfEmpty(0).Max() + 1);
-        _cursor = Player.WeightClass;
         foreach (var kv in s.Champions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _champions[wc] = c;
         foreach (var kv in s.WbcChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _wbc[wc] = c;
         foreach (var kv in s.IbfChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _ibf[wc] = c;

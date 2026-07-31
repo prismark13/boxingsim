@@ -40,37 +40,35 @@ public sealed partial class CareerGame
             if (_lastCard.TryGetValue(wc, out var last) && Date.DayNumber - last.DayNumber < DaysBetweenCards)
                 continue;
             _lastCard[wc] = Date;
-            _cursor = wc;
-            RunEventCard();
+            RunEventCard(wc);
         }
-        _cursor = Division;
     }
 
     /// <summary>One division's fortnightly card: an occasional title defence plus showcase undercards.</summary>
-    private void RunEventCard()
+    private void RunEventCard(WeightClass wc)
     {
         // Champions don't fight on undercards — when they fight, it's a title defence (handled below).
         // A man who's already boxed 8 times this year sits the rest of it out.
-        var pool = ActiveHere.Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
-                                      && Rested(b))
+        var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
+                                        && Rested(b))
                          .OrderByDescending(b => b.Overall).ToList();
         if (pool.Count < 2) return;
 
-        if (Champ is not null && !Champ.IsChampion) Champ = null;
+        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _champions[wc] = null;
 
         // A rare unification is checked FIRST and, when it fires, is the only world-title bout on this card:
         // the belts merge in one fight rather than each champion ALSO making a separate defence the same
         // fortnight (which produced impossible back-to-back title bouts days apart). Both men must be rested.
-        if (!CursorUnified && Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
-            && Champ.Id != Player.Id && Wbc.Id != Player.Id
-            && DaysSinceLastBout(Champ) >= (int)(112 / CareerMileage.Activity(Champ)) && DaysSinceLastBout(Wbc) >= (int)(112 / CareerMileage.Activity(Wbc))
-            && _rng.NextDouble() < UnificationChance(_cursor, 0.006, 0.04))
+        if (!UnifiedIn(wc) && ChampOf(wc) is Boxer wba && WbcOf(wc) is Boxer wbc && wba.Id != wbc.Id
+            && wba.Id != Player.Id && wbc.Id != Player.Id
+            && DaysSinceLastBout(wba) >= (int)(112 / CareerMileage.Activity(wba)) && DaysSinceLastBout(wbc) >= (int)(112 / CareerMileage.Activity(wbc))
+            && _rng.NextDouble() < UnificationChance(wc, 0.006, 0.04))
         {
-            Unify();
+            Unify(wc);
         }
-        else if (CursorUnified)
+        else if (UnifiedIn(wc))
         {
-            var c = Champ!;
+            var c = ChampOf(wc)!;
             if (c.Id != Player.Id && DaysSinceLastBout(c) >= (int)(112 / CareerMileage.Activity(c)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(c))   // ~2 defences a year, min 14 weeks apart
             {
                 if (_rng.NextDouble() < 0.10) RelinquishBelt(c);   // ~1 in 10: ducks a mandatory and gives up a belt
@@ -79,47 +77,47 @@ public sealed partial class CareerGame
         }
         else
         {
-            if (Champ is not null && Champ.Id != Player.Id && DaysSinceLastBout(Champ) >= (int)(112 / CareerMileage.Activity(Champ)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(Champ))   // ~2 defences a year, min 14 weeks apart
+            if (ChampOf(wc) is Boxer champ && champ.Id != Player.Id && DaysSinceLastBout(champ) >= (int)(112 / CareerMileage.Activity(champ)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(champ))   // ~2 defences a year, min 14 weeks apart
             {
-                var ch = PickChallenger(Champ, Wbc);
+                var ch = PickChallenger(champ, WbcOf(wc));
                 if (ch is not null)
                 {
-                    var res = FastBout(Champ, ch, 12);
-                    var on = ApplyOutcome(res, Champ, ch, $"{PrimaryBelt} title");
-                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {Champ.Name} for the {PrimaryBelt} title!", RefOf(res, on), on); CrownChampion(ch); }
-                    else { Defended(_cursor, "WBA", Champ.Id); LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", RefOf(res, on), on); ConsiderTitleStepUp(Champ); }
+                    var res = FastBout(champ, ch, 12);
+                    var on = ApplyOutcome(res, champ, ch, $"{PrimaryBelt} title");
+                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {champ.Name} for the {PrimaryBelt} title!", wc, RefOf(res, on), on); CrownChampion(ch); }
+                    else { Defended(wc, "WBA", champ.Id); LogTitle($"{champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(champ); }
                 }
             }
-            if (Wbc is not null && Wbc.Id != Player.Id && DaysSinceLastBout(Wbc) >= (int)(112 / CareerMileage.Activity(Wbc)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(Wbc))   // ~2 defences a year, min 14 weeks apart
+            if (WbcOf(wc) is Boxer wbcC && wbcC.Id != Player.Id && DaysSinceLastBout(wbcC) >= (int)(112 / CareerMileage.Activity(wbcC)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(wbcC))   // ~2 defences a year, min 14 weeks apart
             {
-                var ch = PickChallenger(Wbc, Champ);
+                var ch = PickChallenger(wbcC, ChampOf(wc));
                 if (ch is not null)
                 {
-                    var res = FastBout(Wbc, ch, 12);
-                    var on = ApplyOutcome(res, Wbc, ch, "WBC title");
-                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {Wbc.Name}!", RefOf(res, on), on); CrownWbc(ch); }
-                    else { Defended(_cursor, "WBC", Wbc.Id); LogTitle($"{Wbc.Name} retains the WBC title against {ch.Name}.", RefOf(res, on), on); ConsiderTitleStepUp(Wbc); }
+                    var res = FastBout(wbcC, ch, 12);
+                    var on = ApplyOutcome(res, wbcC, ch, "WBC title");
+                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {wbcC.Name}!", wc, RefOf(res, on), on); CrownWbc(ch); }
+                    else { Defended(wc, "WBC", wbcC.Id); LogTitle($"{wbcC.Name} retains the WBC title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(wbcC); }
                 }
             }
         }
 
         // IBF title defence — the third belt, contested independently from 1983.
-        if (IbfActive && Ibf is not null && Ibf.Id != Player.Id && DaysSinceLastBout(Ibf) >= (int)(112 / CareerMileage.Activity(Ibf)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(Ibf))
+        if (IbfActive && IbfOf(wc) is Boxer ibf && ibf.Id != Player.Id && DaysSinceLastBout(ibf) >= (int)(112 / CareerMileage.Activity(ibf)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(ibf))
         {
-            var ch = PickChallenger(Ibf, null);
+            var ch = PickChallenger(ibf, null);
             if (ch is not null)
             {
-                var res = FastBout(Ibf, ch, 12);
-                var on = ApplyOutcome(res, Ibf, ch, "IBF title");
-                if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {Ibf.Name}!", RefOf(res, on), on); CrownIbf(ch); }
-                else { Defended(_cursor, "IBF", Ibf.Id); LogTitle($"{Ibf.Name} retains the IBF title against {ch.Name}.", RefOf(res, on), on); ConsiderTitleStepUp(Ibf); }
+                var res = FastBout(ibf, ch, 12);
+                var on = ApplyOutcome(res, ibf, ch, "IBF title");
+                if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {ibf.Name}!", wc, RefOf(res, on), on); CrownIbf(ch); }
+                else { Defended(wc, "IBF", ibf.Id); LogTitle($"{ibf.Name} retains the IBF title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(ibf); }
             }
         }
 
         // Regional title defences — a regional champ risks his belt against a fellow regional contender.
         foreach (var region in RegionalBelts)
         {
-            if (!_regional.TryGetValue((_cursor, region), out var rc) || rc.Id == Player.Id || rc.Retired) continue;
+            if (!_regional.TryGetValue((wc, region), out var rc) || rc.Id == Player.Id || rc.Retired) continue;
             // Regional belts are meant to be DEFENDED - that is the whole point of holding one on the way up.
             // At a twentieth per card they mostly sat idle on a man's record.
             if (DaysSinceLastBout(rc) < 84 || _rng.NextDouble() >= 0.11 * CareerMileage.Activity(rc)) continue;
@@ -137,7 +135,7 @@ public sealed partial class CareerGame
             if (chall is null) continue;
             var rres = FastBout(rc, chall, 12);
             var ron = ApplyOutcome(rres, rc, chall, $"{region} title");
-            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(_cursor, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", RefOf(rres, ron), ron); }
+            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(wc, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", wc, RefOf(rres, ron), ron); }
         }
 
         // A fortnight's cards across a whole division, scaled to how many men are in it. This used to be a
@@ -149,7 +147,7 @@ public sealed partial class CareerGame
         // sport is IS how many bouts get staged; a fighter who wants to be out more often cannot be if there
         // are no cards for him, which is why turning the dial on its own changed nothing.
         int bouts = Math.Clamp((int)Math.Round(pool.Count * 0.105 * CareerMileage.ActivityScale), 3, 90);
-        var top20 = Top20Ids(_cursor); var top8 = Top8Ids(_cursor);
+        var top20 = Top20Ids(wc); var top8 = Top8Ids(wc);
 
         // Anything the sport is owed goes on first.
         var staged = new HashSet<int>();
@@ -178,47 +176,46 @@ public sealed partial class CareerGame
 
     private void RunNpcSeason()
     {
-        foreach (var wc in AllDivisions) if (DivisionActive(wc)) { _cursor = wc; RunNpcSeasonFor(); }
-        _cursor = Division;
+        foreach (var wc in AllDivisions) if (DivisionActive(wc)) RunNpcSeasonFor(wc);
     }
 
-    private void RunNpcSeasonFor()
+    private void RunNpcSeasonFor(WeightClass wc)
     {
-        var fighters = ActiveHere.Where(b => b.Id != Player.Id).ToList();
+        var fighters = ActiveIn(wc).Where(b => b.Id != Player.Id).ToList();
         if (fighters.Count < 2) return;
         int yr = Date.Year;
 
         // Title bouts: each champion defends 2–3 times a year (mandatories and voluntary defences),
         // dated across the calendar. The belt is where the elites meet.
-        if (Champ is not null && !Champ.IsChampion) Champ = null;
+        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _champions[wc] = null;
 
         // A unification (rare) is settled FIRST, early in the year, so the belts merge before the defence
         // campaign runs. The rest of the season is then defended as one undisputed title — never a stray
         // WBC "defence" back-dated after the belts have already come together (which read as a bug).
-        if (!CursorUnified && Champ is not null && Wbc is not null && Champ.Id != Wbc.Id
-            && Champ.Id != Player.Id && Wbc.Id != Player.Id
-            && _rng.NextDouble() < UnificationChance(_cursor, 0.15, 0.80))
-        { Date = SpreadDate(yr, 0, 6); Unify(); }
+        if (!UnifiedIn(wc) && ChampOf(wc) is Boxer wba && WbcOf(wc) is Boxer wbc && wba.Id != wbc.Id
+            && wba.Id != Player.Id && wbc.Id != Player.Id
+            && _rng.NextDouble() < UnificationChance(wc, 0.15, 0.80))
+        { Date = SpreadDate(yr, 0, 6); Unify(wc); }
 
-        if (CursorUnified)
+        if (UnifiedIn(wc))
         {
-            UnifiedDefenceSeason(yr);
+            UnifiedDefenceSeason(wc, yr);
         }
         else
         {
-            DefendBeltSeason(() => Champ, CrownChampion, () => Wbc, PrimaryBelt, yr, dethrone: true);
-            if (WbcActive) DefendBeltSeason(() => Wbc, CrownWbc, () => Champ, "WBC", yr, dethrone: false);
+            DefendBeltSeason(wc, () => ChampOf(wc), CrownChampion, () => WbcOf(wc), PrimaryBelt, yr, dethrone: true);
+            if (WbcActive) DefendBeltSeason(wc, () => WbcOf(wc), CrownWbc, () => ChampOf(wc), "WBC", yr, dethrone: false);
         }
-        if (IbfActive) DefendBeltSeason(() => Ibf, CrownIbf, null, "IBF", yr, dethrone: false);
+        if (IbfActive) DefendBeltSeason(wc, () => IbfOf(wc), CrownIbf, null, "IBF", yr, dethrone: false);
 
         // Two undercards. Matchmaking is by ability with the better man favoured: each fighter generally
         // meets someone a notch below him (a showcase). Champions sit these out — they only defend.
-        var top20 = Top20Ids(_cursor); var top8 = Top8Ids(_cursor);
+        var top20 = Top20Ids(wc); var top8 = Top8Ids(wc);
         for (int pass = 0; pass < 6; pass++)   // several cards a year so a simulated career builds a real record, not a handful of bouts
         {
             // A prospect stays busy on the club circuit; an established (world-ranked) fighter takes fewer, bigger
             // bouts — long camps, ~3–4 a year — so he only appears on some cards.
-            var pool = ActiveHere.Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
+            var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
                                           && (!WorldRanked(b) || _rng.NextDouble() < FightChancePerCard(b)))
                              .OrderByDescending(b => b.Overall).ToList();
             var cardNight = SpreadDate(yr, pass, 6);
@@ -248,12 +245,12 @@ public sealed partial class CareerGame
         // Club circuit: guarantee young prospects stay genuinely busy. The pooled matchmaking above leaves many
         // unpaired, so top up any unranked young fighter who's been idle this year with bouts against lower
         // opposition — so a real prospect actually piles up a record instead of stalling on a handful of fights.
-        foreach (var pr in ActiveHere.Where(b => b.Id != Player.Id && !WorldRanked(b) && b.Age <= 26).OrderByDescending(b => b.Potential).ToList())
+        foreach (var pr in ActiveIn(wc).Where(b => b.Id != Player.Id && !WorldRanked(b) && b.Age <= 26).OrderByDescending(b => b.Potential).ToList())
         {
             int guard = 0;
             while (FightsThisYear(pr) < 5 && !AtYearCap(pr) && guard++ < 6)
             {
-                var foe = ActiveHere.Where(b => b.Id != pr.Id && b.Id != Player.Id && ProFights(b) >= 4
+                var foe = ActiveIn(wc).Where(b => b.Id != pr.Id && b.Id != Player.Id && ProFights(b) >= 4
                                              && b.Overall <= pr.Overall + 4 && Available(b) && !AtYearCap(b)
                                              && !RecentFoes(pr, 3).Contains(b.Name))
                                     .OrderBy(_ => _rng.Next()).FirstOrDefault();
@@ -267,15 +264,15 @@ public sealed partial class CareerGame
     }
 
     /// <summary>The two world champions meet; the winner unifies both belts. Uses the current date.</summary>
-    private void Unify()
+    private void Unify(WeightClass wc)
     {
-        if (Champ is null || Wbc is null || Champ.Id == Wbc.Id) return;
-        var res = FastBout(Champ, Wbc, 12);
-        var on = ApplyOutcome(res, Champ, Wbc, "unification");
+        if (ChampOf(wc) is not Boxer wba || WbcOf(wc) is not Boxer wbc || wba.Id == wbc.Id) return;
+        var res = FastBout(wba, wbc, 12);
+        var on = ApplyOutcome(res, wba, wbc, "unification");
         if (!res.IsDraw)
         {
             var w = res.Winner!;
-            LogTitle($"{w.Name} UNIFIES the {PrimaryBelt} and WBC titles!", RefOf(res, on), on);
+            LogTitle($"{w.Name} UNIFIES the {PrimaryBelt} and WBC titles!", wc, RefOf(res, on), on);
             CrownChampion(w); CrownWbc(w);
             ClaimLinealByUnification(w.WeightClass);
         }
@@ -290,20 +287,20 @@ public sealed partial class CareerGame
         var on = ApplyOutcome(res, champ, ch, "Undisputed title");
         if (!res.IsDraw && res.Winner!.Id == ch.Id)
         {
-            LogTitle($"{ch.Name} DETHRONES {champ.Name} to take the unified {PrimaryBelt} and WBC titles!", RefOf(res, on), on);
+            LogTitle($"{ch.Name} DETHRONES {champ.Name} to take the unified {PrimaryBelt} and WBC titles!", champ.WeightClass, RefOf(res, on), on);
             CrownChampion(ch); CrownWbc(ch);
         }
-        else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}.", RefOf(res, on), on); ConsiderTitleStepUp(champ); }
+        else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}.", champ.WeightClass, RefOf(res, on), on); ConsiderTitleStepUp(champ); }
     }
 
     /// <summary>Warmup: a unified champion runs a season of 2–3 combined defences, and may vacate a belt.</summary>
-    private void UnifiedDefenceSeason(int yr)
+    private void UnifiedDefenceSeason(WeightClass wc, int yr)
     {
         int titleBouts = 2 + _rng.Next(2);
         for (int d = 0; d < titleBouts; d++)
         {
-            var c = Champ;
-            if (c is null || c.Id == Player.Id || !CursorUnified || !Available(c)) return;
+            var c = ChampOf(wc);
+            if (c is null || c.Id == Player.Id || !UnifiedIn(wc) || !Available(c)) return;
             if (_rng.NextDouble() < 0.10) { RelinquishBelt(c); return; }   // ducks a mandatory, splitting the belts
             var ch = PickChallenger(c, null);
             if (ch is null) return;
@@ -312,7 +309,7 @@ public sealed partial class CareerGame
             var on = ApplyOutcome(res, c, ch, "Undisputed title", on: nd);
             if (!res.IsDraw && res.Winner!.Id == ch.Id)
             {
-                LogTitle($"{ch.Name} beats {c.Name} to take the unified {PrimaryBelt} and WBC titles.", on: on);
+                LogTitle($"{ch.Name} beats {c.Name} to take the unified {PrimaryBelt} and WBC titles.", wc, on: on);
                 CrownChampion(ch); CrownWbc(ch);
             }
         }
@@ -322,14 +319,15 @@ public sealed partial class CareerGame
     /// the vacant WBC is then filled by the leading contender.</summary>
     private void RelinquishBelt(Boxer champ)
     {
-        if (!WbcActive || Wbc is null) return;
-        Wbc = null;
-        LogTitle($"{champ.Name} relinquishes the WBC title rather than face the mandatory, keeping the {PrimaryBelt} belt.");
-        UpdateBeltsFor(_cursor);   // the WBC is picked up by the next contender in line
+        var wc = champ.WeightClass;
+        if (!WbcActive || WbcOf(wc) is null) return;
+        _wbc[wc] = null;
+        LogTitle($"{champ.Name} relinquishes the WBC title rather than face the mandatory, keeping the {PrimaryBelt} belt.", wc);
+        UpdateBeltsFor(wc);   // the WBC is picked up by the next contender in line
     }
 
     /// <summary>Run one belt through a season of 2–3 defences, each dated across the year.</summary>
-    private void DefendBeltSeason(Func<Boxer?> champ, Action<Boxer> crown, Func<Boxer?>? other, string belt, int yr, bool dethrone)
+    private void DefendBeltSeason(WeightClass wc, Func<Boxer?> champ, Action<Boxer> crown, Func<Boxer?>? other, string belt, int yr, bool dethrone)
     {
         int titleBouts = 2 + _rng.Next(2);
         for (int d = 0; d < titleBouts; d++)
@@ -355,7 +353,7 @@ public sealed partial class CareerGame
             if (!res.IsDraw && res.Winner!.Id == challenger.Id)
             {
                 LogTitle(dethrone ? $"{challenger.Name} dethrones {c.Name} for the {belt} title."
-                                  : $"{challenger.Name} takes the {belt} title from {c.Name}.", on: on);
+                                  : $"{challenger.Name} takes the {belt} title from {c.Name}.", wc, on: on);
                 crown(challenger);
             }
             else { Defended(c.WeightClass, BeltSlot(belt), c.Id); ConsiderTitleStepUp(c); }

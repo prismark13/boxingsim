@@ -217,8 +217,7 @@ public sealed partial class CareerGame
             field.Add(next);
         }
 
-        var savedCursor = _cursor;   // the clock no longer needs saving: nothing below moves it
-        _cursor = wc;
+        // Nothing to save and restore any more: neither the clock nor the division is ambient.
         // Spread forward through the rest of the year while a year of history is being laid out, but never past
         // the day the player is living in. Crowning a vacant belt is settled here and now — the result is
         // applied to records immediately — so dating it months ahead announced a champion the player could not
@@ -236,7 +235,6 @@ public sealed partial class CareerGame
         _everChampion.Add(winner.Id);
         LogEvent($"{winner.Name} wins the vacant {belt} title.", winner.Id == Player.Id, kind: "title", div: wc,
                  on: night);
-        _cursor = savedCursor;          // don't disturb the caller's cursor
         return winner;
     }
 
@@ -375,8 +373,11 @@ public sealed partial class CareerGame
     }
 
     /// <summary>Log a title event, tagged with the division being simulated so the news feed can filter it.</summary>
-    private void LogTitle(string text, BoutRef? bout = null, DateOnly? on = null) =>
-        LogEvent(text, kind: "title", div: _cursor, bout: bout, on: on);
+    /// <summary>Log a title event in a named division. The division is an argument: it used to come from
+    /// _cursor, an ambient "which weight am I resolving right now" that every caller had to remember to set
+    /// and put back — the same shape of fault as the world clock, one field down.</summary>
+    private void LogTitle(string text, WeightClass div, BoutRef? bout = null, DateOnly? on = null) =>
+        LogEvent(text, kind: "title", div: div, bout: bout, on: on);
 
     // The ranked order of the player's division, computed at most once a day. The angle below asks for it on
     // every headline in his weight, and re-sorting two hundred men for each one is not free.

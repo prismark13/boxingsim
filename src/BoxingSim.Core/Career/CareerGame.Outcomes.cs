@@ -172,13 +172,13 @@ public sealed partial class CareerGame
 
     private void CrownChampion(Boxer b)
     {
-        _cursor = b.WeightClass;
-        if (Champ is not null) Champ.IsChampion = false;
-        Champ = b;
+        var wc = b.WeightClass;
+        if (ChampOf(wc) is Boxer old) old.IsChampion = false;
+        _champions[wc] = b;
         b.IsChampion = true;
     }
 
-    private void CrownWbc(Boxer b) { _cursor = b.WeightClass; Wbc = b; }
-    private void CrownIbf(Boxer b) { _cursor = b.WeightClass; Ibf = b; }
+    private void CrownWbc(Boxer b) => _wbc[b.WeightClass] = b;
+    private void CrownIbf(Boxer b) => _ibf[b.WeightClass] = b;
 
 }

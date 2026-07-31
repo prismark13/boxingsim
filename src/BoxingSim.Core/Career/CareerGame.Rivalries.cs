@@ -279,7 +279,6 @@ public sealed partial class CareerGame
                     ? ((int)a.WeightClass > (int)b.WeightClass ? a : b)
                     : (IsWorldChampion(a) ? a : IsWorldChampion(b) ? b : a);
         var lighter = ReferenceEquals(heavier, a) ? b : a;
-        _cursor = heavier.WeightClass;
 
         // And his belt, if he has one. These were being fought for nothing, which is not what a superfight is:
         // the lighter man comes up to challenge, and what he is challenging for is the title. Leonard went up
@@ -319,7 +318,6 @@ public sealed partial class CareerGame
                         ? $"{res.Winner!.Name} beats {res.Loser!.Name} for the {belt} {heavier.WeightClass.DisplayName()} title — the best against the best, with a belt on it."
                         : $"{res.Winner!.Name} beats {res.Loser!.Name} in the superfight — the best against the best, at {heavier.WeightClass.DisplayName()}.",
                  kind: "fight", div: heavier.WeightClass, bout: RefOf(res, night), on: night);
-        _cursor = Division;
     }
 
     /// <summary>The two best contenders in a division meet, with the winner next in line.</summary>
@@ -338,7 +336,6 @@ public sealed partial class CareerGame
         var b = field.Skip(1).Skip(_rng.Next(Math.Min(2, field.Count - 1))).FirstOrDefault() ?? field[1];
         if (RecentFoes(a, 3).Contains(b.Name)) return;
 
-        _cursor = wc;
         var wanted = NoLaterThanToday(SpreadDate(Date.Year, _rng.Next(6), 6));
         var res = FastBout(a, b, 12);
         var night = ApplyOutcome(res, a, b, "eliminator", on: wanted);
@@ -349,7 +346,6 @@ public sealed partial class CareerGame
             LogEvent($"{res.Winner.Name} beats {res.Loser!.Name} in the final eliminator — he is next for the title.",
                      kind: "fight", div: wc, bout: RefOf(res, night), on: night);
         }
-        _cursor = Division;
     }
 
     /// <summary>Opponents a fighter has met in his last few bouts — used to avoid stale rematches.</summary>
