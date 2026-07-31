@@ -487,7 +487,7 @@ public sealed partial class CareerGame
         // event has to read it from here.
         LastNightsCard = Bill.ToList();
 
-        Offer = Player.Retired ? null : BuildOffer();
+        NewSlate();
         return res;
     }
 
@@ -506,7 +506,7 @@ public sealed partial class CareerGame
             if (turned.TitleFight && turned.Belt is "WBA" or "WBC" or "IBF") ForfeitShot();
         }
         AdvanceTo(Date.AddDays(21 + _rng.Next(21)));
-        Offer = Player.Retired ? null : BuildOffer();
+        NewSlate();
     }
 
     // Men the player has recently turned down. Cleared when he actually takes a fight - once he is boxing
@@ -522,7 +522,7 @@ public sealed partial class CareerGame
         WbcChampion = null;
         LogEvent($"{Player.Name} relinquishes the WBC title.", true);
         UpdateBeltsFor(Division);
-        if (!Player.Retired) Offer = BuildOffer();   // the offer is no longer a unified defence
+        if (!Player.Retired) NewSlate();   // the offer is no longer a unified defence
     }
 
     /// <summary>The division the player could move up to (null at heavyweight; skips not-yet-founded classes).</summary>
@@ -541,7 +541,7 @@ public sealed partial class CareerGame
         _lastTitleShot = -100;
         UpdateBeltsFor(from);   // the belts he vacated pass on
         LogEvent($"{Player.Name} moves up to the {to.DisplayName()} division.", true, kind: "title");
-        Offer = BuildOffer();
+        NewSlate();
     }
 
 }

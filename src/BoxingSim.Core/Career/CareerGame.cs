@@ -497,7 +497,10 @@ public sealed partial class CareerGame
         Player.WeightClass = division;
         AddActive(Player);
         CapStarter(Player);
-        Offer = BuildOffer();
+        // Unconditionally, even for a universe's ghost — who is retired before the first week and will never
+        // be offered anything. It still draws its random numbers, and every result in the world sits behind
+        // them: skipping it here moved the universe fingerprint.
+        NewSlate(evenIfRetired: true);
     }
 
     /// <summary>Rehydrate a saved career.</summary>
@@ -601,7 +604,7 @@ public sealed partial class CareerGame
         if (s.Offer is OfferSave o && byId.TryGetValue(o.OpponentId, out var opp))
             Offer = new FightOffer { Opponent = opp, Rounds = o.Rounds, TitleFight = o.TitleFight, Belt = o.Belt, Context = o.Context };
         else
-            Offer = Player.Retired ? null : BuildOffer();
+            NewSlate();
     }
 
     public static CareerGame Load(CareerSave save, Random rng) => new(save, rng);

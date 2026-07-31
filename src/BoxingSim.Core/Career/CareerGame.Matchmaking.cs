@@ -61,6 +61,46 @@ public sealed partial class CareerGame
                  playerBout: true, kind: "title");
     }
 
+    /// <summary>How many fights are put in front of the player at once.
+    ///
+    /// One is the old behaviour: a single offer, take it or wait. The slate exists at a width of one first so
+    /// that introducing it could be proved to change nothing.</summary>
+    private const int SlateWidth = 1;
+
+    /// <summary>The fights on the table. Exactly one of them may be a belt.</summary>
+    private readonly List<FightOffer> _slate = new();
+    public IReadOnlyList<FightOffer> Slate => _slate;
+
+    /// <summary>Draw up this cycle's choices and put the first on the table.
+    ///
+    /// The scarcity rules have to hold ACROSS the slate, which is why one function sees all of it rather than
+    /// the matchmaker being called three times: called three times, a top-five contender is handed three
+    /// world title shots on one screen and a belt stops being scarce. BigNight fills at most one slot and the
+    /// rest come from the ordinary pool, which is never allowed to contain a title.
+    ///
+    /// Only the CHOSEN offer is assigned to Offer, because assigning it draws the card and the undercard —
+    /// three offers must not draw three bills. See the note on the Offer setter.</summary>
+    private void NewSlate(bool evenIfRetired = false)
+    {
+        _slate.Clear();
+        if (Player.Retired && !evenIfRetired) { Offer = null; return; }
+        foreach (var o in BuildSlate()) _slate.Add(o);
+        Offer = _slate.Count > 0 ? _slate[0] : null;
+    }
+
+    /// <summary>Take one of the fights on the table. The others were never made.</summary>
+    public void ChooseOffer(FightOffer o)
+    {
+        if (!_slate.Contains(o)) return;
+        Offer = o;
+    }
+
+    private List<FightOffer> BuildSlate()
+    {
+        var slate = new List<FightOffer> { BuildOffer() };
+        return slate;
+    }
+
     private FightOffer BuildOffer()
     {
         int gap = Math.Max(DaysForFights(ProFights(Player)), _layoffDays);   // recovery pushes the next bout out
