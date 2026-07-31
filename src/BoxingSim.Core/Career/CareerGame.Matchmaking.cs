@@ -63,9 +63,14 @@ public sealed partial class CareerGame
 
     /// <summary>How many fights are put in front of the player at once.
     ///
-    /// One is the old behaviour: a single offer, take it or wait. The slate exists at a width of one first so
-    /// that introducing it could be proved to change nothing.</summary>
-    private const int SlateWidth = 1;
+    /// One was the old behaviour: a single offer, take it or wait, so the only decision available was whether
+    /// to fight at all. Three makes the choice the thing a career actually is — a tune-up, a step up, or the
+    /// man who will hurt you but move you up the board.
+    ///
+    /// A night with a belt on it does NOT get buried under alternatives. When BigNight fills the slot the
+    /// slate is narrowed, because a world title is not one option among three.</summary>
+    private const int SlateWidth = 3;
+    private const int SlateWidthWithABelt = 2;
 
     /// <summary>The fights on the table. Exactly one of them may be a belt.</summary>
     private readonly List<FightOffer> _slate = new();
@@ -95,11 +100,49 @@ public sealed partial class CareerGame
         Offer = o;
     }
 
+    /// <summary>This cycle's choices. At most one of them can be a belt.</summary>
     private List<FightOffer> BuildSlate()
     {
         var slate = new List<FightOffer> { BuildOffer() };
+
+        // BuildOffer already put the big night up if he had earned one — a belt he holds, a fight he is owed,
+        // a shot he has qualified for, his region's title. That slot is now FULL, and nothing below may add
+        // another: the ordinary path cannot produce a title, so the cap is structural rather than a check.
+        bool belt = slate[0].TitleFight;
+        int want = belt ? SlateWidthWithABelt : SlateWidth;
+
+        // The rest of the pool, minus anyone already on the table. Each is a genuinely different night rather
+        // than the same man described twice.
+        var taken = new HashSet<int> { slate[0].Opponent.Id };
+        var ranked = Active.OrderByDescending(RankScore).ToList();
+        int idx = ranked.FindIndex(b => b.Id == Player.Id);
+        if (idx < 0 || ranked.Count <= 2) return slate;
+
+        int proFights = ProFights(Player);
+        int maxOvr = CeilingFor(proFights);
+
+        for (int i = 0; slate.Count < want && i < 6; i++)
+        {
+            var alt = OrdinaryOffer(ranked, idx, proFights, maxOvr, taken);
+            if (taken.Contains(alt.Opponent.Id)) continue;
+            taken.Add(alt.Opponent.Id);
+            slate.Add(alt);
+        }
         return slate;
     }
+
+    /// <summary>The best man his record has earned. The ceiling RAMPS with experience and never jumps
+    /// straight to "anyone": a green fighter spends a dozen bouts on tomato cans before real opposition, and
+    /// graduating the apprenticeship earns him contenders rather than an all-time great — a 14-fight novice
+    /// offered a class-14 champion is not a step up, it is a mismatch. Title shots bypass it entirely, being
+    /// earned by ranking instead. Rolled per offer, so two nights on the same slate can be pitched
+    /// differently.</summary>
+    private int CeilingFor(int proFights) =>
+        !ReadyForContenders(Player)
+            ? (proFights < 12 ? 55
+               : _rng.Next(2) == 0 ? 55                           // ~half the step-up bouts are jman tune-ups
+                                   : Math.Min(78, 55 + (proFights - 12) * 3))   // gatekeeper, not contender
+            : Math.Min(99, 70 + (proFights - ContenderApprenticeship(Player)) * 3);
 
     private FightOffer BuildOffer()
     {
@@ -129,11 +172,7 @@ public sealed partial class CareerGame
         // The ceiling RAMPS with experience and never jumps straight to "anyone". Graduating the apprenticeship
         // earns a prospect real contenders, not an all-time great: a 14-fight novice offered a class-14 champion
         // isn't a step up, it's a mismatch. (Title shots bypass this cap entirely — they're earned by ranking.)
-        int maxOvr = !ReadyForContenders(Player)
-                   ? (proFights < 12 ? 55
-                      : _rng.Next(2) == 0 ? 55                           // ~half the step-up bouts are jman tune-ups
-                                          : Math.Min(78, 55 + (proFights - 12) * 3))   // gatekeeper, not contender
-                   : Math.Min(99, 70 + (proFights - ContenderApprenticeship(Player)) * 3);
+        int maxOvr = CeilingFor(proFights);
 
         if (BigNight(ranked, idx, proFights) is FightOffer big) return big;
         return OrdinaryOffer(ranked, idx, proFights, maxOvr);
@@ -255,7 +294,10 @@ public sealed partial class CareerGame
     ///
     /// Every rule carries its own reason, which is what makes a wrong-looking matchup answerable: you can ask
     /// why a man was refused instead of reasoning backwards through the passes that might have swapped him.</summary>
-    private FightOffer OrdinaryOffer(List<Boxer> ranked, int idx, int proFights, int maxOvr)
+    /// <param name="alreadyOffered">Men already on this cycle's slate. Two offers naming the same opponent is
+    /// not a choice.</param>
+    private FightOffer OrdinaryOffer(List<Boxer> ranked, int idx, int proFights, int maxOvr,
+                                     HashSet<int>? alreadyOffered = null)
     {
         var stage = CareerStages.Of(Player);
 
@@ -295,6 +337,7 @@ public sealed partial class CareerGame
             ("he has just fought him",    b => recent.Contains(b.Name)),
             ("they have met three times", b => TimesFaced(b.Name) >= 3),
             ("somebody else's prospect",  b => !ranking && DangerousProspect(b)),
+            ("already on the slate",      b => alreadyOffered?.Contains(b.Id) == true),
         };
 
         var pool = ranked.Where(b => !hard.Any(r => r.No(b))).ToList();

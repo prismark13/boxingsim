@@ -113,7 +113,10 @@ public class GoldenMasterTests
         // ... then -> here when the ordinary matchmaker stopped picking a man and rewriting that choice six
         // times, and started scoring every eligible opponent once. OpponentTests is what says the intent
         // survived; this only says something changed.
-        Assert.Equal("22BB7DA56527D043", Hash(body));
+        // ... then -> here when the slate widened to three. The universe fingerprint did NOT move, which is
+        // the confirmation it is the player's: a universe's ghost is retired, so he has no division to be
+        // ranked in and his slate stays one wide.
+        Assert.Equal("AC545BF40B0BF11C", Hash(body));
     }
 
     [Fact]

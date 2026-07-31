@@ -33,6 +33,57 @@ public class TitleShotTests
     private static bool IsWorldTitle(FightOffer? o) =>
         o is not null && o.TitleFight && o.Belt is "WBA" or "WBC" or "IBF";
 
+    /// <summary>At most one belt on the table at a time, over hundreds of slates.
+    ///
+    /// This is the rule a slate exists to break. The title path returns on the first match — WBA, else WBC,
+    /// else IBF — so fanning it out naively hands a top-five contender three world title shots on one screen,
+    /// and a belt stops being scarce. The cap is structural rather than a check: BigNight fills at most one
+    /// slot and the ordinary path cannot produce a title at all.</summary>
+    [Fact]
+    public void AtMostOneTitleFightIsEverOnTheTable()
+    {
+        var worst = new List<string>();
+        for (int seed = 1; seed <= 3; seed++)
+        {
+            var g = Worlds.Fresh(potential: 92, seed: seed);
+            for (int i = 0; i < 40 && g.Offer is not null && !g.Player.Retired; i++)
+            {
+                int belts = g.Slate.Count(o => o.TitleFight);
+                if (belts > 1)
+                    worst.Add($"seed {seed}: {belts} title fights at once — "
+                              + string.Join(", ", g.Slate.Where(o => o.TitleFight).Select(o => o.Belt)));
+                g.TakeOffer();
+            }
+        }
+        Assert.True(worst.Count == 0, string.Join("; ", worst.Take(4)));
+    }
+
+    /// <summary>A slate offers genuinely different fights, not the same man listed twice.</summary>
+    [Fact]
+    public void NobodyAppearsTwiceOnOneSlate()
+    {
+        var g = Worlds.Fresh(potential: 86, seed: 2);
+        var dupes = new List<string>();
+        for (int i = 0; i < 30 && g.Offer is not null && !g.Player.Retired; i++)
+        {
+            var ids = g.Slate.Select(o => o.Opponent.Id).ToList();
+            if (ids.Count != ids.Distinct().Count())
+                dupes.Add(string.Join(", ", g.Slate.Select(o => o.Opponent.Name)));
+            g.TakeOffer();
+        }
+        Assert.True(dupes.Count == 0, "the same man appeared twice on a slate: " + string.Join(" | ", dupes.Take(3)));
+    }
+
+    /// <summary>A belt is not one option among three. When the big night is a title, the slate narrows.</summary>
+    [Fact]
+    public void ABeltIsNotBuriedUnderAlternatives()
+    {
+        var g = Contender(4, out _);
+        if (!IsWorldTitle(g.Offer)) return;
+        Assert.True(g.Slate.Count <= 2, $"a world title was offered alongside {g.Slate.Count - 1} other fights");
+        Assert.True(g.Slate[0].TitleFight, "the belt was not the first thing on the table");
+    }
+
     /// <summary>The one nobody writes. Declining over and over must never be a way of fishing for a belt.</summary>
     [Fact]
     public void DecliningRepeatedlyNeverFishesUpATitleShot()
