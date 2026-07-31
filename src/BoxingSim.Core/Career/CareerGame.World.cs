@@ -143,13 +143,11 @@ public sealed partial class CareerGame
             // there is no way to reconstruct what he was at 22 once he is 30.
             if (b.Id == Player.Id && _playerArc.All(x => x.Age != b.Age))
                 _playerArc.Add((CareerMileage.Fights(b), b.Age, b.Ratings.Clone()));
-            _peakOverall[b.Id] = Math.Max(_peakOverall.GetValueOrDefault(b.Id), b.Overall);
-            _peakClass[b.Id] = Math.Max(_peakClass.GetValueOrDefault(b.Id), b.Class);
-            if (ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id)
+            _hall.RecordPeak(b.Id, b.Overall, b.Class);
+            if (IsWorldChampion(b))
             {
-                _everChampion.Add(b.Id);
-                if (!_titleDivisions.TryGetValue(b.Id, out var divs)) _titleDivisions[b.Id] = divs = new();
-                divs.Add(b.WeightClass);   // he campaigned up and won here too → a multi-weight champion
+                _hall.MarkChampion(b.Id);
+                _hall.MarkTitleDivision(b.Id, b.WeightClass);   // he campaigned up and won here too → a multi-weight champion
             }
 
             // Fight regularly or hang them up: a generated fighter who's been idle for ~2 years drifts out
@@ -224,44 +222,23 @@ public sealed partial class CareerGame
         // announcement happening BEFORE the clock was put back, which is a rule about statement order that
         // nothing enforces: move this line down three and the headline reads months before the bout that
         // decided it. It carries its own date now, so it cannot be moved into the wrong one.
-        _everChampion.Add(winner.Id);
+        _hall.MarkChampion(winner.Id);
         LogEvent($"{winner.Name} wins the vacant {belt} title.", winner.Id == Player.Id, kind: "title", div: wc,
                  on: night);
         return winner;
     }
 
-    /// <summary>Enshrine a retiring great: a world champion with a real body of work, or a genuinely elite talent.
-    /// The snapshot is self-contained so it survives the roster being pruned on save. Returns true if inducted.</summary>
+    /// <summary>Put a retiring great to the Hall, and announce it if he got in.
+    ///
+    /// The case is the Hall's to judge; what this has to supply is the part of it that lives out here — how
+    /// many fights he had, how many defences he made, whether he is walking away still holding a belt, and
+    /// the prime of a real fighter who was injected into the world part-way through his career instead of
+    /// growing up in it. That last one is a floor, not a value: everyone else passes zero.</summary>
     private bool MaybeInductHoF(Boxer b)
     {
-        if (_hof.Any(x => x.Id == b.Id)) return false;
-        int peak = _peakOverall.GetValueOrDefault(b.Id, b.Overall);
-        int peakClass = Math.Max(_peakClass.GetValueOrDefault(b.Id), b.Class);
-        if (_historical.TryGetValue(b.Id, out var h)) { peak = Math.Max(peak, h.Prime.Overall); peakClass = Math.Max(peakClass, h.Prime.Class); }
-        bool wasChamp = _everChampion.Contains(b.Id)
-                        || ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
-        int defenses = _titles.CareerDefenses(b.Id);
-        int weightTitles = _titleDivisions.TryGetValue(b.Id, out var tds) ? tds.Count : (wasChamp ? 1 : 0);
-        // A real champion with a genuine reign (3+ defences) or a multi-weight champion — but only a true top-tier
-        // fighter (peakClass floor keeps journeyman champions of a thin division out) — or an outright elite talent.
-        // A Hall of Famer needs a real body of work, not a handful of bouts — plus either a genuine title reign,
-        // a multi-weight title, or an elite career-long talent.
-        int pf = ProFights(b);
-        bool worthy = pf >= 15 && ((((wasChamp && defenses >= 3) || weightTitles >= 2) && peakClass >= 8) || (peak >= 88 && pf >= 25));
-        if (!worthy) return false;
-
-        _hof.Add(new HallOfFamer
-        {
-            Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, Division = b.WeightClass,
-            Record = b.Record.ToString(), PeakOverall = peak, PeakClass = peakClass, Defenses = defenses, WasChampion = wasChamp,
-            WeightTitles = weightTitles, TitleDivisions = tds?.OrderBy(d => (int)d).ToList() ?? new(), Age = b.Age, Year = Date.Year,
-            // Snapshot the ledger (drop the heavy per-round grid/commentary) so the Hall keeps his fight history.
-            History = b.History.Select(h => new BoutLine
-            {
-                Date = h.Date, Opponent = h.Opponent, Result = h.Result, Method = h.Method,
-                Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
-            }).ToList()
-        });
+        var prime = _historical.TryGetValue(b.Id, out var h) ? (h.Prime.Overall, h.Prime.Class) : (0, 0);
+        if (!_hall.Induct(b, ProFights(b), _titles.CareerDefenses(b.Id), IsWorldChampion(b),
+                          prime.Item1, prime.Item2, Date.Year)) return false;
         LogEvent($"{b.Name} ({b.Record}) retires and enters the Hall of Fame.", b.Id == Player.Id, kind: "hof", div: b.WeightClass);
         return true;
     }

@@ -25,7 +25,7 @@ public sealed partial class CareerGame
             if (res.Loser.Id == champ.Id)
             {
                 _titles.SetLineal(wc, res.Winner);
-                _everChampion.Add(res.Winner.Id);
+                _hall.MarkChampion(res.Winner.Id);
                 LogEvent($"{res.Winner.Name} beats the man who beat the man — {res.Loser.Name}'s {LinealBelt} championship changes hands.",
                          res.Winner.Id == Player.Id, kind: "title", div: wc, on: on);
             }
@@ -39,7 +39,7 @@ public sealed partial class CareerGame
         var top2 = ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(2).Select(x => x.Id).ToHashSet();
         if (!(top2.Contains(a.Id) && top2.Contains(b.Id))) return;
         _titles.SetLineal(wc, res.Winner);
-        _everChampion.Add(res.Winner.Id);
+        _hall.MarkChampion(res.Winner.Id);
         LogEvent($"{res.Winner.Name} beats {res.Loser.Name} to establish himself as the {LinealBelt} champion at {wc.DisplayName()}.",
                  res.Winner.Id == Player.Id, kind: "title", div: wc, on: on);
     }
@@ -97,7 +97,7 @@ public sealed partial class CareerGame
     private bool ChasesRegional(Boxer b)
     {
         if (IsWorldChampion(b)) return false;
-        if (!_everChampion.Contains(b.Id)) return true;
+        if (!_hall.WasEverChampion(b.Id)) return true;
         return !WorldRanked(b) && _rng.NextDouble() < 0.10;
     }
 

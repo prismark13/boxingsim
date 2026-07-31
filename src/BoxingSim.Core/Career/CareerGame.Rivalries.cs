@@ -310,7 +310,7 @@ public sealed partial class CareerGame
             if (belt == PrimaryBelt) CrownChampion(lighter);
             else if (belt == "WBC") CrownWbc(lighter);
             else CrownIbf(lighter);
-            _everChampion.Add(lighter.Id);
+            _hall.MarkChampion(lighter.Id);
         }
         LogEvent(res.IsDraw
                     ? $"{a.Name} and {b.Name} draw the superfight — the two best in the world settle nothing."

@@ -164,7 +164,7 @@ public sealed partial class CareerGame
         // between bouts than a contender does.
         if (Player.IsChampion || WbcChampion?.Id == Player.Id || IbfChampion?.Id == Player.Id)
             gap = Math.Max((int)Math.Round(gap * 1.35), (int)Math.Round(112 * (0.5 + _rng.NextDouble())));
-        else if (_everChampion.Contains(Player.Id))
+        else if (_hall.WasEverChampion(Player.Id))
             gap = (int)Math.Round(gap * 1.18);
         _layoffDays = 0;
         OfferDate = Date.AddDays(gap);

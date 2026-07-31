@@ -433,7 +433,7 @@ public sealed partial class CareerGame
         };
         // A reigning champion never reaches this pool at all; he is barred from undercards and his year is
         // his defences. A former champion does, and he is not taking stay-busy fights for short money.
-        if (_everChampion.Contains(b.Id)) basis *= 0.72;
+        if (_hall.WasEverChampion(b.Id)) basis *= 0.72;
         // And no two men keep the same schedule.
         return basis * CareerMileage.Activity(b);
     }
