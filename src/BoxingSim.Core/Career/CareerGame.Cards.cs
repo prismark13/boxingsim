@@ -54,7 +54,7 @@ public sealed partial class CareerGame
                          .OrderByDescending(b => b.Overall).ToList();
         if (pool.Count < 2) return;
 
-        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _champions[wc] = null;
+        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _titles.SetChamp(wc, null);
 
         // A rare unification is checked FIRST and, when it fires, is the only world-title bout on this card:
         // the belts merge in one fight rather than each champion ALSO making a separate defence the same
@@ -117,7 +117,7 @@ public sealed partial class CareerGame
         // Regional title defences — a regional champ risks his belt against a fellow regional contender.
         foreach (var region in RegionalBelts)
         {
-            if (!_regional.TryGetValue((wc, region), out var rc) || rc.Id == Player.Id || rc.Retired) continue;
+            if (!_titles.TryRegional(wc, region, out var rc) || rc.Id == Player.Id || rc.Retired) continue;
             // Regional belts are meant to be DEFENDED - that is the whole point of holding one on the way up.
             // At a twentieth per card they mostly sat idle on a man's record.
             if (DaysSinceLastBout(rc) < 84 || _rng.NextDouble() >= 0.11 * CareerMileage.Activity(rc)) continue;
@@ -135,7 +135,7 @@ public sealed partial class CareerGame
             if (chall is null) continue;
             var rres = FastBout(rc, chall, 12);
             var ron = ApplyOutcome(rres, rc, chall, $"{region} title");
-            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(wc, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", wc, RefOf(rres, ron), ron); }
+            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _titles.SetRegional(wc, region, chall); LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", wc, RefOf(rres, ron), ron); }
         }
 
         // A fortnight's cards across a whole division, scaled to how many men are in it. This used to be a
@@ -187,7 +187,7 @@ public sealed partial class CareerGame
 
         // Title bouts: each champion defends 2–3 times a year (mandatories and voluntary defences),
         // dated across the calendar. The belt is where the elites meet.
-        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _champions[wc] = null;
+        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _titles.SetChamp(wc, null);
 
         // A unification (rare) is settled FIRST, early in the year, so the belts merge before the defence
         // campaign runs. The rest of the season is then defended as one undisputed title — never a stray
@@ -321,7 +321,7 @@ public sealed partial class CareerGame
     {
         var wc = champ.WeightClass;
         if (!WbcActive || WbcOf(wc) is null) return;
-        _wbc[wc] = null;
+        _titles.SetWbc(wc, null);
         LogTitle($"{champ.Name} relinquishes the WBC title rather than face the mandatory, keeping the {PrimaryBelt} belt.", wc);
         UpdateBeltsFor(wc);   // the WBC is picked up by the next contender in line
     }
@@ -356,7 +356,7 @@ public sealed partial class CareerGame
                                   : $"{challenger.Name} takes the {belt} title from {c.Name}.", wc, on: on);
                 crown(challenger);
             }
-            else { Defended(c.WeightClass, BeltSlot(belt), c.Id); ConsiderTitleStepUp(c); }
+            else { Defended(c.WeightClass, belt, c.Id); ConsiderTitleStepUp(c); }
         }
     }
 

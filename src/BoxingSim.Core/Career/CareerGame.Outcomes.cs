@@ -170,15 +170,10 @@ public sealed partial class CareerGame
         }
     }
 
-    private void CrownChampion(Boxer b)
-    {
-        var wc = b.WeightClass;
-        if (ChampOf(wc) is Boxer old) old.IsChampion = false;
-        _champions[wc] = b;
-        b.IsChampion = true;
-    }
-
-    private void CrownWbc(Boxer b) => _wbc[b.WeightClass] = b;
-    private void CrownIbf(Boxer b) => _ibf[b.WeightClass] = b;
+    // Kept as methods rather than inlined at the call sites: three of them are handed to DefendBeltSeason as
+    // the "and this is how that belt changes hands" argument, so they have to be method groups.
+    private void CrownChampion(Boxer b) => _titles.CrownChampion(b);
+    private void CrownWbc(Boxer b) => _titles.SetWbc(b.WeightClass, b);
+    private void CrownIbf(Boxer b) => _titles.SetIbf(b.WeightClass, b);
 
 }

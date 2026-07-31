@@ -43,11 +43,9 @@ public sealed partial class CareerGame
         b.DebutWeight ??= from;   // captured on the first move up — the floor the two-division climb cap measures from
         var vacated = BeltsHeld(b).Select(x => x.Belt).ToList();
         if (b.IsChampion) b.IsChampion = false;
-        if (ChampOf(from)?.Id == b.Id) _champions[from] = null;
-        if (WbcOf(from)?.Id == b.Id) _wbc[from] = null;
-        if (IbfOf(from)?.Id == b.Id) _ibf[from] = null;
+        _titles.VacateWorldBelts(from, b);
         VacateLineal(from, b, $"moves up to {to.DisplayName()}");
-        foreach (var region in RegionalBelts) if (_regional.GetValueOrDefault((from, region))?.Id == b.Id) _regional.Remove((from, region));
+        foreach (var region in RegionalBelts) if (_titles.Regional(from, region)?.Id == b.Id) _titles.ClearRegional(from, region);
         if (vacated.Count > 0 && (b.Id == Player.Id || from == Division))
             LogEvent($"{b.Name} relinquishes the {string.Join(", ", vacated)} title{(vacated.Count > 1 ? "s" : "")} to move up to {to.DisplayName()}.", b.Id == Player.Id, kind: "title", div: from);
         b.WeightClass = to;
@@ -166,9 +164,7 @@ public sealed partial class CareerGame
             if (_rng.NextDouble() < retireOnTop)
             {
                 champ.Retired = true;
-                if (ChampOf(champ.WeightClass)?.Id == champ.Id) _champions[champ.WeightClass] = null;
-                if (WbcOf(champ.WeightClass)?.Id == champ.Id) _wbc[champ.WeightClass] = null;
-                if (IbfOf(champ.WeightClass)?.Id == champ.Id) _ibf[champ.WeightClass] = null;
+                _titles.VacateWorldBelts(champ.WeightClass, champ);
                 champ.IsChampion = false;
                 MaybeInductHoF(champ);
                 LogEvent($"{champ.Name} retires as champion after {defs} defences, going out on top.", kind: "retire", div: champ.WeightClass);

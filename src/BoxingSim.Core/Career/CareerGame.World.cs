@@ -166,9 +166,7 @@ public sealed partial class CareerGame
             {
                 b.Retired = true;
                 if (b.IsChampion) b.IsChampion = false;
-                if (ChampOf(b.WeightClass)?.Id == b.Id) _champions[b.WeightClass] = null;
-                if (WbcOf(b.WeightClass)?.Id == b.Id) _wbc[b.WeightClass] = null;
-                if (IbfOf(b.WeightClass)?.Id == b.Id) _ibf[b.WeightClass] = null;
+                _titles.VacateWorldBelts(b.WeightClass, b);
                 VacateLineal(b.WeightClass, b, "retires as champion");
                 bool inducted = MaybeInductHoF(b);
                 if (b.Id == Player.Id) { if (!inducted) LogEvent($"{Player.Name} retires from boxing.", true, kind: "retire"); }
@@ -185,11 +183,11 @@ public sealed partial class CareerGame
             var champ = ChampOf(wc);
             if (champ is null || champ.Retired)
             {
-                _champions[wc] = null;
+                _titles.SetChamp(wc, null);
                 var winner = ContestVacantTitle(wc, PrimaryBelt, WbcOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
                 if (winner is not null)   // announced by ContestVacantTitle, dated to fight night
                 {
-                    _champions[wc] = winner; winner.IsChampion = true;
+                    _titles.SetChamp(wc, winner); winner.IsChampion = true;
                 }
             }
         }
@@ -248,9 +246,7 @@ public sealed partial class CareerGame
         if (_historical.TryGetValue(b.Id, out var h)) { peak = Math.Max(peak, h.Prime.Overall); peakClass = Math.Max(peakClass, h.Prime.Class); }
         bool wasChamp = _everChampion.Contains(b.Id)
                         || ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
-        // The lineal line is not a fourth belt to defend — a Ring defence IS one of the sanctioned defences, so
-        // it's tracked for the champions board but must never be double-counted into a career total.
-        int defenses = _beltDefenses.Where(kv => kv.Key.Holder == b.Id && kv.Key.Belt != "Ring").Sum(kv => kv.Value);
+        int defenses = _titles.CareerDefenses(b.Id);
         int weightTitles = _titleDivisions.TryGetValue(b.Id, out var tds) ? tds.Count : (wasChamp ? 1 : 0);
         // A real champion with a genuine reign (3+ defences) or a multi-weight champion — but only a true top-tier
         // fighter (peakClass floor keeps journeyman champions of a thin division out) — or an outright elite talent.
