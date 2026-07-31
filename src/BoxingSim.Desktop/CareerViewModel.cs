@@ -2132,10 +2132,8 @@ public sealed class CareerViewModel : Observable
         string me = Surname(owner) ?? "him", them = Surname(foe) ?? "the other man";
         string[] names = { "Judge 1", "Judge 2", "Judge 3" };
         int i = 0;
-        foreach (var part in cards.Split('·', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var (mine, his) in ScoreCards.Read(cards))
         {
-            var bits = part.Trim().Split('-');
-            if (bits.Length != 2 || !int.TryParse(bits[0], out int mine) || !int.TryParse(bits[1], out int his)) continue;
             outp.Add(new JudgeCard(i < names.Length ? names[i] : $"Judge {i + 1}",
                                    $"{mine}–{his}",
                                    mine == his ? "level" : mine > his ? $"for {me}" : $"for {them}",

@@ -291,6 +291,7 @@ public sealed partial class CareerGame
             text = $"{text} — {angle}";
         _log.Add(new CareerEvent { On = Date, Text = text, PlayerBout = playerBout, Kind = kind,
                                    Div = div ?? Division, Bout = bout, Detail = detail });
+        _logWrites++;
         if (_log.Count > 1500) _log.RemoveAt(0);   // bounded; eight divisions produce more news
     }
 

@@ -659,58 +659,68 @@
                 </ScrollViewer>
 
                 <!-- ============ FIGHT NIGHT ============ -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                              Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Career}">
+                <Grid Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Career}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- THE BUILD-UP, above the poster rather than below it, and OUTSIDE the scroller.
+
+                         It used to sit under the bill, which on any normal window put the countdown and
+                         the Continue button below the fold — so pressing "go to fight night" landed you on
+                         a page where the one thing you now had to press was off screen. Moving it to the top
+                         of the page only half-fixed that: it was still the first thing INSIDE the scrolling
+                         body, so reading down the week's news carried it off the top instead. Every "the
+                         button is missing" report was this, not the state machine. It is pinned now, so the
+                         one thing you can do is on screen no matter where the feed is scrolled to. -->
+                    <!-- Time passes. Everything the sport did between his fights used to happen in
+                         the single frame between clicking "take the fight" and the opening bell.
+                         There was a "Wait for fight night" button here as well, which did what "Go to
+                         fight night" now does from the same page - two buttons for one action. -->
+                    <!-- Held between weeks, so the build-up can be read rather than watched going
+                         past. "Run the rest" hands the pacing back to the clock for this one run. -->
+                    <!-- The margins and MaxWidth are the scrolling body's own (28 + an inner 24, capped at
+                         1000) worked out one level up, so the row sits over the column rather than beside it. -->
+                    <Grid Margin="52,22,52,0" MaxWidth="952" HorizontalAlignment="Stretch"
+                          Visibility="{Binding ShowCampActions, Converter={StaticResource BoolVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="9" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="9" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <!-- Accepting, here as well as on Home. This page shows a countdown whether or not
+                             the fight has been taken, and a countdown with no button under it is a dead
+                             end — which is what it was. -->
+                        <Button Content="Accept fight" Command="{Binding TakeFight}"
+                                Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
+                                ToolTip="{Binding TakeFightHint}"
+                                Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
+                        <!-- The walk-out. Once the date has come there are no weeks left to run, so
+                             Continue goes and this takes its place in the same spot. -->
+                        <Button Content="Fight now" Command="{Binding TakeFight}"
+                                Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
+                                ToolTip="The date has come — first bell"
+                                Visibility="{Binding ReadyToFight, Converter={StaticResource BoolVis}}" />
+                        <Button Content="Continue" Command="{Binding StepForward}"
+                                Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
+                                ToolTip="One more week"
+                                Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
+                        <Button Grid.Column="2" Content="Go to fight night" Command="{Binding RunTheRest}"
+                                Padding="14,10" FontSize="13"
+                                ToolTip="Run the remaining weeks straight through to the first bell"
+                                Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
+                        <Button Grid.Column="2" Content="Turn it down" Command="{Binding HoldOut}"
+                                Padding="14,10" FontSize="13"
+                                ToolTip="Refuse this fight and wait for another offer"
+                                Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
+
+                    </Grid>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="28,26,28,28" MaxWidth="1000" HorizontalAlignment="Stretch">
-
-                        <!-- THE BUILD-UP, above the poster rather than below it.
-
-                             It used to sit under the bill, which on any normal window put the countdown and
-                             the Continue button below the fold — so pressing "go to fight night" landed you on
-                             a page where the one thing you now had to press was off screen. What you act on
-                             comes first; the poster it is a build-up TO reads underneath. -->
-                        <!-- Time passes. Everything the sport did between his fights used to happen in
-                             the single frame between clicking "take the fight" and the opening bell.
-                             There was a "Wait for fight night" button here as well, which did what "Go to
-                             fight night" now does from the same page - two buttons for one action. -->
-                        <!-- Held between weeks, so the build-up can be read rather than watched going
-                             past. "Run the rest" hands the pacing back to the clock for this one run. -->
-                        <Grid Margin="24,0,24,10"
-                              Visibility="{Binding ShowCampActions, Converter={StaticResource BoolVis}}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="9" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="9" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <!-- Accepting, here as well as on Home. This page shows a countdown whether or not
-                                 the fight has been taken, and a countdown with no button under it is a dead
-                                 end — which is what it was. -->
-                            <Button Content="Accept fight" Command="{Binding TakeFight}"
-                                    Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
-                                    ToolTip="{Binding TakeFightHint}"
-                                    Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
-                            <!-- The walk-out. Once the date has come there are no weeks left to run, so
-                                 Continue goes and this takes its place in the same spot. -->
-                            <Button Content="Fight now" Command="{Binding TakeFight}"
-                                    Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
-                                    ToolTip="The date has come — first bell"
-                                    Visibility="{Binding ReadyToFight, Converter={StaticResource BoolVis}}" />
-                            <Button Content="Continue" Command="{Binding StepForward}"
-                                    Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
-                                    ToolTip="One more week"
-                                    Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
-                            <Button Grid.Column="2" Content="Go to fight night" Command="{Binding RunTheRest}"
-                                    Padding="14,10" FontSize="13"
-                                    ToolTip="Run the remaining weeks straight through to the first bell"
-                                    Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
-                            <Button Grid.Column="2" Content="Turn it down" Command="{Binding HoldOut}"
-                                    Padding="14,10" FontSize="13"
-                                    ToolTip="Refuse this fight and wait for another offer"
-                                    Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
-
-                        </Grid>
 
                         <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
                                 BorderThickness="1" CornerRadius="10" Margin="24,0,24,12" Padding="16,12"
@@ -1161,6 +1171,7 @@
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
+                </Grid>
 
                 <!-- ============ LIST PAGES ============ -->
                 <!-- Rankings can show ANY division, not just the player's — otherwise following a fighter to his

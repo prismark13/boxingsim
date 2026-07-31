@@ -87,8 +87,8 @@ public sealed partial class CareerGame
         string? cardsA = null, cardsB = null;
         if (res.Scorecards.Count > 0)
         {
-            cardsA = string.Join(" · ", res.Scorecards.Select(c => $"{c.A}-{c.B}"));
-            cardsB = string.Join(" · ", res.Scorecards.Select(c => $"{c.B}-{c.A}"));
+            cardsA = ScoreCards.Write(res.Scorecards.Select(c => (c.A, c.B)));
+            cardsB = ScoreCards.Write(res.Scorecards.Select(c => (c.B, c.A)));
         }
 
         // Full-engine bouts carry a round-by-round breakdown; the fast NPC resolver has none.

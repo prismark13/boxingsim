@@ -6,23 +6,17 @@ using Xunit;
 
 namespace BoxingSim.Tests;
 
-/// <summary>Time passing — and it does not.
+/// <summary>Time passing.
 ///
-/// ALL THREE OF THESE FAIL. They are committed skipped rather than deleted, because what they found is worse
-/// than the symptom that started it: a fighter still eighteen at 9-0-0 turned out not to be about the player
-/// at all. NOBODY ages. Measured over two years and four, on the waiting path and the fighting path:
+/// All of these once failed together, and the shared symptom was misleading. A fighter still eighteen at
+/// 9-0-0 was not about the player: NOBODY aged. Four years passed (1 Mar 1972 to 26 Jan 1976) and the player
+/// aged 0 and the world aged 0. Every link in the chain looked right — YearlyPass calls AgeRetireCrown,
+/// AgeRetireCrown calls AdvanceOneYear, AdvanceOneYear increments Age first thing — because the chain was
+/// never entered: the turn of the year was detected by asking whether THIS STEP crossed New Year, and the
+/// step is not the only thing that moves the clock. See CatchUpYears.
 ///
-///   4 years passed (1 Mar 1972 to 26 Jan 1976), the player aged 0 and the world aged 0.
-///
-/// What is known: YearlyPass calls AgeRetireCrown; AgeRetireCrown loops the roster and calls AdvanceOneYear;
-/// AdvanceOneYear increments Age as its first statement; the player IS in the roster via AddActive. Each link
-/// looks right, so one of them is not being reached — that is where to start.
-///
-/// This very likely also explains the silent late career: if debuts, retirements, superfights and eliminators
-/// are all in that same pass, a world that never ages is a world where none of them happen.</summary>
-///
-/// A fighter who started at eighteen was still eighteen at 9-0-0 with three years on the calendar behind him.
-/// Everyone else in the world ages; a career is ABOUT ageing; and the one man it happens to was exempt.</summary>
+/// The silent late career looked like the same bug and was not. It is kept here anyway, next to the tests it
+/// was confused with, with its real cause written down.</summary>
 public class AgeingTests
 {
     [Fact]
@@ -78,6 +72,36 @@ public class AgeingTests
                     + $"player aged {g.Player.Age - playerWas}; {movedOn} fighters are over 18");
     }
 
+    /// <summary>And nobody ages FASTER than the calendar either.
+    ///
+    /// The fix for the world that never aged left the old detection in place on the universe path, so a step
+    /// that crossed New Year ran the turn of the year twice — once for having crossed it, once for it not yet
+    /// having been run. It hid behind the bug it sat next to: a world that had been ageing at zero now aged
+    /// somewhat too fast, which reads as fixed. Sixteen and a half years passed and every tracked fighter in
+    /// it aged twenty-one. Only steps that crossed the boundary themselves doubled, which is why it was half
+    /// again rather than double.</summary>
+    [Fact]
+    public void AUniverseAgesNoFasterThanItsCalendar()
+    {
+        var u = new Universe(new UniverseSettings { StartYear = 1970, Seed = 7, WarmupYears = 2 },
+                             Fixtures.Roster.ToList());
+        try
+        {
+            var from = u.Date;
+            var watched = u.World.EveryFighter.Where(b => !b.Retired).Take(8)
+                           .Select(b => (Man: b, Was: b.Age)).ToList();
+
+            for (int w = 0; w < 200; w++) u.PlayWeek();
+
+            double years = (u.Date.DayNumber - from.DayNumber) / 365.2425;
+            var over = watched.Where(x => x.Man.Age - x.Was > years + 1.5).ToList();
+            Assert.True(over.Count == 0,
+                        $"{years:0.0} calendar years passed and "
+                        + string.Join("; ", over.Take(4).Select(x => $"{x.Man.Name} aged {x.Man.Age - x.Was}")));
+        }
+        finally { Universe.Release(); }   // the mileage dials are process-wide; don't leak them into the next test
+    }
+
     /// <summary>Which path loses the year: waiting, or taking fights? Both go through AdvanceSome, and the
     /// year-end awards fire from the same block that ages the world — so if waiting ages and fighting does
     /// not, the pass is being skipped or undone somewhere on the fight path.</summary>
@@ -128,10 +152,17 @@ public class AgeingTests
     /// <summary>A long career does not go silent.
     ///
     /// Fourteen consecutive weeks of a fifteen-year-old world once returned no news at all, where a young one
-    /// returns several a week. It was the same bug: with the turn of the year never running, nobody debuted
-    /// and nobody retired, so the division slowly emptied of anyone eligible to be matched and the sport went
-    /// quiet around a career that was still going.</summary>
-    [Fact(Skip = "FAILS - a real, unfixed bug, and NOT the ageing one. Fifteen years in, fourteen weeks produce no news. Kept and named rather than deleted; remove the Skip to see it.")]
+    /// returns several a week. This test blamed the ageing bug, and was wrong: the world was as loud as ever —
+    /// three thousand active fighters, a hundred headlines a year — and the reporting was broken. The log is
+    /// capped at 1500 and drops from the front, and the step that gathered a week's news measured its position
+    /// with the log's own Count. Once the cap was reached the Count stopped moving, so the difference across
+    /// every subsequent step was zero and the feed died. Fifteen years is about fifteen hundred headlines,
+    /// which is the whole of the "fifteen years in" symptom.
+    ///
+    /// So it asserts on what the step HANDS BACK, not on the length of the window, and checks the log really
+    /// is at its cap — otherwise the test could pass by never getting far enough to be the case in
+    /// question.</summary>
+    [Fact]
     public void AnOldWorldStillMakesNews()
     {
         var rng = new Random(11);
@@ -148,11 +179,14 @@ public class AgeingTests
         }
         if (g.Player.Retired) return;   // he aged out, which is the system working
 
-        int before = g.Log.Count;
-        for (int w = 0; w < 14; w++) if (g.WaitAWeek() is null) break;
-        int made = g.Log.Count - before;
+        int capped = g.Log.Count;
+        int fed = 0;
+        for (int w = 0; w < 14; w++) { var news = g.WaitAWeek(); if (news is null) break; fed += news.Count; }
 
-        Assert.True(made > 0,
-                    $"fourteen weeks of a {g.Date.Year - 1972}-year-old world ({g.Date:yyyy}) produced no news at all");
+        Assert.True(fed > 0,
+                    $"fourteen weeks of a {g.Date.Year - 1972}-year-old world ({g.Date:yyyy}) fed nothing to the "
+                    + $"build-up, with {g.EveryFighter.Count(b => !b.Retired)} active fighters still boxing in it");
+        Assert.True(capped >= 1500,
+                    $"this never reached the capped log ({capped} headlines), so it is not testing what it says");
     }
 }

@@ -24,6 +24,18 @@ public sealed partial class CareerGame
     private readonly Dictionary<int, (Ratings Prime, int Peak)> _historical = new();
     private readonly List<(int DebutYear, Boxer Proto, int DebutAge, int Peak)> _future = new();
     private readonly List<CareerEvent> _log = new();
+
+    /// <summary>Headlines ever written — which is NOT <c>_log.Count</c>.
+    ///
+    /// The log is capped and drops from the front, so once it is full every add is matched by a remove and its
+    /// Count stops moving. A step that asked "how many are there now, minus how many there were before" got
+    /// zero from that moment on, for the rest of the career. Fifteen years of a world is about fifteen hundred
+    /// headlines, so a long career reached the cap and the build-up feed went permanently silent while the
+    /// sport around it carried on making news exactly as loudly as before — a division with three thousand
+    /// active fighters reporting a hundred headlines a year, and not one of them shown.
+    ///
+    /// A position in a stream cannot be the length of a window onto it. Marks are taken against this.</summary>
+    private long _logWrites;
     private readonly List<TitleReign> _reigns = new();
     // Successful defences of each belt, keyed by (division, belt slot, current holder) — so a new champion
     // automatically starts at zero. Belt slots are "WBA" (the primary/World belt), "WBC", "IBF".
@@ -190,13 +202,12 @@ public sealed partial class CareerGame
         var target = Date.AddDays(days);
         while (Date < target)
         {
-            var next = Date.AddDays(Math.Min(days, target.DayNumber - Date.DayNumber));
-            bool yearTurned = next.Year != Date.Year;
-            Date = next;
-            if (yearTurned)
-            {
-                YearlyPass();
-            }
+            Date = Date.AddDays(Math.Min(days, target.DayNumber - Date.DayNumber));
+            // There used to be an "if this step crossed New Year, run the yearly pass" here as well. Once
+            // CatchUpYears started asking which years had not been run, that was a second pass over the same
+            // year — but only when the STEP crossed the boundary, not when a card carried the clock over, so
+            // it read as a world ageing about a third faster than the calendar rather than twice. Sixteen and
+            // a half years passed and every fighter in it aged twenty-one.
             CatchUpYears();
             RunEvent();
             CatchUpYears();
@@ -455,6 +466,7 @@ public sealed partial class CareerGame
         // The decade of build-up isn't the player's story — start his timeline (and the Hall of Fame) clean, so
         // the Hall fills with fighters who retire during his career rather than a generation he never saw.
         _log.Clear();
+        _logWrites = 0;
         _yearBouts.Clear();
         if (!seedHistory) { _hof.Clear(); _awards.Clear(); }   // when seeding history, keep the past greats + their era's awards
         Date = new DateOnly(startYear, 3, 1);
@@ -504,6 +516,7 @@ public sealed partial class CareerGame
                        ? new BoutRef(e.BoutWinner, e.BoutLoser, on) : null
             });
         }
+        _logWrites = _log.Count;   // a reopened career carries on counting from where the save left off
         foreach (var r in s.Reigns) _reigns.Add(new TitleReign { Belt = r.Belt, Won = ParseDate(r.Won, Date), Lost = string.IsNullOrEmpty(r.Lost) ? null : ParseDate(r.Lost, Date), Defenses = r.Defenses });
         foreach (var kv in s.Regional)
         {

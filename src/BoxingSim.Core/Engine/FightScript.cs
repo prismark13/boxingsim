@@ -251,18 +251,7 @@ public static class FightScript
         return fought <= 4 ? 6 : fought <= 6 ? 8 : fought <= 8 ? 10 : 12;
     }
 
-    private static IReadOnlyList<(int A, int B)> Cards(BoutLine line)
-    {
-        if (string.IsNullOrWhiteSpace(line.Cards)) return Array.Empty<(int, int)>();
-        var outp = new List<(int, int)>();
-        foreach (var part in line.Cards.Split(',', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var bits = part.Trim().Split('-', '–');
-            if (bits.Length == 2 && int.TryParse(bits[0], out int x) && int.TryParse(bits[1], out int y))
-                outp.Add((x, y));
-        }
-        return outp;
-    }
+    private static IReadOnlyList<(int A, int B)> Cards(BoutLine line) => ScoreCards.Read(line.Cards);
 
     /// <summary>A seed belonging to this bout and no other, so the same fight always reads the same way.</summary>
     private static int Seed(string owner, string foe, DateOnly date)

@@ -64,14 +64,22 @@ public sealed partial class CareerGame
     private IReadOnlyList<CareerEvent> AdvanceSome(DateOnly target, int days)
     {
         if (Date >= target) return Array.Empty<CareerEvent>();
-        int before = _log.Count;
+        long mark = _logWrites;   // not _log.Count — see the field. The log is capped; its length is not a position.
         var next = Date.AddDays(days);
         if (next > target) next = target;
         Date = next;
         CatchUpYears();
         RunEvent();
         CatchUpYears();   // the cards move the clock themselves, and can carry it over New Year on their own
-        return _log.Skip(before).ToList();
+        return NewsSince(mark);
+    }
+
+    /// <summary>The headlines written since a mark. Clamped to what the log still holds, because a single step
+    /// of a busy world can write more than the whole window keeps.</summary>
+    private IReadOnlyList<CareerEvent> NewsSince(long mark)
+    {
+        int added = (int)Math.Min(_logWrites - mark, _log.Count);
+        return added <= 0 ? Array.Empty<CareerEvent>() : _log.Skip(_log.Count - added).ToList();
     }
 
     /// <summary>Run the sport forward one week toward fight night and report what happened, so the wait can

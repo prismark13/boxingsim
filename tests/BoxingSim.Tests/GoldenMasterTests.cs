@@ -119,6 +119,9 @@ public class GoldenMasterTests
         var body = Fingerprint(u.World);
         Dump("universe", body);
         Universe.Release();
-        Assert.Equal("BF3BBA6241417D32", Hash(body));
+        // Moved from BF3BBA6241417D32 when the doubled turn of the year came off the universe path. Only this
+        // fingerprint moved — the career one did not, which is what you would expect from a fault that lived
+        // in AdvanceWorld and nowhere else. See AgeingTests.AUniverseAgesNoFasterThanItsCalendar.
+        Assert.Equal("F57BB7444F6C045B", Hash(body));
     }
 }
