@@ -10,10 +10,39 @@ namespace BoxingSim.Core.Career;
 /// unifications. This is where most of the sport actually happens.</summary>
 public sealed partial class CareerGame
 {
-    /// <summary>A fortnight's fight cards across every division.</summary>
+    /// <summary>When each division last put a card on. A fortnight is measured in calendar days, not in
+    /// calls.</summary>
+    private readonly Dictionary<WeightClass, DateOnly> _lastCard = new();
+
+    /// <summary>How often a division boxes. The method below has always called itself a fortnightly card and
+    /// this is what makes it one.</summary>
+    private const int DaysBetweenCards = 14;
+
+    /// <summary>A fortnight's fight cards across every division — for the divisions that are due one.
+    ///
+    /// This used to run a card for every division on EVERY step, whatever the step was: fourteen days when
+    /// the world was catching up, seven when the player was waiting out a camp, seven for a universe week. So
+    /// a "fortnightly" card was fortnightly only when the caller happened to step a fortnight.
+    ///
+    /// It was hidden while resolving a bout dragged the world clock along with it — each card pushed the date
+    /// forward, so the next one landed a fortnight or more later in calendar terms whatever the step size.
+    /// Take the dragging away (which is what a clock is for) and the cards fire twice as often as intended,
+    /// men are matched twice as often as they can be rested, and the scheduler ends up shoving bouts weeks
+    /// into the future to find them a legal night.
+    ///
+    /// Asking the calendar how long it has been makes the cadence independent of who is stepping and by how
+    /// much, which is what it always meant.</summary>
     private void RunEvent()
     {
-        foreach (var wc in AllDivisions) if (DivisionActive(wc)) { _cursor = wc; RunEventCard(); }
+        foreach (var wc in AllDivisions)
+        {
+            if (!DivisionActive(wc)) continue;
+            if (_lastCard.TryGetValue(wc, out var last) && Date.DayNumber - last.DayNumber < DaysBetweenCards)
+                continue;
+            _lastCard[wc] = Date;
+            _cursor = wc;
+            RunEventCard();
+        }
         _cursor = Division;
     }
 
@@ -22,7 +51,8 @@ public sealed partial class CareerGame
     {
         // Champions don't fight on undercards — when they fight, it's a title defence (handled below).
         // A man who's already boxed 8 times this year sits the rest of it out.
-        var pool = ActiveHere.Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b))
+        var pool = ActiveHere.Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
+                                      && Rested(b))
                          .OrderByDescending(b => b.Overall).ToList();
         if (pool.Count < 2) return;
 
@@ -93,7 +123,9 @@ public sealed partial class CareerGame
             // Regional belts are meant to be DEFENDED - that is the whole point of holding one on the way up.
             // At a twentieth per card they mostly sat idle on a man's record.
             if (DaysSinceLastBout(rc) < 84 || _rng.NextDouble() >= 0.11 * CareerMileage.Activity(rc)) continue;
-            var candidates = pool.Where(b => RegionOf(b) == region && b.Id != rc.Id && CredibleForRegional(b))
+            // Rest is re-checked here rather than trusted from the pool: the pool was built at the top of the
+            // card and men have boxed on it since. Nobody boxes twice on the same night.
+            var candidates = pool.Where(b => RegionOf(b) == region && b.Id != rc.Id && CredibleForRegional(b) && Rested(b))
                                  .OrderByDescending(RankScore).ToList();
             // Picking straight down the ranking order meant an established contender always sat above a young
             // man and the belt only ever passed between men who had already arrived. Roughly one defence in
@@ -134,6 +166,9 @@ public sealed partial class CareerGame
                 if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20, top8) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
             if (j < 0) for (int k = i + 1; k < pool.Count; k++) if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20, top8)) { j = k; break; }
             if (j < 0) continue;
+            // Live, not from the pool snapshot: a title defence or a regional earlier on this same card may
+            // have put one of these two in the ring already.
+            if (!Rested(pool[i]) || !Rested(pool[j])) continue;
             used.Add(i); used.Add(j);
             var res = FastBout(pool[i], pool[j], 10);
             var on = ApplyOutcome(res, pool[i], pool[j]);
@@ -419,7 +454,32 @@ public sealed partial class CareerGame
 
     /// <summary>Days since a fighter's most recent bout (large if he has no ledger) — stops a champion
     /// from defending too frequently.</summary>
-    private int DaysSinceLastBout(Boxer b) => b.History.Count == 0 ? 999 : Date.DayNumber - b.History[^1].Date.DayNumber;
+    /// <summary>Days since a fighter's most recent bout.
+    ///
+    /// The most recent BY DATE, which is not the same as the last one appended. A ledger is written in the
+    /// order the sim resolves fights and each bout carries its own night, so a season laid out across a year
+    /// leaves entries that are not in date order. Reading the last element gave a stale answer whenever that
+    /// happened, and the rest rules built on it quietly let a man box again too soon.</summary>
+    private int DaysSinceLastBout(Boxer b)
+    {
+        if (b.History.Count == 0) return 999;
+        int latest = int.MinValue;
+        foreach (var h in b.History) if (h.Date.DayNumber > latest) latest = h.Date.DayNumber;
+        return Date.DayNumber - latest;
+    }
+
+    /// <summary>Has he had long enough off to box again?
+    ///
+    /// Four weeks between fights, which is what the sport's own scheduler has always enforced further down:
+    /// <see cref="LegalNightFor"/> refuses to date a bout within 28 days of either man's last one. The
+    /// difference is WHERE the rule is applied. It used to be applied after the match was made, by shoving
+    /// the fight forward until it found a legal night — which, for a card happening tonight, meant announcing
+    /// a fight on a date that had not arrived yet. A man who boxed a fortnight ago should not be matched
+    /// tonight at all; somebody else takes the slot, and the card is the same size.
+    ///
+    /// LegalNightFor stays as the backstop it always claimed to be, for the paths that stage a bout without
+    /// coming through a card pool.</summary>
+    private bool Rested(Boxer b) => DaysSinceLastBout(b) >= 28;
 
 
     /// <summary>True if pairing these two would be a mismatch a prospect shouldn't be in: a raw fighter

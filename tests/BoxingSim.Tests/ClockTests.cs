@@ -97,16 +97,12 @@ public class ClockTests
     /// bout off a night either man has already boxed on, and it pushes FORWARD — to 28 days after the man's
     /// previous bout, which from a card in the present is a date that has not arrived yet.
     ///
-    /// FAILS, at 647 headlines up to 42 days ahead, and it is the cost of the clock no longer moving. It was
-    /// hidden before rather than absent: the same push happened, the world clock was dragged along with it,
-    /// and the world simply became the later date. That is why a "week" advanced a month.
-    ///
-    /// Fixing it is a decision about the sport, not a repair: a man who boxed a fortnight ago should not be
-    /// MATCHED on tonight's card at all, rather than matched and then quietly moved to a night four weeks out.
-    /// That means filtering the card pools on rest and letting LegalNightFor go back to being a backstop —
-    /// which reduces how much boxing happens, and is not a call to make silently inside a refactor.
-    /// Skipped, named, and attached to the change that exposed it. Remove the Skip to see it.</summary>
-    [Fact(Skip = "FAILS - a real consequence of 1c, described above. Needs a decision about card matchmaking, not a patch.")]
+    /// It failed at 647 when the clock stopped being dragged along by every bout, which did not create the
+    /// pushing — it revealed it. Closing it took five separate holes, each one a place where a fight was made
+    /// first and rested afterwards: the card cadence, the card pools, the two shortcuts in PickChallenger
+    /// that skip its own filter, a vacant title re-crowned mid-card, and DaysSinceLastBout reading the last
+    /// bout APPENDED rather than the last one by date.</summary>
+    [Fact]
     public void NoHeadlineIsDatedAfterTheDayTheWorldHasReached()
     {
         var rng = new Random(9);

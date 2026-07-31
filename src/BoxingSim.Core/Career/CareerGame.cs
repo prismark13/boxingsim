@@ -421,6 +421,10 @@ public sealed partial class CareerGame
         warmupYears = Math.Max(0, warmupYears);
         if (seedHistory) warmupYears = Math.Clamp(startYear - 1898, 30, 65);   // run most of the sport's history for a full Hall of Fame (opt-in accepts a longer setup)
         int seedYear = startYear - warmupYears;
+        // Everything from here to the player's first day is history being WRITTEN rather than lived: the clock
+        // sits on 1 January and a whole year is laid out across its months at once. That is the only time a
+        // bout may be dated ahead of the clock — see NoLaterThanToday.
+        _writingHistory = true;
         Date = new DateOnly(seedYear, 1, 1);
 
         // Seed each division that exists yet with a base of journeymen, alongside the real fighters.
@@ -480,6 +484,8 @@ public sealed partial class CareerGame
             UpdateBeltsFor(wc);
         }
 
+        _writingHistory = false;   // from here the world is lived a day at a time
+
         // The decade of build-up isn't the player's story — start his timeline (and the Hall of Fame) clean, so
         // the Hall fills with fighters who retire during his career rather than a generation he never saw.
         _log.Clear();
@@ -534,6 +540,10 @@ public sealed partial class CareerGame
             });
         }
         _logWrites = _log.Count;   // a reopened career carries on counting from where the save left off
+        // Cards are due a fortnight after the last one, and when the last one was is not saved. Start the
+        // clock from today rather than from never: otherwise every division would put a card on the instant a
+        // career was opened, and saving and reloading would be a way of buying extra fights.
+        foreach (var wc in AllDivisions) _lastCard[wc] = Date;
         foreach (var r in s.Reigns) _reigns.Add(new TitleReign { Belt = r.Belt, Won = ParseDate(r.Won, Date), Lost = string.IsNullOrEmpty(r.Lost) ? null : ParseDate(r.Lost, Date), Defenses = r.Defenses });
         foreach (var kv in s.Regional)
         {

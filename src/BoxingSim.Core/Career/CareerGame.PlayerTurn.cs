@@ -177,7 +177,7 @@ public sealed partial class CareerGame
         bool bigShow = Tier >= CardTier.National;
         var pool = ActiveIn(wc)
             .Where(b => !used.Contains(b.Id) && Available(b) && !AtYearCap(b) && ProFights(b) >= 2
-                     && (bigShow || !top20.Contains(b.Id)))
+                     && Rested(b) && (bigShow || !top20.Contains(b.Id)))
             .OrderBy(_ => _rng.Next())
             .ToList();
 

@@ -108,7 +108,9 @@ public class GoldenMasterTests
         // bill: drawn across the divisions and ordered by what each fight is worth. The universe fingerprint
         // did NOT move for this one, which is the confirmation it belongs to the player's card and nothing
         // else — a universe has no player, so it never draws one.
-        Assert.Equal("61C467C0448D8C96", Hash(body));
+        // ... then -> here when a fortnightly card became fortnightly by the calendar rather than by the step,
+        // and a man had to be rested to be MATCHED rather than matched and then moved. See ClockTests.
+        Assert.Equal("80BE1F8618EAB186", Hash(body));
     }
 
     [Fact]
@@ -128,6 +130,8 @@ public class GoldenMasterTests
         // then -> here when a bout stopped moving the clock. 156 weeks of this universe used to cover twelve
         // calendar years because each card dragged the date on; it covers three now, which is what "52 * 3
         // weeks" was always supposed to mean. See ClockTests.
-        Assert.Equal("6C5686EE7CD9D7FF", Hash(body));
+        // ... then -> here with the card cadence and the rest rules. The universe moves for these where it did
+        // not for the player's bill, which is right: cards and rest are the world's, a bill is the player's.
+        Assert.Equal("B6D6C049E17ECCA4", Hash(body));
     }
 }

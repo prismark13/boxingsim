@@ -155,6 +155,7 @@ public sealed partial class CareerGame
             if (x is null || y is null) continue;
             if (used is not null && (used.Contains(x.Id) || used.Contains(y.Id))) continue;
             if (x.Retired || y.Retired || !Available(x) || !Available(y) || AtYearCap(x) || AtYearCap(y)) continue;
+            if (!Rested(x) || !Rested(y)) continue;   // a return the sport wants still has to wait its four weeks
             if (x.Id == Player.Id || y.Id == Player.Id) continue;   // the player is offered his own, never given it
 
             ClearRematch(x, y);
@@ -198,23 +199,28 @@ public sealed partial class CareerGame
     /// the day the player was living in. That is why this had to restore the clock in a finally. Bouts carry
     /// their own night now, so there is nothing to put back.
     ///
-    /// <see cref="_asOf"/> stays, and is not the same thing. It says a yearly pass is RUNNING, which changes
-    /// where a bout may be dated: a pass resolves its fights here and now, so it must not spread them into the
-    /// future — that showed the player fights which had not happened yet, and put news in the feed underneath
-    /// older news. Outside a pass, laying a year of history across its months is exactly the intent, and no
-    /// clamp applies. A mode, not a clock.</summary>
+    /// A bout may not be dated after the day the world has reached — see <see cref="NoLaterThanToday"/> — and
+    /// that no longer needs arranging here either.</summary>
     private void YearlyPass()
     {
-        _asOf = Date;
-        try { InjectDebuts(); AgeRetireCrown(); PruneRematches(); RetireOutgrownRegionals(); StageSuperfights(); }
-        finally { _asOf = null; }
+        InjectDebuts(); AgeRetireCrown(); PruneRematches(); RetireOutgrownRegionals(); StageSuperfights();
     }
 
-    /// <summary>The day the yearly pass began, while it is running; null the rest of the time, when SpreadDate
-    /// is doing its ordinary job of laying a year of history out across its months.</summary>
-    private DateOnly? _asOf;
+    /// <summary>True only while the decade of history before the player's debut is being WRITTEN: the clock
+    /// sits on 1 January and a whole year is laid out across its months in one pass, which is the one time
+    /// dating a bout months ahead of the clock is right.</summary>
+    private bool _writingHistory;
 
-    private DateOnly NoLaterThanAsOf(DateOnly d) => _asOf is DateOnly c && d > c ? c : d;
+    /// <summary>Never date a bout after the day the world has reached.
+    ///
+    /// This used to be conditional on a yearly pass being in progress, which covered the superfights and
+    /// eliminators that pass stages and missed everything else. A belt relinquished mid-card re-crowned itself
+    /// through UpdateBeltsFor, which is nowhere near a yearly pass, and spread the vacant-title bout forward
+    /// through the rest of the year: the news reported a new champion crowned five months in the future.
+    ///
+    /// A fight the player is being told about has happened. The only exception is the warm-up, which is
+    /// writing history rather than living it.</summary>
+    private DateOnly NoLaterThanToday(DateOnly d) => _writingHistory || d <= Date ? d : Date;
 
     private void StageSuperfights()
     {
@@ -231,7 +237,7 @@ public sealed partial class CareerGame
     /// <summary>Can this man be put in a big fight at all - fit, not at his cap, and not the player, whose
     /// nights are his own to accept or turn down.</summary>
     private bool FreeForABigNight(Boxer b) =>
-        !b.Retired && b.Id != Player.Id && Available(b) && !AtYearCap(b) && !RecentlyMovedUp(b);
+        !b.Retired && b.Id != Player.Id && Available(b) && !AtYearCap(b) && !RecentlyMovedUp(b) && Rested(b);
 
     private void StageP4PSuperfight()
     {
@@ -289,7 +295,7 @@ public sealed partial class CareerGame
                      : IbfOf(heavier.WeightClass)?.Id == heavier.Id ? "IBF" : null;
         string note = belt is not null ? $"{belt} title" : "superfight";
 
-        var wanted = NoLaterThanAsOf(SpreadDate(Date.Year, 1 + _rng.Next(4), 6));
+        var wanted = NoLaterThanToday(SpreadDate(Date.Year, 1 + _rng.Next(4), 6));
         var res = FastBout(a, b, 12);
         var night = ApplyOutcome(res, a, b, note, on: wanted);
         ReportBout(res, night);
@@ -333,7 +339,7 @@ public sealed partial class CareerGame
         if (RecentFoes(a, 3).Contains(b.Name)) return;
 
         _cursor = wc;
-        var wanted = NoLaterThanAsOf(SpreadDate(Date.Year, _rng.Next(6), 6));
+        var wanted = NoLaterThanToday(SpreadDate(Date.Year, _rng.Next(6), 6));
         var res = FastBout(a, b, 12);
         var night = ApplyOutcome(res, a, b, "eliminator", on: wanted);
         ReportBout(res, night);
@@ -357,8 +363,11 @@ public sealed partial class CareerGame
         // The return first. A champion who won on a split card, or was dropped and got up, owes the man the
         // night back before he moves on to somebody new - and the rule below that says "not a man he has just
         // fought" is exactly what would otherwise stop it.
+        // Rested applies here too. These two early returns skip the Ok() filter below, which is where the rest
+        // rule lives — so a man owed a return, or owed a shot, could be pulled into a championship a fortnight
+        // after his last fight and the bout would then be shoved forward to find a legal night.
         if (RematchFoeFor(champ) is Boxer owed && owed.Id != Player.Id
-            && (otherChamp is null || owed.Id != otherChamp.Id) && !RecentlyMovedUp(owed))
+            && (otherChamp is null || owed.Id != otherChamp.Id) && !RecentlyMovedUp(owed) && Rested(owed))
             return owed;
 
         var recent = RecentFoes(champ, 4);
@@ -369,11 +378,12 @@ public sealed partial class CareerGame
         if (_mandatory.TryGetValue(champ.WeightClass, out var m) && Date <= m.Until && m.Id != champ.Id)
         {
             var mandatory = here.FirstOrDefault(b => b.Id == m.Id && b.Id != Player.Id && Available(b)
-                                                  && !AtYearCap(b) && !recent.Contains(b.Name));
+                                                  && !AtYearCap(b) && !recent.Contains(b.Name) && Rested(b));
             if (mandatory is not null) { _mandatory.Remove(champ.WeightClass); return mandatory; }
         }
         bool Ok(Boxer b) => b.Id != Player.Id && b.Id != champ.Id
-                         && (otherChamp is null || b.Id != otherChamp.Id) && WorldRanked(b) && !RecentlyMovedUp(b) && Available(b);
+                         && (otherChamp is null || b.Id != otherChamp.Id) && WorldRanked(b) && !RecentlyMovedUp(b)
+                         && Available(b) && Rested(b);
         // Prefer a contender he hasn't just fought and hasn't already met several times.
         var ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name) && champ.History.Count(h => h.Opponent == b.Name) < 3).ToList();
         if (ranked.Count == 0) ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name)).ToList();

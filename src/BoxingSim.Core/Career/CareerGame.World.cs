@@ -204,7 +204,8 @@ public sealed partial class CareerGame
     private Boxer? ContestVacantTitle(WeightClass wc, string belt, params int[] excludeIds)
     {
         var exclude = excludeIds.Where(id => id != 0).ToHashSet();
-        bool Eligible(Boxer b) => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id) && !RecentlyMovedUp(b) && Available(b);
+        bool Eligible(Boxer b) => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id)
+                               && !RecentlyMovedUp(b) && Available(b) && Rested(b);
         var field = ActiveIn(wc).Where(b => Eligible(b) && WorldRanked(b)).OrderByDescending(RankScore).Take(2).ToList();
         if (field.Count == 0) return null;
         if (field.Count == 1)
@@ -222,7 +223,7 @@ public sealed partial class CareerGame
         // the day the player is living in. Crowning a vacant belt is settled here and now — the result is
         // applied to records immediately — so dating it months ahead announced a champion the player could not
         // yet have watched being crowned, and put the headline below older news in a feed sorted by date.
-        var wanted = NoLaterThanAsOf(SpreadDateFrom(Date));
+        var wanted = NoLaterThanToday(SpreadDateFrom(Date));
         var res = FastBout(field[0], field[1], 12);
         // What comes back, not what went in: if either man boxed too recently the bout is pushed to a later
         // night, and the headline has to follow the fight rather than the intention.
