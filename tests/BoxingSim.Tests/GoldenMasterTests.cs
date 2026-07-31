@@ -103,10 +103,12 @@ public class GoldenMasterTests
 
         var body = Fingerprint(g);
         Dump("career", body);
-        // Moved from A6694BC3EF2FA89F when resolving a bout stopped moving the world clock. Read before it
-        // was updated: the same 25 fights now span 5.3 years rather than 7.8, because the calendar advances
-        // only as far as the steps ask it to instead of being dragged along by every card.
-        Assert.Equal("DD25B557DFBF1848", Hash(body));
+        // A6694BC3EF2FA89F -> DD25B557DFBF1848 when resolving a bout stopped moving the world clock (the same
+        // 25 fights now span 5.3 years rather than 7.8), then -> here when the player's card became a real
+        // bill: drawn across the divisions and ordered by what each fight is worth. The universe fingerprint
+        // did NOT move for this one, which is the confirmation it belongs to the player's card and nothing
+        // else — a universe has no player, so it never draws one.
+        Assert.Equal("61C467C0448D8C96", Hash(body));
     }
 
     [Fact]

@@ -174,8 +174,17 @@ public sealed record BillLine(string Fight, int Rounds, bool IsPlayer, string Wh
                               // an undercard of seven names you have never heard of is no information at all.
                               string AName = "", string ACountry = "", string ARecord = "",
                               string BName = "", string BCountry = "", string BRecord = "",
-                              bool IsTitle = false, WeightClass Div = WeightClass.Heavyweight, string ARank = "", string BRank = "")
+                              bool IsTitle = false, WeightClass Div = WeightClass.Heavyweight, string ARank = "", string BRank = "",
+                              // Where this bout sits on the poster: MAIN EVENT at the top, OPENER at the
+                              // foot. A bill without these is a list of fights; with them it is a card.
+                              string Slot = "")
 {
     public bool Fought => Verdict.Length > 0;
     public string Distance => $"{Rounds} rds";
+    public bool HasSlot => Slot.Length > 0;
+
+    /// <summary>The weight this bout is made at, in words. A bill runs across the divisions, so the line has
+    /// to say which one each fight belongs to — on a card of one division it was noise, on a real card it is
+    /// half of what tells you what you are looking at.</summary>
+    public string DivName => Div.DisplayName();
 }

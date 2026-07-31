@@ -69,9 +69,9 @@ public sealed partial class CareerGame
                 Tier = own == CardTier.ClubShow
                      ? (_rng.NextDouble() < 0.35 ? CardTier.National : CardTier.Regional)
                      : (_rng.NextDouble() < 0.40 ? CardTier.Championship : CardTier.National);
-                int steps = Tier - own;
-                Billing = steps >= 2 ? Billing.Opener
-                        : _rng.NextDouble() < 0.55 ? Billing.SwingBout : Billing.ChiefSupport;
+                // Where he ends up ON that show is no longer rolled for here. It is worked out in
+                // AnnounceUndercard from how his fight compares with the rest of the bill, which is what
+                // decides it in life: you are the main event if yours is the biggest fight in the building.
             }
         }
 
@@ -88,21 +88,28 @@ public sealed partial class CareerGame
     /// bill is that you look at it beforehand and decide whether the night is worth your while.</summary>
     private readonly List<(Boxer A, Boxer B, int Rounds)> _billed = new();
 
-    /// <summary>Match the supporting bouts. They are made here, not fought.</summary>
+    /// <summary>How many supports are billed ABOVE the player's own fight. Derived from what the fights are
+    /// worth, not chosen — see <see cref="AnnounceUndercard"/>.</summary>
+    private int _playerSlot;
+
+    /// <summary>Match the supporting bouts, and work out where the player stands among them. They are made
+    /// here, not fought.
+    ///
+    /// A CARD IS NOT A DIVISION. This used to draw every supporting bout from the player's own weight, so a
+    /// heavyweight's championship bill was seven more heavyweight fights — which is not a promotion, it is a
+    /// division's spare men in a room. A real bill runs across the weights, most of it near the main event's
+    /// because that is who the promoter has and who the crowd came for, with a spread either side.
+    ///
+    /// And the running order is the fights' own doing. Every bout is scored by <see cref="BoutValue"/> and the
+    /// bill is built biggest-first, which also settles where the player is on it: he headlines if his is the
+    /// biggest fight in the building, and opens if six others outrank it. That used to be a coin toss.</summary>
     private void AnnounceUndercard()
     {
         _billed.Clear();
         _undercard.Clear();
+        _playerSlot = 0;
+        Billing = Billing.MainEvent;
         if (Offer is null || Player.Retired) return;
-
-        var here = Top20Ids(Player.WeightClass);
-        // The undercard is the men below the top of the division: prospects and gatekeepers, not contenders,
-        // because a contender is not boxing four rounds before somebody else's main event.
-        var pool = ActiveIn(Player.WeightClass)
-            .Where(b => b.Id != Player.Id && b.Id != Offer.Opponent.Id && !here.Contains(b.Id)
-                     && Available(b) && !AtYearCap(b) && ProFights(b) >= 2)
-            .OrderBy(_ => _rng.Next())
-            .ToList();
 
         // A club show is four fights and a raffle; a championship bill runs all night.
         int want = Tier switch
@@ -112,14 +119,85 @@ public sealed partial class CareerGame
             CardTier.Regional => 4 + _rng.Next(2),
             _ => 3 + _rng.Next(2),
         };
-        var top8 = Top8Ids(Player.WeightClass);
-        for (int i = 0; i + 1 < pool.Count && _billed.Count < want; i += 2)
+
+        var used = new HashSet<int> { Player.Id, Offer.Opponent.Id };
+        var made = new List<(Boxer A, Boxer B, int Rounds, double Value)>();
+        foreach (var wc in BillDivisions(want))
         {
-            var a = pool[i]; var b = pool[i + 1];
-            if (BadMatch(a, b, here, top8)) continue;
-            _billed.Add((a, b, ProFights(a) < 8 || ProFights(b) < 8 ? 6 : 8));
+            if (MatchOneSupport(wc, used) is not { } bout) continue;
+            made.Add(bout);
+            used.Add(bout.A.Id); used.Add(bout.B.Id);
+        }
+
+        // Top to bottom, biggest first.
+        made.Sort((x, y) => y.Value.CompareTo(x.Value));
+        foreach (var m in made) _billed.Add((m.A, m.B, m.Rounds));
+
+        double mine = BoutValue.Of(Player, Offer.Opponent, StakesOf(Offer), Player.WeightClass,
+                                   BoardPlace(Player), BoardPlace(Offer.Opponent));
+        _playerSlot = made.Count(m => m.Value > mine);
+        Billing = _playerSlot switch
+        {
+            0 => Billing.MainEvent,
+            1 => Billing.ChiefSupport,
+            2 or 3 => Billing.SwingBout,
+            _ => Billing.Opener,
+        };
+    }
+
+    /// <summary>Which weights tonight's supporting bouts come from. The main event's division is the likeliest
+    /// and the odds fall away either side of it, so a middleweight bill is mostly middleweights with a couple
+    /// of lighter openers — rather than a random sample of the whole sport, which is not a promotion either.
+    /// Sampled with replacement, so two or three bouts in one weight is the normal shape.</summary>
+    private IEnumerable<WeightClass> BillDivisions(int want)
+    {
+        var home = (int)Player.WeightClass;
+        var live = AllDivisions.Where(DivisionActive).ToList();
+        if (live.Count == 0) yield break;
+        var odds = live.Select(wc => 1.0 / Math.Pow(1 + Math.Abs((int)wc - home), 1.7)).ToList();
+        double total = odds.Sum();
+        for (int i = 0; i < want; i++)
+        {
+            double r = _rng.NextDouble() * total;
+            for (int k = 0; k < live.Count; k++)
+            {
+                r -= odds[k];
+                if (r <= 0) { yield return live[k]; break; }
+            }
         }
     }
+
+    /// <summary>One supporting bout from a given weight, or null if that division cannot make one tonight.</summary>
+    private (Boxer A, Boxer B, int Rounds, double Value)? MatchOneSupport(WeightClass wc, HashSet<int> used)
+    {
+        var top20 = Top20Ids(wc);
+        var top8 = Top8Ids(wc);
+        // A club show cannot put a contender on; a championship bill can, and that is largely what makes it
+        // one — a world title with nothing but six-round novices under it is not a championship show.
+        bool bigShow = Tier >= CardTier.National;
+        var pool = ActiveIn(wc)
+            .Where(b => !used.Contains(b.Id) && Available(b) && !AtYearCap(b) && ProFights(b) >= 2
+                     && (bigShow || !top20.Contains(b.Id)))
+            .OrderBy(_ => _rng.Next())
+            .ToList();
+
+        for (int i = 0; i + 1 < pool.Count; i += 2)
+        {
+            var a = pool[i]; var b = pool[i + 1];
+            if (BadMatch(a, b, top20, top8)) continue;
+            int rounds = top20.Contains(a.Id) && top20.Contains(b.Id) ? 10
+                       : ProFights(a) < 8 || ProFights(b) < 8 ? 6 : 8;
+            return (a, b, rounds,
+                    BoutValue.Of(a, b, BoutStakes.None, wc, BoardPlace(a), BoardPlace(b)));
+        }
+        return null;
+    }
+
+    /// <summary>What the player's own fight has riding on it, in the terms BoutValue understands.</summary>
+    private BoutStakes StakesOf(FightOffer o) =>
+        !o.TitleFight ? (o.Context is "eliminator" ? BoutStakes.Eliminator : BoutStakes.None)
+        : RegionalBelts.Contains(o.Belt ?? "") ? BoutStakes.Regional
+        : BoutStakes.WorldTitle;
 
     /// <summary>Fight the bouts that were announced, and say a word about each.</summary>
     /// <summary>Where a man stands, for a bill: "champion", "#4", or nothing at all if he is not on the board.
@@ -131,11 +209,16 @@ public sealed partial class CareerGame
         return place > 0 ? $"#{place}" : "";
     }
 
+    /// <summary>Fight the supporting bouts, in the order a hall actually fights them: from the FOOT of the
+    /// bill upward. The openers box while the seats are still filling and the main event goes last, which is
+    /// the whole shape of a fight night — _billed is stored biggest-first for the poster, so this walks it
+    /// backwards.</summary>
     private void StageUndercard()
     {
         _undercard.Clear();
-        foreach (var (a, b, rounds) in _billed)
+        for (int i = _billed.Count - 1; i >= 0; i--)
         {
+            var (a, b, rounds) = _billed[i];
             if (a.Retired || b.Retired || !Available(a) || !Available(b)) continue;
             var res = FastBout(a, b, rounds);
             ApplyOutcome(res, a, b);
@@ -186,14 +269,9 @@ public sealed partial class CareerGame
         {
             if (Offer is not { } o || Hall is null) return Array.Empty<BillLine>();
 
-            // Where his own fight sits decides which supporting bouts are above him and which below.
-            int over = Billing switch
-            {
-                Billing.MainEvent => 0,
-                Billing.ChiefSupport => 1,
-                Billing.SwingBout => Math.Min(2, _billed.Count),
-                _ => _billed.Count,
-            };
+            // The bill reads as a poster does: biggest fight at the top, down to the opener. _billed is
+            // already in that order, and the player's own fight goes in at the place its value earned.
+            int over = Math.Clamp(_playerSlot, 0, _billed.Count);
 
             BillLine Support(int i)
             {
@@ -217,6 +295,16 @@ public sealed partial class CareerGame
                                  Div: Player.WeightClass,
                                  ARank: RankLabel(Player), BRank: RankLabel(o.Opponent)));
             for (int i = over; i < _billed.Count; i++) all.Add(Support(i));
+
+            // Name the places on the card. Only the ones a poster would actually print.
+            for (int i = 0; i < all.Count; i++)
+            {
+                string slot = i == 0 ? "MAIN EVENT"
+                            : i == 1 && all.Count > 2 ? "CHIEF SUPPORT"
+                            : i == all.Count - 1 && all.Count > 2 ? "OPENER"
+                            : "";
+                if (slot.Length > 0) all[i] = all[i] with { Slot = slot };
+            }
             return all;
         }
     }

@@ -1055,6 +1055,15 @@
                                                              on its own told you nothing about either man,
                                                              which across seven unfamiliar undercard names is
                                                              no information at all. -->
+                                                        <StackPanel>
+                                                        <!-- Where this bout sits on the poster. The card is
+                                                             listed main event first and BOXED from the foot
+                                                             upward, so naming the places is what makes the
+                                                             order legible rather than arbitrary. -->
+                                                        <TextBlock Text="{Binding Slot}" FontSize="10"
+                                                                   FontWeight="Bold" Margin="0,0,0,3"
+                                                                   Foreground="{StaticResource Faint}"
+                                                                   Visibility="{Binding HasSlot, Converter={StaticResource BoolVis}}" />
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
@@ -1128,6 +1137,11 @@
                                                                                FontSize="11" FontWeight="Bold"
                                                                                Foreground="{StaticResource Gold}" />
                                                                 </Border>
+                                                                <!-- The weight it is made at. A bill spans the
+                                                                     divisions now, so which one this is
+                                                                     matters as much as the distance. -->
+                                                                <TextBlock Text="{Binding DivName}" FontSize="11"
+                                                                           Foreground="{StaticResource Faint}" TextAlignment="Right" />
                                                                 <TextBlock Text="{Binding Distance}" FontSize="11"
                                                                            Foreground="{StaticResource Faint}" TextAlignment="Right"
                                                                            Visibility="{Binding Fought, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
@@ -1142,6 +1156,7 @@
                                                                        TextWrapping="Wrap" FontStyle="Italic"
                                                                        Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
                                                         </Grid>
+                                                        </StackPanel>
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
