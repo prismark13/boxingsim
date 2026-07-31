@@ -1,0 +1,191 @@
+<!-- Creating a fighter, or a world with no player in it.
+
+     No DataContext override: this screen writes straight into the shell's setup state (the name, the country,
+     the year, the division, the talent, and the whole universe settings block) and then calls StartCareer or
+     StartUniverse on it. Inheriting the window's context means every binding resolves exactly as it did in
+     MainWindow, so moving the markup could not change what a new career comes out as — which is the one thing
+     on this screen you cannot check by looking. -->
+<UserControl x:Class="BoxingSim.Desktop.Pages.SetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BoxingSim.Desktop">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Border Style="{StaticResource Card}" Width="560" Padding="34" Margin="0,48"
+                VerticalAlignment="Top" HorizontalAlignment="Center">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <!-- The bell, at the size the eye reads it best. -->
+                    <Path Data="{StaticResource BellGeometry}" Stretch="Uniform" Width="34" Height="34"
+                          VerticalAlignment="Center" Margin="0,0,14,0">
+                        <Path.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#FFD277" Offset="0" />
+                                <GradientStop Color="#E09A28" Offset="1" />
+                            </LinearGradientBrush>
+                        </Path.Fill>
+                    </Path>
+                    <TextBlock Text="THE FINAL BELL" FontSize="26" FontWeight="Light"
+                               Foreground="{StaticResource Text}" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock FontSize="13" Foreground="{StaticResource Muted}" Margin="0,8,0,20">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="Take a fighter from his debut to the Hall of Fame" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SetupMode}" Value="Universe">
+                                    <Setter Property="Text" Value="Build a sport and watch it run, week by week" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <!-- Two ways in. A career is one man's life; a universe is the sport with nobody in it. -->
+                <UniformGrid Columns="2" Margin="0,0,0,24">
+                    <RadioButton Style="{StaticResource ModeTab}" IsChecked="{Binding SetupIsCareer}"
+                                 AutomationProperties.Name="Career mode">
+                        <StackPanel>
+                            <TextBlock Text="CAREER" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Text}" />
+                            <TextBlock Text="one fighter, your fighter" FontSize="11"
+                                       Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton Style="{StaticResource ModeTab}" IsChecked="{Binding SetupIsUniverse}"
+                                 AutomationProperties.Name="Universe mode">
+                        <StackPanel>
+                            <TextBlock Text="UNIVERSE" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Text}" />
+                            <TextBlock Text="the whole sport, no player" FontSize="11"
+                                       Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </RadioButton>
+                </UniformGrid>
+
+                <!-- ============ CAREER SETUP ============ -->
+                <StackPanel Visibility="{Binding SetupMode, Converter={StaticResource PageVis}, ConverterParameter=Career}">
+                <TextBlock Text="FIGHTER" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Grid.Column="1" Content="Roll" Command="{Binding RollName}" Margin="8,0,0,0"
+                            Padding="14,7" />
+                </Grid>
+
+                <TextBlock Text="COUNTRY" Style="{StaticResource Label}" Margin="0,18,0,6" />
+                <ComboBox ItemsSource="{Binding Countries}" SelectedItem="{Binding Country}" />
+
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="START YEAR" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding Years}" SelectedItem="{Binding SetupYear}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="DIVISION" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding Divisions}" SelectedItem="{Binding SetupDivision}"
+                                  ItemTemplate="{StaticResource DivisionItem}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="TALENT" Style="{StaticResource Label}" Margin="0,18,0,6" />
+                <ComboBox ItemsSource="{Binding Talents}" SelectedValue="{Binding Talent}"
+                          SelectedValuePath="Key" DisplayMemberPath="Label" />
+
+                <CheckBox Content="Simulate full history (seeds the Hall of Fame with past greats)"
+                          IsChecked="{Binding FullHistory}" Margin="0,20,0,0" />
+
+                <Button Content="Start career" Command="{Binding StartCareer}"
+                        Style="{StaticResource PrimaryButton}" Margin="0,26,0,0" />
+                <Button Content="Continue saved career" Command="{Binding ContinueCareer}" Margin="0,10,0,0" />
+                </StackPanel>
+
+                <!-- ============ UNIVERSE SETUP ============ -->
+                <StackPanel Visibility="{Binding SetupMode, Converter={StaticResource PageVis}, ConverterParameter=Universe}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="START YEAR" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                            <ComboBox ItemsSource="{Binding Years}" SelectedItem="{Binding UniStartYear}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="YEARS OF HISTORY FIRST" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                            <TextBox Text="{Binding UniWarmup, UpdateSourceTrigger=LostFocus}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="DIVISIONS" Style="{StaticResource Label}" Margin="0,18,0,2" />
+                    <TextBlock FontSize="11" Foreground="{StaticResource Faint}" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="{Binding UniDivisionsLabel, StringFormat=Running {0}. Tick none for the lot — one division is far quicker to follow.}" />
+                    <Border Background="#151210" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                            CornerRadius="4" Padding="10,10,10,12">
+                        <!-- No nested scroller: a box that cuts a division in half reads as a fault, and the
+                             setup card scrolls perfectly well on its own. -->
+                            <ItemsControl ItemsSource="{Binding UniDivisions}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Name}" IsChecked="{Binding On}" Margin="0,3" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                    </Border>
+
+                    <TextBlock Text="NEW PROFESSIONALS A YEAR, PER DIVISION" Style="{StaticResource Label}" Margin="0,18,0,6" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider Minimum="4" Maximum="40" TickFrequency="1" IsSnapToTickEnabled="True"
+                                Value="{Binding UniEntrants}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding UniEntrants}" Width="34" TextAlignment="Right"
+                                   Foreground="{StaticResource Text}" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <TextBlock Text="CAREER LENGTH" Style="{StaticResource Label}" Margin="0,18,0,6" />
+                    <Slider Minimum="0.3" Maximum="2.5" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                            Value="{Binding UniCareerLength}" />
+                    <TextBlock Text="{Binding UniCareerLengthLabel}" FontSize="11"
+                               Foreground="{StaticResource Faint}" Margin="0,4,0,0" />
+
+                    <TextBlock Text="HOW OFTEN THEY FIGHT" Style="{StaticResource Label}" Margin="0,18,0,6" />
+                    <Slider Minimum="0.3" Maximum="2.5" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                            Value="{Binding UniActivity}" />
+                    <TextBlock Text="{Binding UniActivityLabel}" FontSize="11"
+                               Foreground="{StaticResource Faint}" Margin="0,4,0,0" />
+
+                    <CheckBox Content="Seed the world with real fighters" IsChecked="{Binding UniRealFighters}"
+                              Margin="0,20,0,0" />
+
+                    <Button Content="Open the universe" Command="{Binding StartUniverse}"
+                            Style="{StaticResource PrimaryButton}" Margin="0,26,0,0" />
+                </StackPanel>
+
+                <TextBlock Text="Reading the fighter roster…" FontSize="12"
+                           Foreground="{StaticResource Accent}" Margin="0,14,0,0" HorizontalAlignment="Center"
+                           Visibility="{Binding Loading, Converter={StaticResource BoolVis}}" />
+                <TextBlock Text="{Binding BusyMessage}" FontSize="12"
+                           Foreground="{StaticResource Accent}" Margin="0,14,0,0" HorizontalAlignment="Center"
+                           TextWrapping="Wrap" TextAlignment="Center"
+                           Visibility="{Binding Busy, Converter={StaticResource BoolVis}}" />
+                <TextBlock Text="{Binding SaveLocation, StringFormat=Saves to {0}}" FontSize="11"
+                           Foreground="{StaticResource Faint}" Margin="0,18,0,0" TextWrapping="Wrap"
+                           Visibility="{Binding SetupMode, Converter={StaticResource PageVis}, ConverterParameter=Career}" />
+            </StackPanel>
+        </Border>
+    </ScrollViewer>
+</UserControl>
