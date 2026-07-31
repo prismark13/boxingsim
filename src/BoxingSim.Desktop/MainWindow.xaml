@@ -1031,10 +1031,9 @@
                                     Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
                                                  Converter={StaticResource PageVis}, ConverterParameter=Rankings}" />
 
-                <local:PageHost Title="POUND-FOR-POUND" Subtitle="Ranked on what they have won, across every division"
-                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=P4P}">
-                    <ItemsControl ItemsSource="{Binding PoundForPound}" ItemTemplate="{StaticResource RankRowTemplate}" />
-                </local:PageHost>
+                <pages:PoundForPoundView DataContext="{Binding PoundForPoundPage}"
+                                         Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
+                                                      Converter={StaticResource PageVis}, ConverterParameter=P4P}" />
 
                 <local:PageHost Title="HALL OF FAME" Subtitle="The retired greats of this world"
                                 Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Hall}">

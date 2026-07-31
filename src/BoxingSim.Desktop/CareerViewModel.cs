@@ -340,6 +340,7 @@ public sealed class CareerViewModel : Observable
         // started, loaded or abandoned.
         OfferSlate = new OfferSlateViewModel(() => Game, () => FightIsStillAnOffer, RefreshAll);
         RankingsPage = new RankingsViewModel(() => Game);
+        PoundForPoundPage = new PoundForPoundViewModel(() => Game);
 
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
@@ -653,6 +654,9 @@ public sealed class CareerViewModel : Observable
     /// <summary>The rankings board — its own page, its own view-model. See RankingsViewModel.</summary>
     public RankingsViewModel RankingsPage { get; }
 
+    /// <summary>The pound-for-pound list — its own page. See PoundForPoundViewModel.</summary>
+    public PoundForPoundViewModel PoundForPoundPage { get; }
+
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
     public IReadOnlyList<string> Countries { get; } = new[]
@@ -746,7 +750,6 @@ public sealed class CareerViewModel : Observable
     public Cmd Dismiss { get; }
 
     // ---- collections ----
-    public ObservableCollection<RankRow> PoundForPound { get; } = new();
     public ObservableCollection<DivisionRow> Champions { get; } = new();
     public ObservableCollection<RankRow> HallOfFame { get; } = new();
     public ObservableCollection<AwardRow> Awards { get; } = new();
@@ -2448,7 +2451,7 @@ public sealed class CareerViewModel : Observable
         if (!IsPlayingBack) CheckForAwards();
         BuildDashboard();
         RankingsPage.Rebuild();
-        BuildP4P();
+        PoundForPoundPage.Rebuild();
         BuildChampions();
         BuildHof();
         BuildAwards();
@@ -2481,26 +2484,6 @@ public sealed class CareerViewModel : Observable
     {
         TakeFight.Refresh(); HoldOut.Refresh(); MoveUp.Refresh();
         StartCareer.Refresh(); ContinueCareer.Refresh();
-    }
-
-    private void BuildP4P()
-    {
-        PoundForPound.Clear();
-        if (Game is null) return;
-        int r = 1;
-        foreach (var b in Game.PoundForPound(15))
-        {
-            var a = Game.AchievementsOf(b);
-            var bits = new List<string> { b.WeightClass.DisplayName() };
-            if (a.Undisputed) bits.Add("UNDISPUTED"); else bits.AddRange(a.Belts);
-            if (a.Lineal) bits.Add(Game.LinealBelt);
-            if (a.Defences > 0) bits.Add($"{a.Defences} defence{(a.Defences == 1 ? "" : "s")}");
-            if (a.WeightTitles >= 2) bits.Add($"{a.WeightTitles}-weight champ");
-            if (a.Belts.Count == 0 && !a.Lineal && a.TitleWins > 0) bits.Add($"ex-champ · {a.TitleWins} title wins");
-            PoundForPound.Add(new RankRow(r.ToString(), b.Class, b.Name, string.Join(" · ", bits),
-                                          b.Record.ToString(), b.Id == Game.Player.Id, Game.IsWorldChampion(b), b));
-            r++;
-        }
     }
 
     private void BuildChampions()
