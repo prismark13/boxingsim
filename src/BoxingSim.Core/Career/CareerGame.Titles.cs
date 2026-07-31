@@ -132,7 +132,27 @@ public sealed partial class CareerGame
     private static bool IsWorldTitleNote(string? note) =>
         note is not null && (note == "unification" || (note.EndsWith(" title") && !RegionalBelts.Any(rb => note.StartsWith(rb))));
 
-    /// <summary>Give up any regional belts a fighter holds — used when he contests a world title.</summary>
+    /// <summary>Regional champions who have outgrown the level give the belt up.
+    ///
+    /// A national or continental strap is a step on the way up, not something a genuine contender carries
+    /// around for years. A man inside his division's top five is past it: he vacates, and the belt goes back
+    /// into circulation for the men still climbing. Run once a year, with the rest of the world's business.</summary>
+    private void RetireOutgrownRegionals()
+    {
+        foreach (var (key, holder) in _regional.ToList())
+        {
+            if (holder.Retired) { _regional.Remove(key); continue; }
+            int place = BoardPlace(holder);
+            if (place is <= 0 or > 5) continue;
+
+            _regional.Remove(key);
+            if (key.Div == Division)
+                LogEvent($"{holder.Name} vacates the {key.Region} title — he has outgrown it.",
+                         holder.Id == Player.Id, kind: "title", div: key.Div);
+        }
+    }
+
+    /// <summary>Give up any regional belts a fighter holds — used when he WINS a world title.</summary>
     private void DropRegionals(Boxer b)
     {
         foreach (var region in RegionalBelts)

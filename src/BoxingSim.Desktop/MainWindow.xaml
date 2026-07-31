@@ -594,6 +594,13 @@
                                                 Margin="10,0,0,0" Padding="18,10"
                                                 ToolTip="Refuse this fight and wait for another offer"
                                                 Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
+                                        <!-- The way through to the tape and the card. This was dropped as a
+                                             duplicate of the sidebar back when that item read "Next fight" —
+                                             but it reads "Camp" now, which does not obviously mean "where the
+                                             tale of the tape lives", so the route has to be said here. -->
+                                        <Button Content="Tape and card ›" Command="{Binding Navigate}"
+                                                CommandParameter="Career" Margin="10,0,0,0" FontSize="13"
+                                                ToolTip="The tale of the tape, the venue and the rest of the bill" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>

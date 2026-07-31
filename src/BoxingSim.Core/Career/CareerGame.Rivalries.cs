@@ -202,7 +202,7 @@ public sealed partial class CareerGame
     {
         var resume = Date;
         _asOf = resume;
-        try { InjectDebuts(); AgeRetireCrown(); PruneRematches(); StageSuperfights(); }
+        try { InjectDebuts(); AgeRetireCrown(); PruneRematches(); RetireOutgrownRegionals(); StageSuperfights(); }
         finally { _asOf = null; Date = resume; }
     }
 

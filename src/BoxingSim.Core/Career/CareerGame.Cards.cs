@@ -205,7 +205,7 @@ public sealed partial class CareerGame
                 if (j < 0) continue;   // this man has no valid opponent on this card — skip HIM, don't halt the whole card
                 used[i] = used[j] = true;
                 int rounds = i < 6 ? 10 : 8;
-                Date = SpreadDate(yr, pass, 6);
+                Date = SpreadDate(yr, pass, 6);   // ApplyOutcome moves it if either man boxed too recently
                 ApplyOutcome(FastBout(pool[i], pool[j], rounds), pool[i], pool[j]);
             }
         }
@@ -422,6 +422,7 @@ public sealed partial class CareerGame
     /// <summary>Days since a fighter's most recent bout (large if he has no ledger) — stops a champion
     /// from defending too frequently.</summary>
     private int DaysSinceLastBout(Boxer b) => b.History.Count == 0 ? 999 : Date.DayNumber - b.History[^1].Date.DayNumber;
+
 
     /// <summary>True if pairing these two would be a mismatch a prospect shouldn't be in: a raw fighter
     /// against an elite, or anyone with under 20 pro bouts sharing the ring with a top-20 man.</summary>

@@ -10,16 +10,49 @@ public sealed partial class CareerGame
 {
     // ---- outcomes & ratings ----
 
+    /// <summary>Nudge a bout off a night either man has already boxed on.
+    ///
+    /// The sport is SIMULATED in pass order but DATED across the year, so a man matched on one card could be
+    /// handed a date he had already fought on — Joe Frazier met Roberto Ribeiro and Muhammad Ali on the same
+    /// 19 April 1970. Guarded here, at the one point every bout in the game passes through, rather than at the
+    /// dozen places a bout is staged: that is a list somebody will add to and forget.
+    ///
+    /// It moves the fight rather than cancelling it, so the volume of boxing in the world is unchanged. The
+    /// player is left alone — his dates come from offers he agreed to, and moving one would put the fight on a
+    /// different night from the one the app has been counting down to.</summary>
+    private DateOnly LegalNightFor(Boxer a, Boxer b, DateOnly when)
+    {
+        if (a.Id == Player.Id || b.Id == Player.Id) return when;
+
+        static DateOnly? Clash(Boxer f, DateOnly d)
+        {
+            foreach (var h in f.History)
+                if (Math.Abs(h.Date.DayNumber - d.DayNumber) < 28) return h.Date;
+            return null;
+        }
+
+        for (int guard = 0; guard < 24; guard++)
+        {
+            var hit = Clash(a, when) ?? Clash(b, when);
+            if (hit is null) return when;
+            when = hit.Value.AddDays(28);
+        }
+        return when;
+    }
+
     private void ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null)
     {
+        Date = LegalNightFor(a, b, Date);
         if (_watch is not null)
         {
             var w = res.Winner ?? a; var l = res.Loser ?? b;
             _watch.Add(new WorldBout(Date, a.WeightClass, RegionOf(a) ?? "Rest of the world", a.Country ?? "",
                                      w.Name, l.Name, res.Method, res.EndRound, res.IsDraw, note));
         }
-        // Stepping up to the world stage means giving up any national/regional strap you were carrying.
-        if (IsWorldTitleNote(note)) { DropRegionals(a); DropRegionals(b); }
+        // Giving up a regional strap belongs to WINNING a world belt, not to turning up for the fight.
+        // Both men used to drop theirs the moment a world title bout happened — so a challenger who lost was
+        // stripped of the national title he still held, for a belt he did not win.
+        if (IsWorldTitleNote(note) && !res.IsDraw && res.Winner is not null) DropRegionals(res.Winner);
 
         bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
         if (res.IsDraw) { a.Record.Draws++; b.Record.Draws++; }
