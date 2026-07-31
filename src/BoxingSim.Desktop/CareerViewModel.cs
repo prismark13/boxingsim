@@ -342,6 +342,7 @@ public sealed class CareerViewModel : Observable
         RankingsPage = new RankingsViewModel(() => Game);
         PoundForPoundPage = new PoundForPoundViewModel(() => Game);
         HallOfFamePage = new HallOfFameViewModel(() => Game);
+        ChampionsPage = new ChampionsViewModel(() => Game);
 
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
@@ -661,6 +662,9 @@ public sealed class CareerViewModel : Observable
     /// <summary>The hall of fame — its own page. See HallOfFameViewModel.</summary>
     public HallOfFameViewModel HallOfFamePage { get; }
 
+    /// <summary>The champions board — its own page. See ChampionsViewModel.</summary>
+    public ChampionsViewModel ChampionsPage { get; }
+
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
     public IReadOnlyList<string> Countries { get; } = new[]
@@ -754,7 +758,6 @@ public sealed class CareerViewModel : Observable
     public Cmd Dismiss { get; }
 
     // ---- collections ----
-    public ObservableCollection<DivisionRow> Champions { get; } = new();
     public ObservableCollection<AwardRow> Awards { get; } = new();
     public ObservableCollection<NewsRow> News { get; } = new();
     public ObservableCollection<LedgerRow> Ledger { get; } = new();
@@ -1959,7 +1962,7 @@ public sealed class CareerViewModel : Observable
                                   nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav) })
             Raise(n);
         RankingsPage.Rebuild();
-        BuildChampions();
+        ChampionsPage.Rebuild();
         BuildDivisionChoices();
         BuildNews();
         HallOfFamePage.Rebuild();
@@ -2455,7 +2458,7 @@ public sealed class CareerViewModel : Observable
         BuildDashboard();
         RankingsPage.Rebuild();
         PoundForPoundPage.Rebuild();
-        BuildChampions();
+        ChampionsPage.Rebuild();
         HallOfFamePage.Rebuild();
         BuildAwards();
         BuildRival();
@@ -2487,29 +2490,6 @@ public sealed class CareerViewModel : Observable
     {
         TakeFight.Refresh(); HoldOut.Refresh(); MoveUp.Refresh();
         StartCareer.Refresh(); ContinueCareer.Refresh();
-    }
-
-    private void BuildChampions()
-    {
-        Champions.Clear();
-        if (Game is null) return;
-        foreach (var d in Game.ChampionsBoard())
-        {
-            var belts = new List<BeltRow>();
-            void Add(string belt, Boxer? holder, int def, bool lineal) =>
-                belts.Add(holder is null
-                    ? new BeltRow(belt, "vacant", "", lineal, true, null)
-                    : new BeltRow(belt, holder.Name, holder.Record + (def > 0 ? $" · {def} def" : ""), lineal, false, holder));
-
-            Add(Game.LinealBelt, d.Lineal, d.LinealDefenses, true);
-            Add(Game.PrimaryBelt, d.Wba, d.WbaDefenses, false);
-            if (Game.WbcActive) Add("WBC", d.Wbc, d.WbcDefenses, false);
-            if (Game.IbfActive) Add("IBF", d.Ibf, d.IbfDefenses, false);
-
-            Champions.Add(new DivisionRow(d.Division.DisplayName(),
-                                          d.Undisputed is Boxer u ? $"undisputed · {u.Name}" : "",
-                                          belts, d.Division == Game.Player.WeightClass));
-        }
     }
 
     // ---- award filters ----
