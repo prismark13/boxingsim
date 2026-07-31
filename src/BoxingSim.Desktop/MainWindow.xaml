@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:BoxingSim.Desktop"
+        xmlns:pages="clr-namespace:BoxingSim.Desktop.Pages"
         Title="The Final Bell" Height="920" Width="1500" MinHeight="660" MinWidth="1120"
         Icon="{StaticResource AppIcon}"
         Background="{StaticResource Bg}" TextOptions.TextFormattingMode="Ideal"
@@ -556,81 +557,8 @@
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="28,26,28,28" MaxWidth="1000" HorizontalAlignment="Stretch">
 
-                        <!-- THE FIGHTS ON THE TABLE.
-                             A career used to offer one decision: fight, or wait. The matchmaker puts two or
-                             three nights up now and choosing between them IS the career. Each says what it is
-                             FOR, because two records of men you have never heard of is a guess, not a choice. -->
-                        <Border Style="{StaticResource Card}" Margin="0,0,0,14"
-                                Visibility="{Binding ShowChoices, Converter={StaticResource BoolVis}}">
-                            <StackPanel>
-                                <TextBlock Text="WHAT THEY ARE OFFERING" Style="{StaticResource PanelHeader}" />
-                                <TextBlock Text="Take one. The others were never made."
-                                           FontSize="12" Foreground="{StaticResource Faint}" Margin="0,0,0,10" />
-                                <ItemsControl ItemsSource="{Binding Choices}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border CornerRadius="9" Padding="14,12" Margin="0,0,0,8"
-                                                    BorderThickness="1">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Background" Value="{StaticResource Panel}" />
-                                                        <Setter Property="BorderBrush" Value="{StaticResource Line}" />
-                                                        <Style.Triggers>
-                                                            <!-- The belt, and the biggest ordinary night, are
-                                                                 drawn like it. -->
-                                                            <DataTrigger Binding="{Binding IsBiggest}" Value="True">
-                                                                <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding IsTitle}" Value="True">
-                                                                <Setter Property="Background" Value="{StaticResource GoldSoft}" />
-                                                                <Setter Property="BorderBrush" Value="{StaticResource GoldLine}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding What}" FontSize="10"
-                                                                   FontWeight="Bold" Margin="0,0,0,3">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Setter Property="Foreground" Value="{StaticResource Faint}" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IsTitle}" Value="True">
-                                                                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                        <TextBlock Text="{Binding Name}" FontSize="16"
-                                                                   Foreground="{StaticResource Text}" TextWrapping="Wrap" />
-                                                        <TextBlock Text="{Binding Under}" FontSize="12"
-                                                                   Foreground="{StaticResource Muted}" Margin="0,2,0,0" />
-                                                        <TextBlock Text="{Binding Why}" FontSize="12"
-                                                                   Foreground="{StaticResource Faint}" Margin="0,6,0,0"
-                                                                   TextWrapping="Wrap" FontStyle="Italic" />
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="1" Margin="16,0,0,0"
-                                                                VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding Distance}" FontSize="11"
-                                                                   Foreground="{StaticResource Faint}"
-                                                                   TextAlignment="Right" Margin="0,0,0,6" />
-                                                        <Button Content="Take this one" Command="{Binding Pick}"
-                                                                Style="{StaticResource PrimaryButton}"
-                                                                Padding="14,8" FontSize="12" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
+                        <!-- The fights on the table. See Pages/OfferSlateView.xaml. -->
+                        <pages:OfferSlateView DataContext="{Binding OfferSlate}" />
 
                         <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
                                 BorderThickness="1" CornerRadius="10" Margin="24,0,24,12" Padding="16,12"
