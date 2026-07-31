@@ -45,6 +45,20 @@ public sealed partial class CareerGame
                                           : Math.Min(78, 55 + (proFights - 12) * 3))   // gatekeeper, not contender
                    : Math.Min(99, 70 + (proFights - ContenderApprenticeship(Player)) * 3);
 
+        if (BigNight(ranked, idx, proFights) is FightOffer big) return big;
+        return OrdinaryOffer(ranked, idx, proFights, maxOvr);
+    }
+
+    /// <summary>The one fight that matters this cycle, if he has earned one — or null, and the matchmaker goes
+    /// back to building his record.
+    ///
+    /// A priority chain, first match wins: a belt he holds, then the fight he is owed, then the belt he has
+    /// earned a crack at, then his region's. Lifted out of BuildOffer unchanged, because it is the part that
+    /// must NOT become a score. Everything here is gated on things he did — a ranking, an apprenticeship, a
+    /// rebuild since the last one — and a scoring pass would turn a title shot from something earned into
+    /// something drawn. Scoring belongs to picking between ordinary opponents; this is about entitlement.</summary>
+    private FightOffer? BigNight(List<Boxer> ranked, int idx, int proFights)
+    {
         bool holdsWba = Player.IsChampion;
         bool holdsWbc = WbcChampion?.Id == Player.Id;
         bool holdsIbf = IbfChampion?.Id == Player.Id;
@@ -101,9 +115,6 @@ public sealed partial class CareerGame
                 return new FightOffer { Opponent = IbfChampion, Rounds = 12, TitleFight = true, Belt = "IBF", Context = "IBF title shot" };
         }
 
-        // Match by career stage. A prospect (starter/pre-prime) is fed beatable opposition so he can
-        // build a record — a higher target index is a LOWER-ranked, weaker opponent. Once he matures,
-        // he fights the men ranked above him.
         var stage = CareerStages.Of(Player);
 
         // Regional title — a stepping stone before world level. A ranked contender who isn't yet a
@@ -130,6 +141,18 @@ public sealed partial class CareerGame
                     return new FightOffer { Opponent = rc, Rounds = 12, TitleFight = true, Belt = region, Context = $"{region} title shot" };
             }
         }
+
+        return null;
+    }
+
+    /// <summary>An ordinary night: who he is matched with when there is no belt in it.
+    ///
+    /// Match by career stage. A prospect (starter/pre-prime) is fed beatable opposition so he can build a
+    /// record — a higher target index is a LOWER-ranked, weaker opponent. Once he matures, he fights the men
+    /// ranked above him.</summary>
+    private FightOffer OrdinaryOffer(List<Boxer> ranked, int idx, int proFights, int maxOvr)
+    {
+        var stage = CareerStages.Of(Player);
 
         int target = stage switch
         {
