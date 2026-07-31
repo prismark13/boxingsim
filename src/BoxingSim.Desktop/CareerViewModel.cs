@@ -345,6 +345,7 @@ public sealed class CareerViewModel : Observable
         ChampionsPage = new ChampionsViewModel(() => Game);
         AwardsPage = new AwardsViewModel(() => Game);
         NewsPage = new NewsViewModel(() => Game, () => InCareer);
+        StatsPage = new StatsViewModel(() => Game);
 
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
@@ -667,6 +668,9 @@ public sealed class CareerViewModel : Observable
     /// NewsViewModel.</summary>
     public NewsViewModel NewsPage { get; }
 
+    /// <summary>What this fighter has done so far. See StatsViewModel.</summary>
+    public StatsViewModel StatsPage { get; }
+
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
     public IReadOnlyList<string> Countries { get; } = new[]
@@ -762,7 +766,6 @@ public sealed class CareerViewModel : Observable
     // ---- collections ----
     public ObservableCollection<LedgerRow> Ledger { get; } = new();
     public ObservableCollection<TapeRow> Tape { get; } = new();
-    public ObservableCollection<StatRow> Stats { get; } = new();
 
     // ---- the dashboard: career mode's hub ----
     public ObservableCollection<LedgerRow> RecentForm { get; } = new();
@@ -2466,7 +2469,7 @@ public sealed class CareerViewModel : Observable
         NewsPage.Rebuild();
         BuildLedger();
         BuildTape();
-        BuildStats();
+        StatsPage.Rebuild();
 
         // Everything, rather than a list of fifty-four names kept by hand.
         //
@@ -2654,81 +2657,5 @@ public sealed class CareerViewModel : Observable
             : $"A bad style night: the {b.DisplayName().ToLowerInvariant()} is exactly the wrong man for a {a.DisplayName().ToLowerInvariant()}.";
 
         foreach (var n in new[] { nameof(MyStyle), nameof(TheirStyle), nameof(StyleRead) }) Raise(n);
-    }
-
-    private void BuildStats()
-    {
-        Stats.Clear();
-        if (Game is null) return;
-        var p = Game.Player;
-        int fights = p.Record.Wins + p.Record.Losses + p.Record.Draws;
-        int koPct = p.Record.Wins > 0 ? (int)Math.Round(100.0 * p.Record.KnockoutWins / p.Record.Wins) : 0;
-
-        var titleWins = p.History.Count(h => h.Result == 'W' && h.Note is not null && h.Note.EndsWith(" title"));
-        var reigns = Game.Reigns.ToList();
-        var divisions = p.History.Count > 0
-            ? Game.Reigns.Select(r => r.Belt).Distinct().Count()
-            : 0;
-
-        // Longest win streak across the whole ledger.
-        int best = 0, run = 0;
-        foreach (var h in p.History.OrderBy(h => h.Date))
-        {
-            if (h.Result == 'W') { run++; best = Math.Max(best, run); } else run = 0;
-        }
-
-        var bestWin = p.History.Where(h => h.Result == 'W' && h.Note is not null)
-                               .OrderByDescending(h => h.Date).FirstOrDefault();
-
-        Stats.Add(new StatRow("Record", p.Record.ToString(), $"{fights} fights"));
-        Stats.Add(new StatRow("Knockout wins", $"{p.Record.KnockoutWins}", $"{koPct}% of wins"));
-        Stats.Add(new StatRow("Longest win streak", best.ToString(), best >= 10 ? "a real run" : ""));
-        Stats.Add(new StatRow("Title bouts won", titleWins.ToString(), ""));
-        Stats.Add(new StatRow("Title reigns", reigns.Count.ToString(),
-                              reigns.Count > 0 ? string.Join(", ", reigns.Select(r => r.Belt).Distinct()) : ""));
-        Stats.Add(new StatRow("Title defences", Game.TitleDefenses.ToString(), ""));
-        Stats.Add(new StatRow("Days as champion", Game.DaysAsChampion.ToString("N0"),
-                              Game.DaysAsChampion > 365 ? $"{Game.DaysAsChampion / 365} years" : ""));
-        Stats.Add(new StatRow("Current rating", $"{p.Overall} OVR", $"class {p.Class}"));
-
-        // Everything below is aggregated from the per-round cards stored on each bout — the same data the
-        // fight detail view shows one fight at a time.
-        var scored = p.History.Where(h => h.Rounds is { Count: > 0 }).ToList();
-        if (scored.Count > 0)
-        {
-            var rounds = scored.SelectMany(h => h.Rounds!).ToList();
-            int lf = rounds.Sum(r => r.LandedFor), la = rounds.Sum(r => r.LandedAgainst);
-            int kf = rounds.Sum(r => r.KdFor), ka = rounds.Sum(r => r.KdAgainst);
-            int roundsWon = rounds.Count(r => r.ScoreFor > r.ScoreAgainst);
-
-            Stats.Add(new StatRow("Rounds boxed", rounds.Count.ToString(),
-                                  $"{roundsWon} won ({100.0 * roundsWon / rounds.Count:0}%)"));
-            Stats.Add(new StatRow("Punches landed", lf.ToString("N0"),
-                                  $"{(double)lf / rounds.Count:0.0} a round"));
-            Stats.Add(new StatRow("Punches absorbed", la.ToString("N0"),
-                                  $"{(double)la / rounds.Count:0.0} a round"));
-            // The spread, not just the average — a man averaging 14 who ranges 4 to 30 is a different fighter
-            // from one who lands 13 or 15 every round.
-            Stats.Add(new StatRow("Output range",
-                                  $"{rounds.Min(r => r.LandedFor)}–{rounds.Max(r => r.LandedFor)}",
-                                  "landed in a round, worst to best"));
-            Stats.Add(new StatRow("Absorbed range",
-                                  $"{rounds.Min(r => r.LandedAgainst)}–{rounds.Max(r => r.LandedAgainst)}",
-                                  "taken in a round, best to worst"));
-            Stats.Add(new StatRow("Punch differential", (lf - la >= 0 ? "+" : "") + (lf - la).ToString("N0"),
-                                  lf >= la ? "outlanding them" : "being outlanded"));
-            Stats.Add(new StatRow("Knockdowns", $"{kf}–{ka}",
-                                  $"{kf} scored, {ka} suffered"));
-        }
-
-        int koWins = p.History.Count(h => h.Result == 'W' && h.Method is "KO" or "TKO");
-        int decWins = p.Record.Wins - koWins;
-        int koLosses = p.History.Count(h => h.Result == 'L' && h.Method is "KO" or "TKO");
-        Stats.Add(new StatRow("Wins by stoppage", $"{koWins}", $"{decWins} on the cards"));
-        Stats.Add(new StatRow("Times stopped", $"{koLosses}",
-                              koLosses == 0 && p.Record.Losses > 0 ? "never stopped" : ""));
-        Stats.Add(new StatRow("Peak potential", $"{p.Potential}", ""));
-        if (bestWin is not null)
-            Stats.Add(new StatRow("Latest title win", bestWin.Opponent, $"{bestWin.Note} · {bestWin.Date:d MMM yyyy}"));
     }
 }

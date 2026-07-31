@@ -1051,52 +1051,9 @@
                                 Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
                                              Converter={StaticResource PageVis}, ConverterParameter=News}" />
 
-                <!-- ============ CAREER STATS ============ -->
-                <local:PageHost Title="CAREER" Subtitle="What this fighter has done so far"
-                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Stats}">
-                  <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <ItemsControl ItemsSource="{Binding Stats}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
-                                        BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="9">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Label}" Style="{StaticResource Label}" />
-                                        <TextBlock Text="{Binding Value}" FontSize="21" FontWeight="Light"
-                                                   Foreground="{StaticResource Text}" Margin="0,7,0,0" />
-                                        <TextBlock Text="{Binding Note}" FontSize="12" Foreground="{StaticResource Muted}"
-                                                   Margin="0,3,0,0" TextWrapping="Wrap"
-                                                   Visibility="{Binding Note, Converter={StaticResource EmptyVis}}" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <!-- Moving up lives here rather than under tonight's opponent. It is a career decision made
-                         once or twice in a career, not a thing to weigh while looking at a fight you have
-                         already agreed to, and it was a full-width bar on the busiest page in the app. -->
-                    <Border Grid.Row="1" Style="{StaticResource Card}" Padding="18,16" Margin="9,14,9,4"
-                            Visibility="{Binding MoveUpLabel, Converter={StaticResource EmptyVis}}">
-                        <StackPanel>
-                            <TextBlock Text="CHANGING DIVISION" Style="{StaticResource Label}" />
-                            <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"
-                                       Margin="0,8,0,0"
-                                       Text="Heavier men hit harder, and the ranking you have built here does not travel with you. You cannot move while a fight is agreed." />
-                            <Button Content="{Binding MoveUpLabel}" Command="{Binding MoveUp}"
-                                    HorizontalAlignment="Left" Margin="0,14,0,0" Padding="16,9" FontSize="13"
-                                    IsEnabled="{Binding FightIsStillAnOffer}" />
-                        </StackPanel>
-                    </Border>
-                  </Grid>
-                </local:PageHost>
+                <pages:StatsView DataContext="{Binding StatsPage}"
+                                 Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
+                                              Converter={StaticResource PageVis}, ConverterParameter=Stats}" />
 
                 <!-- ============ THIS WEEK (UNIVERSE) ============ -->
                 <!-- A week of boxing as it is actually followed: not one long list of results, but what
