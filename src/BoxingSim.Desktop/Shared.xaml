@@ -1,0 +1,182 @@
+<!-- The converters and row templates every page draws with.
+
+     These lived in MainWindow.Resources, which was fine while every page was also inside MainWindow.xaml. It
+     stops being fine the moment a page becomes its own UserControl: a StaticResource is resolved when the
+     control's XAML is PARSED, and a UserControl is parsed by its own InitializeComponent before it is ever
+     attached to the window — so the lookup never reaches MainWindow's dictionary and the page dies on load
+     with "Cannot find resource named 'BoolVis'". Application-level is the only scope every page can see.
+
+     Order matters inside a dictionary: the converters are declared before the templates that use them. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:BoxingSim.Desktop">
+
+    <local:ClassColourConverter x:Key="ClassColour" />
+    <local:BoolToVisibilityConverter x:Key="BoolVis" />
+    <local:EmptyToVisibilityConverter x:Key="EmptyVis" />
+    <local:EnumToVisibilityConverter x:Key="PageVis" />
+    <local:FractionWidthConverter x:Key="BarWidth" />
+    <local:GasBrushConverter x:Key="GasBrush" />
+    <local:WeightClassNameConverter x:Key="DivName" />
+    <local:ShoutConverter x:Key="Shout" />
+    <local:OnOffConverter x:Key="OnOff" />
+    <local:AllTrueConverter x:Key="AllTrue" />
+    <local:CountToVisibilityConverter x:Key="CountVis" />
+    <local:CountryCodeConverter x:Key="Ctry" />
+    <local:UpperCaseConverter x:Key="Upper" />
+
+    <!-- Weight classes read as "Light Heavyweight", never the raw enum name. -->
+    <DataTemplate x:Key="DivisionItem">
+        <TextBlock Text="{Binding Converter={StaticResource DivName}}" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="ClassPill">
+        <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                CornerRadius="8" Width="44" Height="32">
+            <TextBlock Text="{Binding Class}" FontWeight="Bold" FontSize="15"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{Binding Class, Converter={StaticResource ClassColour}}" />
+        </Border>
+    </DataTemplate>
+
+    <!-- A fighter row. Clicking anywhere on it opens his card.
+
+         The commands still bind through AncestorType=Window. A template is applied where it is USED, so from
+         inside an extracted page the visual tree still walks up to MainWindow and finds the shell's commands —
+         moving the template's declaration out did not move where it runs. -->
+    <DataTemplate x:Key="RankRowTemplate">
+        <Button Style="{StaticResource RowButton}" AutomationProperties.Name="{Binding Name}"
+                Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}"
+                CommandParameter="{Binding}">
+            <Grid Margin="18,11">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="54" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Rank}" Foreground="{StaticResource Faint}" FontWeight="SemiBold"
+                           FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                <ContentPresenter Grid.Column="1" Content="{Binding}" ContentTemplate="{StaticResource ClassPill}"
+                                  HorizontalAlignment="Left" />
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource Text}" FontWeight="SemiBold"
+                               FontSize="15" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Detail}" Foreground="{StaticResource Muted}" FontSize="12"
+                               Margin="0,3,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding Detail, Converter={StaticResource EmptyVis}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Record}" Foreground="{StaticResource Muted}"
+                               FontSize="12" Margin="12,0,0,0" />
+                    <TextBlock Text="›" Foreground="{StaticResource Faint}" FontSize="15" Margin="12,-2,0,0" />
+                </StackPanel>
+            </Grid>
+        </Button>
+    </DataTemplate>
+
+    <!-- A bout in a ledger. Clicking it opens the round-by-round card for that fight. -->
+    <DataTemplate x:Key="TapeRowTemplate">
+            <Grid Margin="0,3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="128" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <!-- mine, growing right-to-left -->
+                <Grid x:Name="MineTrack" Grid.Column="0" Height="16">
+                    <Border HorizontalAlignment="Right" CornerRadius="3"
+                            Background="{StaticResource Accent}">
+                        <Border.Width>
+                            <MultiBinding Converter="{StaticResource BarWidth}">
+                                <Binding Path="MineWidth" />
+                                <Binding Path="ActualWidth" ElementName="MineTrack" />
+                            </MultiBinding>
+                        </Border.Width>
+                    </Border>
+                    <TextBlock Text="{Binding Mine}" FontSize="11" Margin="0,0,7,0"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Foreground="#06121C" FontWeight="Bold" />
+                </Grid>
+                <TextBlock Grid.Column="1" Text="{Binding Attribute}" FontSize="11"
+                           FontWeight="SemiBold" Foreground="{StaticResource Muted}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Grid x:Name="TheirsTrack" Grid.Column="2" Height="16">
+                    <Border HorizontalAlignment="Left" CornerRadius="3"
+                            Background="{StaticResource Foe}">
+                        <Border.Width>
+                            <MultiBinding Converter="{StaticResource BarWidth}">
+                                <Binding Path="TheirsWidth" />
+                                <Binding Path="ActualWidth" ElementName="TheirsTrack" />
+                            </MultiBinding>
+                        </Border.Width>
+                    </Border>
+                    <!-- Dark on the bar, matching the player's side: the number sits ON the
+                         colour now rather than on an empty track behind it. -->
+                    <TextBlock Text="{Binding Theirs}" FontSize="11" Margin="7,0,0,0"
+                               HorizontalAlignment="Left" VerticalAlignment="Center"
+                               Foreground="#1F0A04" FontWeight="Bold" />
+                </Grid>
+            </Grid>
+    </DataTemplate>
+    <DataTemplate x:Key="LedgerRowTemplate">
+        <Button Style="{StaticResource RowButton}" AutomationProperties.Name="{Binding Opponent}"
+                ToolTip="See the round-by-round card"
+                Command="{Binding DataContext.ShowFight, RelativeSource={RelativeSource AncestorType=Window}}"
+                CommandParameter="{Binding}">
+            <Grid Margin="18,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92" />
+                    <ColumnDefinition Width="26" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}"
+                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Result}" FontWeight="Bold" FontSize="12"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Win}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource Win}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Loss}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource Loss}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <StackPanel Grid.Column="2">
+                    <!-- WrapPanel, not a horizontal StackPanel: a StackPanel overflows its column rather
+                         than reflowing, so at the narrowest window the belt tag was cut off mid-word —
+                         "WBA Middleweight tit". The tag drops to its own line instead. -->
+                    <WrapPanel>
+                        <!-- The row opens the fight; the NAME opens the man. Reading a record is half
+                             "what happened that night" and half "who was he?", and only the first of
+                             those had anywhere to click. A nested button wins the click, so the row
+                             behaviour is untouched everywhere else along it. -->
+                        <Button Style="{StaticResource LinkName}" Content="{Binding Opponent}"
+                                ToolTip="See his card"
+                                CommandParameter="{Binding Opponent}"
+                                Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        <!-- The belt that was on the line. Gold, because that is what a record is read for. -->
+                        <Border Background="{StaticResource GoldSoft}" BorderBrush="{StaticResource GoldLine}"
+                                BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsTitleFight, Converter={StaticResource BoolVis}}">
+                            <TextBlock Text="{Binding Title}" FontSize="11" FontWeight="Bold"
+                                       Foreground="{StaticResource Gold}" />
+                        </Border>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource Muted}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBlock Grid.Column="3" Text="›" Foreground="{StaticResource Faint}" FontSize="15"
+                           VerticalAlignment="Center" Margin="10,-2,0,0" />
+            </Grid>
+        </Button>
+    </DataTemplate>
+</ResourceDictionary>

@@ -1,0 +1,174 @@
+<!-- Career mode's hub: your form, where you stand, the man you are measured against, and the fight on
+     the table — each a way INTO the fuller screen behind it rather than another list.
+
+     Most of what this page draws is not its own. The offer, the camp buttons and the shell commands are
+     reached through AncestorType=Window because the Career page shows the same fight and the same buttons;
+     holding a second copy here is how two screens start disagreeing about whether a fight was accepted. -->
+<UserControl x:Class="BoxingSim.Desktop.Pages.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BoxingSim.Desktop">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="28,26,28,28" MaxWidth="1080">
+                <!-- The date heads this page, not the fighter's name. The sidebar names him two inches
+                     to the left, on this page and every other; the date is the one thing it does not
+                     say, and where you are in a career is what the dashboard is actually about. -->
+                <TextBlock Text="{Binding DataContext.DateLabel, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="26" FontWeight="Light"
+                           Foreground="{StaticResource Text}" />
+
+                <!-- Where he stands, beside his name. This replaced four cards across the top of the
+                     page — Record, Division rank, Titles, Rating — three of which repeated the sidebar
+                     two inches to the left. What is left is only what was new, and the full record is
+                     a click away instead of a row of tiles. -->
+                <StackPanel Orientation="Horizontal" Margin="0,10,0,18">
+                    <TextBlock Text="{Binding StandingLine}" FontSize="13"
+                               Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                    <Button Style="{StaticResource LinkName}" Content="the full record ›"
+                            Margin="16,0,0,0" Command="{Binding DataContext.Navigate, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="Stats"
+                            AutomationProperties.Name="the full record" />
+                </StackPanel>
+
+                <!-- The man you are measured against. A division was a table that reshuffled; nobody
+                     in it was anybody. -->
+                <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                        BorderThickness="1" CornerRadius="10" Padding="18,14" Margin="0,0,0,14"
+                        Visibility="{Binding HasRival, Converter={StaticResource BoolVis}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="THE MAN TO WATCH" Style="{StaticResource Label}"
+                                       Foreground="{StaticResource Gold}" />
+                            <Button Style="{StaticResource LinkName}" Content="{Binding RivalName}"
+                                    HorizontalAlignment="Left" Margin="0,6,0,0"
+                                    CommandParameter="{Binding RivalFighter}"
+                                    Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}" />
+                            <TextBlock Text="{Binding RivalRecord}" FontSize="12"
+                                       Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding RivalStanding}" FontSize="13"
+                                       Foreground="{StaticResource Text}" TextAlignment="Right" />
+                            <TextBlock Text="{Binding RivalReason}" FontSize="12"
+                                       Foreground="{StaticResource Faint}" TextAlignment="Right" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- The next fight, taken from here without going anywhere -->
+                <Border Style="{StaticResource Card}" Padding="0" Margin="0,6,0,14"
+                        Visibility="{Binding DataContext.HasOffer, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <Border Background="#12100D" CornerRadius="14,14,0,0" Padding="22,14">
+                            <TextBlock Style="{StaticResource Label}">
+                                <Run Text="YOUR NEXT FIGHT · " /><Run Text="{Binding DataContext.OfferDateLabel, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}" />
+                                <Run Text=" · " /><Run Text="{Binding DataContext.OfferContext, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}" />
+                            </TextBlock>
+                        </Border>
+                        <Grid Margin="22,18,22,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                                    BorderThickness="1" CornerRadius="9" Width="52" Height="40" Margin="0,0,16,0">
+                                <TextBlock Text="{Binding DataContext.OfferOpponentClass, RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="Bold" FontSize="18"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{Binding DataContext.OfferOpponentClass, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource ClassColour}}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <Button Style="{StaticResource RowButton}" HorizontalAlignment="Left"
+                                        Padding="0" AutomationProperties.Name="{Binding DataContext.OfferOpponent, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        ToolTip="See his card"
+                                        Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding DataContext.OfferOpponentFighter, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <TextBlock Text="{Binding DataContext.OfferOpponent, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="18"
+                                           Foreground="{StaticResource Text}" TextWrapping="Wrap" />
+                                </Button>
+                                <TextBlock FontSize="12" Foreground="{StaticResource Muted}" Margin="0,3,0,0">
+                                    <Run Text="{Binding DataContext.OfferOpponentRecord, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding DataContext.OfferRounds, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="{Binding DataContext.TakeFightLabel, RelativeSource={RelativeSource AncestorType=Window}}" Command="{Binding DataContext.TakeFight, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        ToolTip="{Binding DataContext.TakeFightHint, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        AutomationProperties.Name="{Binding DataContext.TakeFightLabel, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        Style="{StaticResource PrimaryButton}" Padding="22,10"
+                                        Visibility="{Binding DataContext.FightIsStillAnOffer, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}" />
+                                <!-- In camp the fight is taken, so the only thing to do from here is go
+                                     back and watch the weeks run out. -->
+                                <Button Content="Back to camp" Command="{Binding DataContext.Navigate, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="Career" Style="{StaticResource PrimaryButton}"
+                                        Padding="22,10"
+                                        Visibility="{Binding DataContext.InCamp, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}" />
+                                <Button Content="Turn it down" Command="{Binding DataContext.HoldOut, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        Margin="10,0,0,0" Padding="18,10"
+                                        ToolTip="Refuse this fight and wait for another offer"
+                                        Visibility="{Binding DataContext.FightIsStillAnOffer, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}" />
+                                <!-- The way through to the tape and the card. This was dropped as a
+                                     duplicate of the sidebar back when that item read "Next fight" —
+                                     but it reads "Camp" now, which does not obviously mean "where the
+                                     tale of the tape lives", so the route has to be said here. -->
+                                <Button Content="Tape and card ›" Command="{Binding DataContext.Navigate, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="Career" Margin="10,0,0,0" FontSize="13"
+                                        ToolTip="The tale of the tape, the venue and the rest of the bill" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Two columns of gateways into the fuller screens -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <Button Style="{StaticResource RowButton}" Command="{Binding DataContext.Navigate, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="Stats" AutomationProperties.Name="Recent form">
+                                    <Grid Margin="18,14,18,10">
+                                        <TextBlock Text="RECENT FORM" Style="{StaticResource Label}" />
+                                        <TextBlock Text="my record ›" FontSize="11" HorizontalAlignment="Right"
+                                                   Foreground="{StaticResource Quiet}" />
+                                    </Grid>
+                                </Button>
+                                <ItemsControl ItemsSource="{Binding RecentForm}"
+                                              ItemTemplate="{StaticResource LedgerRowTemplate}" />
+                                <TextBlock Text="No fights yet." Foreground="{StaticResource Faint}" FontSize="12"
+                                           Margin="18,4,18,16"
+                                           Visibility="{Binding DataContext.HasLedger, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <Button Style="{StaticResource RowButton}" Command="{Binding DataContext.Navigate, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="Rankings" AutomationProperties.Name="Your division">
+                                    <Grid Margin="18,14,18,10">
+                                        <TextBlock Text="YOUR DIVISION" Style="{StaticResource Label}" />
+                                        <TextBlock Text="full rankings ›" FontSize="11" HorizontalAlignment="Right"
+                                                   Foreground="{StaticResource Quiet}" />
+                                    </Grid>
+                                </Button>
+                                <ItemsControl ItemsSource="{Binding DivisionTop}"
+                                              ItemTemplate="{StaticResource RankRowTemplate}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- The sport's news was a card here, at the foot of the page and below the fold on a
+                     1366-wide screen. It is the drawer on the right now: reachable from every page
+                     instead of only this one, and carrying the whole feed rather than six lines. -->
+            </StackPanel>
+    </ScrollViewer>
+</UserControl>

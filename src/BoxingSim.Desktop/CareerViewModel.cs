@@ -9,6 +9,7 @@ using BoxingSim.Core.Career;
 using BoxingSim.Core.Engine;
 using BoxingSim.Core.Generation;
 using BoxingSim.Core.Model;
+using BoxingSim.Desktop.Pages;
 
 namespace BoxingSim.Desktop;
 
@@ -76,21 +77,6 @@ public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyLi
 /// label, because a ComboBox's closed state falls back to ToString() and would otherwise show the type name.</summary>
 /// <summary>One bout on tonight's card, as the night runs through it. Mutable, because a row goes from
 /// pending to current to fought while you are looking at it.</summary>
-/// <summary>One of the fights on the table, as the player reads it: who, what it is for, and what taking it
-/// would mean for the career. The last of those is the whole point — a name and a record is a guess.</summary>
-public sealed class OfferChoice
-{
-    public required FightOffer Offer { get; init; }
-    public required string Name { get; init; }
-    public required string Under { get; init; }
-    public required string What { get; init; }
-    public required string Distance { get; init; }
-    public required string Why { get; init; }
-    public bool IsTitle { get; init; }
-    public bool IsBiggest { get; init; }
-    public required Cmd Pick { get; init; }
-}
-
 public sealed class CardBout : Observable
 {
     public required string Fight { get; init; }
@@ -349,6 +335,20 @@ public sealed class CareerViewModel : Observable
         _speed = _prefs.Speed;
         Sfx.Enabled = _soundOn;
 
+        // The slate reaches the world through delegates rather than holding this object, so the dependency
+        // runs one way. Game is fetched rather than passed because it is replaced wholesale when a career is
+        // started, loaded or abandoned.
+        OfferSlate = new OfferSlateViewModel(() => Game, () => FightIsStillAnOffer, RefreshAll);
+        RankingsPage = new RankingsViewModel(() => Game);
+        PoundForPoundPage = new PoundForPoundViewModel(() => Game);
+        HallOfFamePage = new HallOfFameViewModel(() => Game);
+        ChampionsPage = new ChampionsViewModel(() => Game);
+        AwardsPage = new AwardsViewModel(() => Game);
+        NewsPage = new NewsViewModel(() => Game, () => InCareer);
+        StatsPage = new StatsViewModel(() => Game);
+        UniversePage = new UniverseViewModel(() => _svc.Universe);
+        DashboardPage = new DashboardViewModel(() => Game, () => PlayerRank);
+
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
         MoveUp = new Cmd(DoMoveUp, () => Game?.CanMoveUp == true);
@@ -363,7 +363,7 @@ public sealed class CareerViewModel : Observable
         LeaveUniverse = new Cmd(() =>
         {
             _svc.EndUniverse();
-            UniverseWeek.Clear();
+            UniversePage.Clear();
             _selectedNav = CareerNav[0];
             RefreshAll();
             Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
@@ -393,13 +393,6 @@ public sealed class CareerViewModel : Observable
             else if (!_waiting) Take(resuming: true);
         });
         // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
-        ClearNewsFilter = new Cmd(() =>
-        {
-            _newsTitlesOnly = false;
-            _newsDiv = NewsDivisions.FirstOrDefault();
-            foreach (var n in new[] { nameof(NewsTitlesOnly), nameof(NewsDivision) }) Raise(n);
-            BuildNews();
-        });
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn));
@@ -430,7 +423,6 @@ public sealed class CareerViewModel : Observable
         GoBack = new Cmd(DoGoBack, () => CanGoBack);
         Navigate = new Cmd(DoNavigate);
         ViewDivisionCmd = new Cmd(DoViewDivision);
-        GoHomeDivision = new Cmd(() => { if (Game is not null) ViewDivision = Game.Player.WeightClass; });
         // Escape backs out of whatever is on top: the fighter card, the playback, then the page you came from.
         Dismiss = new Cmd(() =>
         {
@@ -521,25 +513,10 @@ public sealed class CareerViewModel : Observable
         }
     }
 
-    /// <summary>The week just played, region by region.</summary>
-    public ObservableCollection<RegionCard> UniverseWeek { get; } = new();
 
-    public string UniverseDate => _svc.Universe is { } u ? u.Date.ToString("d MMMM yyyy") : "";
-    public string UniverseWeekLabel => _svc.Universe is { } u ? $"WEEK {u.Week}" : "";
-    /// <summary>Whether the division is worth naming on every row. In a one-division universe it is the same
-    /// word 17 times down the page.</summary>
-    public bool UniverseManyDivisions => _svc.Universe is null || _svc.Universe.Settings.Divisions.Count != 1;
 
-    /// <summary>The width the division column needs — none at all when there is only one.</summary>
-    public System.Windows.GridLength DivisionColumn =>
-        new(UniverseManyDivisions ? 126 : 0, System.Windows.GridUnitType.Pixel);
 
-    /// <summary>A week where nothing was on anywhere. It happens, and an empty page with no explanation
-    /// looks like a bug rather than a quiet week.</summary>
-    public bool UniverseQuiet => _svc.Universe is not null && UniverseWeek.Count == 0;
 
-    public string UniverseSummary => _svc.Universe is null ? ""
-        : $"{UniverseWeek.Sum(r => r.Bouts)} bouts · {UniverseWeek.Sum(r => r.TitleBouts)} for a title";
 
     // ---- navigation ----
     // Career mode is the app; the boards are reference you dip into. The sidebar says so — your own two screens
@@ -608,7 +585,7 @@ public sealed class CareerViewModel : Observable
     private void PushHistory(Page from)
     {
         if (_restoring) return;
-        _back.Push((from, ViewDivision));
+        _back.Push((from, RankingsPage.ViewDivision));
         if (_back.Count > 40) { var keep = _back.Take(40).Reverse().ToList(); _back.Clear(); foreach (var h in keep) _back.Push(h); }
         Raise(nameof(CanGoBack));
         GoBack.Refresh();
@@ -623,12 +600,8 @@ public sealed class CareerViewModel : Observable
         _restoring = true;
         try
         {
-            _viewDivision = division;
-            Raise(nameof(ViewDivision));
+            RankingsPage.Restore(division);
             SelectedNav = Nav.FirstOrDefault(n => n.IsPage && n.Page == page) ?? SelectedNav;
-            BuildRankings();
-            Raise(nameof(RankingsSubtitle));
-            Raise(nameof(IsAwayDivision));
         }
         finally { _restoring = false; }
         Raise(nameof(CanGoBack));
@@ -657,35 +630,39 @@ public sealed class CareerViewModel : Observable
             DivisionRow d when Game is not null =>
                 Game.LiveDivisions.FirstOrDefault(x => x.DisplayName() == d.Division, Game.Player.WeightClass),
             _ => (WeightClass?)null
-        } ?? ViewDivision;
-        ViewDivision = wc;
+        } ?? RankingsPage.ViewDivision;
+        RankingsPage.ViewDivision = wc;
         SelectedCard = null;
         SelectedNav = Nav.FirstOrDefault(n => n.IsPage && n.Page == Page.Rankings) ?? SelectedNav;
     }
 
-    private WeightClass _viewDivision;
-    /// <summary>Which division the rankings page is showing. Defaults to the player's, but any can be inspected.</summary>
-    public WeightClass ViewDivision
-    {
-        get => _viewDivision;
-        set
-        {
-            if (_viewDivision == value) return;
-            _viewDivision = value;
-            Raise();
-            Raise(nameof(RankingsSubtitle));
-            Raise(nameof(IsAwayDivision));
-            Raise(nameof(AwayDivisionNote));
-            BuildRankings();
-        }
-    }
+    /// <summary>The rankings board — its own page, its own view-model. See RankingsViewModel.</summary>
+    public RankingsViewModel RankingsPage { get; }
 
-    public IReadOnlyList<WeightClass> RankingDivisions => Game?.LiveDivisions ?? Array.Empty<WeightClass>();
+    /// <summary>The pound-for-pound list — its own page. See PoundForPoundViewModel.</summary>
+    public PoundForPoundViewModel PoundForPoundPage { get; }
 
-    public string RankingsSubtitle =>
-        Game is not null && ViewDivision == Game.Player.WeightClass
-            ? $"{ViewDivision.DisplayName()} · your division"
-            : ViewDivision.DisplayName();
+    /// <summary>The hall of fame — its own page. See HallOfFameViewModel.</summary>
+    public HallOfFameViewModel HallOfFamePage { get; }
+
+    /// <summary>The champions board — its own page. See ChampionsViewModel.</summary>
+    public ChampionsViewModel ChampionsPage { get; }
+
+    /// <summary>The year's honours, and the two filters they are read through. See AwardsViewModel.</summary>
+    public AwardsViewModel AwardsPage { get; }
+
+    /// <summary>The feed. Read by the News page AND the shell's drawer, which share it on purpose. See
+    /// NewsViewModel.</summary>
+    public NewsViewModel NewsPage { get; }
+
+    /// <summary>What this fighter has done so far. See StatsViewModel.</summary>
+    public StatsViewModel StatsPage { get; }
+
+    /// <summary>A week of the whole sport, region by region. See UniverseViewModel.</summary>
+    public UniverseViewModel UniversePage { get; }
+
+    /// <summary>Career mode's hub. See DashboardViewModel.</summary>
+    public DashboardViewModel DashboardPage { get; }
 
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
@@ -780,28 +757,12 @@ public sealed class CareerViewModel : Observable
     public Cmd Dismiss { get; }
 
     // ---- collections ----
-    public ObservableCollection<RankRow> Rankings { get; } = new();
-    public ObservableCollection<RankRow> PoundForPound { get; } = new();
-    public ObservableCollection<DivisionRow> Champions { get; } = new();
-    public ObservableCollection<RankRow> HallOfFame { get; } = new();
-    public ObservableCollection<AwardRow> Awards { get; } = new();
-    public ObservableCollection<NewsRow> News { get; } = new();
     public ObservableCollection<LedgerRow> Ledger { get; } = new();
     public ObservableCollection<TapeRow> Tape { get; } = new();
-    public ObservableCollection<StatRow> Stats { get; } = new();
 
     // ---- the dashboard: career mode's hub ----
-    public ObservableCollection<LedgerRow> RecentForm { get; } = new();
-    public ObservableCollection<RankRow> DivisionTop { get; } = new();
 
     public bool HasLedger => Ledger.Count > 0;
-
-    /// <summary>True when the rankings page is showing somebody else's division, so the shell can say so
-    /// instead of leaving you wondering whose list you're reading.</summary>
-    public bool IsAwayDivision => Game is not null && ViewDivision != Game.Player.WeightClass;
-    public string AwayDivisionNote => $"Viewing {ViewDivision.DisplayName()} — not your division";
-    public string HomeDivisionLabel => Game is not null ? $"Back to {Game.Player.WeightClass.DisplayName()}" : "";
-    public Cmd GoHomeDivision { get; private set; } = null!;
 
     /// <summary>One pick on the setup screen: the key the sim uses, and what a person reads.</summary>
     public sealed record TalentOption(string Key, string Label)
@@ -857,7 +818,7 @@ public sealed class CareerViewModel : Observable
                            .DefaultIfEmpty(WeightClass.Heavyweight).First();
             await BusyAsync(FullHistory ? "Simulating a full history — this takes a moment…" : "Building the world…",
                             () => _svc.Start(name, Country, SetupYear, potential, div, FullHistory));
-            _viewDivision = div;
+            RankingsPage.Restore(div);
         }
         catch (Exception ex) { BusyMessage = ex.Message; return; }
         SetCommitted(false);
@@ -869,7 +830,7 @@ public sealed class CareerViewModel : Observable
     {
         bool ok = false;
         await BusyAsync("Loading your career…", () => ok = _svc.Load());
-        if (ok) { SetCommitted(false); _viewDivision = _svc.Game!.Player.WeightClass; SelectedNav = Nav[0]; RefreshAll(); }
+        if (ok) { SetCommitted(false); RankingsPage.Restore(_svc.Game!.Player.WeightClass); SelectedNav = Nav[0]; RefreshAll(); }
         else { ContinueCareer.Refresh(); Raise(nameof(HasSave)); }
     }
 
@@ -1136,6 +1097,9 @@ public sealed class CareerViewModel : Observable
         _committed = v;
         foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight),
                                   nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
+        // The slate is a separate object now, so this object's Raise cannot reach it — and whether it shows
+        // hangs off the flag that just moved.
+        OfferSlate.RaiseVisible();
     }
 
     /// <summary>True while the run is holding, waiting to be told to go on. What the Continue button hangs off.</summary>
@@ -1199,71 +1163,8 @@ public sealed class CareerViewModel : Observable
         : FightWeek ? $"Agree to it, and run the {Game.DaysToFight / 7} weeks between now and the first bell"
         : "Agree to it, and start the fight straight away";
 
-    // ---- the fights on the table ----
-    //
-    // A career used to offer one decision: fight, or wait. The matchmaker now puts two or three nights up and
-    // the choice between them IS the career — a tune-up, a step up, or the man who will hurt you and move you
-    // up the board. What each one is for has to be legible, because two records of men you have never heard
-    // of is not a choice, it is a guess.
-
-    public ObservableCollection<OfferChoice> Choices { get; } = new();
-
-    /// <summary>Only worth showing when there is something to choose BETWEEN, and only before he commits.</summary>
-    public bool ShowChoices => Choices.Count > 1 && FightIsStillAnOffer;
-
-    private void RebuildChoices()
-    {
-        Choices.Clear();
-        if (Game is not null && !Game.Player.Retired && Game.Slate.Count > 1)
-        {
-            // Hardest first, which is how a matchmaker lays a choice out and how it reads.
-            var scored = Game.Slate.Select(o => (Offer: o, Value: Game.ValueOf(o)))
-                                   .OrderByDescending(x => x.Value).ToList();
-            for (int rank = 0; rank < scored.Count; rank++)
-            {
-                var (o, v) = scored[rank];
-                int place = Game.PlaceOf(o.Opponent);
-                Choices.Add(new OfferChoice
-                {
-                    Offer = o,
-                    Name = o.Opponent.Name,
-                    Under = $"{o.Opponent.Country ?? ""}  ·  {o.Opponent.Record}"
-                            + (place > 0 ? $"  ·  #{place}" : ""),
-                    What = o.TitleFight ? $"{o.Belt} TITLE" : o.Context.ToUpperInvariant(),
-                    Distance = $"{o.Rounds} rounds",
-                    IsTitle = o.TitleFight,
-                    IsBiggest = rank == 0 && scored.Count > 1,
-                    Why = WhyTakeIt(o, rank, scored.Count),
-                    Pick = new Cmd(() => { Game.ChooseOffer(o); RefreshAll(); }),
-                });
-            }
-        }
-        Raise(nameof(ShowChoices));
-    }
-
-    /// <summary>One line on what taking this night would mean. Said in terms of the CAREER rather than the
-    /// numbers — the ratings are on the tale of the tape for anyone who wants them.</summary>
-    private string WhyTakeIt(FightOffer o, int rank, int of)
-    {
-        if (o.TitleFight && o.Belt is "WBA" or "WBC" or "IBF")
-            return "The belt. Everything has been for this.";
-        if (o.TitleFight) return "A regional title — the last step before world level.";
-        if (o.Context is "eliminator") return "Win it and you are next in line.";
-
-        // Ranked above him is the fact that matters most, whatever else the night is.
-        int mine = Game?.PlaceOf(Game.Player) ?? 0;
-        int his = Game?.PlaceOf(o.Opponent) ?? 0;
-        if (his > 0 && mine > 0 && his < mine)
-            return $"Ranked above you at #{his}. Beat him and you take his place.";
-
-        // Otherwise say where it sits AMONG THE OTHERS, which is the actual decision. Comparing each one to
-        // an absolute scale gave three fights of similar size the same sentence — "the biggest night on the
-        // table", three times, which is no help to anybody.
-        if (of <= 1) return "The only fight on offer.";
-        if (rank == 0) return "The hardest of them, and the one that moves you.";
-        if (rank == of - 1) return "The safest of them. Keeps you winning, and teaches you nothing.";
-        return "Middle ground — a test, without the risk of the big one.";
-    }
+    /// <summary>The fights on the table — its own page, its own view-model. See OfferSlateViewModel.</summary>
+    public OfferSlateViewModel OfferSlate { get; }
 
     public bool LiveUndercard
     {
@@ -1479,27 +1380,6 @@ public sealed class CareerViewModel : Observable
         }
         _ = WatchAsync(owner, foe, line, notable: line.Note is string n && n.Contains("title", StringComparison.OrdinalIgnoreCase));
     }
-
-    // ---- the man you are measured against ----
-    public string RivalName { get; private set; } = "";
-    public string RivalRecord { get; private set; } = "";
-    public string RivalStanding { get; private set; } = "";
-    public string RivalReason { get; private set; } = "";
-    public bool HasRival => RivalName.Length > 0;
-    private Boxer? _rival;
-
-    private void BuildRival()
-    {
-        _rival = Game?.Rival;
-        RivalName = _rival?.Name ?? "";
-        RivalRecord = _rival is null ? "" : $"{_rival.Record}  ·  class {_rival.Class}";
-        RivalStanding = _rival is null || Game is null ? "" : Game.RivalStanding(_rival);
-        RivalReason = _rival is null || Game is null ? "" : Game.RivalReason(_rival);
-        foreach (var n in new[] { nameof(RivalName), nameof(RivalRecord), nameof(RivalStanding),
-                                  nameof(RivalReason), nameof(HasRival), nameof(RivalFighter) })
-            Raise(n);
-    }
-    public Boxer? RivalFighter => _rival;
 
     // ---- the year's honours ----
     //
@@ -2018,7 +1898,7 @@ public sealed class CareerViewModel : Observable
         };
         // Warming a world through years of history is the slow part, so it runs off the UI thread.
         await BusyAsync("Building a world…", () => _svc.StartUniverse(settings));
-        UniverseWeek.Clear();
+        UniversePage.Clear();
         _selectedNav = UniverseNav[0];
         RefreshAll();
         Raise(nameof(SelectedNav)); Raise(nameof(CurrentPage));
@@ -2028,9 +1908,7 @@ public sealed class CareerViewModel : Observable
     private void DoPlayWeek()
     {
         if (_svc.Universe is not { } u) return;
-        var cards = u.PlayWeek();
-        UniverseWeek.Clear();
-        foreach (var c in cards) UniverseWeek.Add(c);
+        UniversePage.Show(u.PlayWeek());
         RefreshUniverse();
     }
 
@@ -2042,8 +1920,7 @@ public sealed class CareerViewModel : Observable
         {
             for (int i = 0; i < 52; i++) last = u.PlayWeek();
         });
-        UniverseWeek.Clear();
-        foreach (var c in last) UniverseWeek.Add(c);
+        UniversePage.Show(last);
         RefreshUniverse();
     }
 
@@ -2051,16 +1928,15 @@ public sealed class CareerViewModel : Observable
     /// rankings, champions, news and hall of fame that a universe shares with a career.</summary>
     private void RefreshUniverse()
     {
-        foreach (var n in new[] { nameof(UniverseDate), nameof(UniverseWeekLabel), nameof(UniverseSummary), nameof(UniverseQuiet), nameof(UniverseManyDivisions), nameof(DivisionColumn),
-                                  nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav) })
+        UniversePage.Refresh();
+        foreach (var n in new[] { nameof(InUniverse), nameof(InPlay), nameof(AtSetup), nameof(Nav) })
             Raise(n);
-        BuildRankings();
-        BuildChampions();
-        BuildDivisionChoices();
-        BuildNews();
-        BuildHof();
-        BuildAwards();
-        BuildRival();
+        RankingsPage.Rebuild();
+        ChampionsPage.Rebuild();
+        NewsPage.Rebuild();
+        HallOfFamePage.Rebuild();
+        AwardsPage.Rebuild();
+        DashboardPage.RebuildRival();
         BuildUndercard();
     }
 
@@ -2243,7 +2119,9 @@ public sealed class CareerViewModel : Observable
         return sp > 0 ? full[(sp + 1)..] : full;
     }
 
-    private static LedgerRow ToLedger(BoutLine h, string? owner = null)
+    /// <summary>internal rather than private: the dashboard's own view-model builds its
+    /// recent-form rows with it, and one row shape beats two that drift.</summary>
+    internal static LedgerRow ToLedger(BoutLine h, string? owner = null)
     {
         string detail = h.Method + (h.Round > 0 && h.Method is "KO" or "TKO" or "cut" ? $" rd{h.Round}" : "");
         // The weight it was made at, on every line. A record that spans divisions is exactly the one you
@@ -2490,78 +2368,25 @@ public sealed class CareerViewModel : Observable
 
     // ---- refresh ----
 
-    /// <summary>The dashboard is a hub, not another list: your form, where you stand in your own division, what
-    /// the sport is saying, and the headline numbers — each a way INTO the fuller screen behind it.</summary>
-    private void BuildDashboard()
-    {
-        RecentForm.Clear(); DivisionTop.Clear();
-        if (Game is null) return;
-        var p = Game.Player;
-
-        foreach (var h in p.History.OrderByDescending(h => h.Date).Take(5)) RecentForm.Add(ToLedger(h, p.Name));
-
-        int r = 1;
-        foreach (var b in Game.RankingBoard(p.WeightClass, 5))
-        {
-            bool champ = Game.IsWorldChampion(b);
-            var belts = Game.BeltsHeld(b).Select(x => x.Belt).ToList();
-            DivisionTop.Add(new RankRow(champ ? "C" : r.ToString(), b.Class, b.Name,
-                                        belts.Count > 0 ? string.Join(" · ", belts) : "",
-                                        b.Record.ToString(), b.Id == p.Id, champ, b));
-            if (!champ) r++;
-        }
-
-    }
-
-    /// <summary>Where he stands, on one line under his name.
-    ///
-    /// This was four cards across the top of the dashboard — Record, Division rank, Titles, Rating — and
-    /// three of the four repeated what the sidebar already showed two inches to the left: the same record,
-    /// the same belts, the same class badge. Only his rank, his defence count and the raw overall were
-    /// genuinely new, so those are what this keeps, and the full record is one click away rather than
-    /// spread across a row of tiles nobody needed twice.
-    ///
-    /// Not to be confused with <see cref="PlayerStanding"/>, which is the sidebar's one-line belt or rank
-    /// caption. This is the fuller line at the head of the dashboard.</summary>
-    public string StandingLine
-    {
-        get
-        {
-            if (Game?.Player is not { } p) return "";
-            string div = p.WeightClass.DisplayName();
-            var bits = new List<string> { PlayerRank > 0 ? $"#{PlayerRank} in {div}" : $"unranked in {div}" };
-
-            var belts = Game.BeltsHeld(p).Select(x => x.Belt).ToList();
-            if (belts.Count > 0)
-                bits.Add(Game.TitleDefenses > 0
-                         ? $"{string.Join(" · ", belts)}, {Game.TitleDefenses} defence{(Game.TitleDefenses == 1 ? "" : "s")}"
-                         : string.Join(" · ", belts));
-
-            bits.Add($"class {p.Class} · {p.Overall} OVR");
-            return string.Join("   ·   ", bits);
-        }
-    }
-
     public void RefreshAll()
     {
         // Anything that moved the world may have crossed a new year. Checking here rather than in the two
         // or three places I first thought of means taking a fight, holding out and moving up all announce
         // the year's honours, instead of only waiting for fight night doing it.
         if (!IsPlayingBack) CheckForAwards();
-        BuildDashboard();
-        BuildRankings();
-        BuildP4P();
-        BuildChampions();
-        BuildHof();
-        BuildAwards();
-        BuildRival();
+        DashboardPage.Rebuild();
+        RankingsPage.Rebuild();
+        PoundForPoundPage.Rebuild();
+        ChampionsPage.Rebuild();
+        HallOfFamePage.Rebuild();
+        AwardsPage.Rebuild();
+        DashboardPage.RebuildRival();
         BuildUndercard();
-        RebuildChoices();
-        BuildDivisionChoices();
-        BuildNews();
+        OfferSlate.Rebuild();
+        NewsPage.Rebuild();
         BuildLedger();
         BuildTape();
-        BuildStats();
+        StatsPage.Rebuild();
 
         // Everything, rather than a list of fifty-four names kept by hand.
         //
@@ -2583,146 +2408,6 @@ public sealed class CareerViewModel : Observable
     {
         TakeFight.Refresh(); HoldOut.Refresh(); MoveUp.Refresh();
         StartCareer.Refresh(); ContinueCareer.Refresh();
-    }
-
-    private void BuildRankings()
-    {
-        Rankings.Clear();
-        if (Game is null) return;
-        int r = 1;
-        foreach (var b in Game.RankingBoard(ViewDivision, 15))
-        {
-            bool champ = Game.IsWorldChampion(b);
-            var belts = Game.BeltsHeld(b).Select(x => x.Belt).ToList();
-            Rankings.Add(new RankRow(champ ? "C" : r.ToString(), b.Class, b.Name,
-                                     belts.Count > 0 ? string.Join(" · ", belts) : "",
-                                     b.Record.ToString(), b.Id == Game.Player.Id, champ, b));
-            if (!champ) r++;   // contenders are #1 down; the champions sit above the numbering
-        }
-    }
-
-    private void BuildP4P()
-    {
-        PoundForPound.Clear();
-        if (Game is null) return;
-        int r = 1;
-        foreach (var b in Game.PoundForPound(15))
-        {
-            var a = Game.AchievementsOf(b);
-            var bits = new List<string> { b.WeightClass.DisplayName() };
-            if (a.Undisputed) bits.Add("UNDISPUTED"); else bits.AddRange(a.Belts);
-            if (a.Lineal) bits.Add(Game.LinealBelt);
-            if (a.Defences > 0) bits.Add($"{a.Defences} defence{(a.Defences == 1 ? "" : "s")}");
-            if (a.WeightTitles >= 2) bits.Add($"{a.WeightTitles}-weight champ");
-            if (a.Belts.Count == 0 && !a.Lineal && a.TitleWins > 0) bits.Add($"ex-champ · {a.TitleWins} title wins");
-            PoundForPound.Add(new RankRow(r.ToString(), b.Class, b.Name, string.Join(" · ", bits),
-                                          b.Record.ToString(), b.Id == Game.Player.Id, Game.IsWorldChampion(b), b));
-            r++;
-        }
-    }
-
-    private void BuildChampions()
-    {
-        Champions.Clear();
-        if (Game is null) return;
-        foreach (var d in Game.ChampionsBoard())
-        {
-            var belts = new List<BeltRow>();
-            void Add(string belt, Boxer? holder, int def, bool lineal) =>
-                belts.Add(holder is null
-                    ? new BeltRow(belt, "vacant", "", lineal, true, null)
-                    : new BeltRow(belt, holder.Name, holder.Record + (def > 0 ? $" · {def} def" : ""), lineal, false, holder));
-
-            Add(Game.LinealBelt, d.Lineal, d.LinealDefenses, true);
-            Add(Game.PrimaryBelt, d.Wba, d.WbaDefenses, false);
-            if (Game.WbcActive) Add("WBC", d.Wbc, d.WbcDefenses, false);
-            if (Game.IbfActive) Add("IBF", d.Ibf, d.IbfDefenses, false);
-
-            Champions.Add(new DivisionRow(d.Division.DisplayName(),
-                                          d.Undisputed is Boxer u ? $"undisputed · {u.Name}" : "",
-                                          belts, d.Division == Game.Player.WeightClass));
-        }
-    }
-
-    private void BuildHof()
-    {
-        HallOfFame.Clear();
-        if (Game is null) return;
-        int r = 1;
-        foreach (var m in Game.HallOfFame.Take(50))
-        {
-            var bits = new List<string> { m.Division.DisplayName() };
-            if (m.WeightTitles >= 2) bits.Add($"{m.WeightTitles}-weight champ");
-            else if (m.WasChampion) bits.Add("world champ");
-            if (m.Defenses > 0) bits.Add($"{m.Defenses} def");
-            HallOfFame.Add(new RankRow(r.ToString(), m.PeakClass, m.Name, string.Join(" · ", bits),
-                                       m.Record, false, m.WasChampion, null, m));
-            r++;
-        }
-    }
-
-    // ---- award filters ----
-
-    public IReadOnlyList<string> AwardCategories { get; } = new[]
-    {
-        AllAwards, "Fighter of the Year", "Fight of the Year", "Knockout of the Year", "Upset of the Year"
-    };
-    private const string AllAwards = "All awards";
-    private const string AllYears = "All years";
-
-    public ObservableCollection<string> AwardYears { get; } = new();
-
-    private string _awardCategory = AllAwards;
-    public string AwardCategory
-    {
-        get => _awardCategory;
-        set { if (_awardCategory == value) return; _awardCategory = value; Raise(); BuildAwards(); }
-    }
-
-    private string _awardYear = AllYears;
-    public string AwardYear
-    {
-        get => _awardYear;
-        set { if (_awardYear == value) return; _awardYear = value; Raise(); BuildAwards(); }
-    }
-
-    public string AwardsSubtitle => Awards.Count == 0
-        ? "Nothing matches this filter — awards are handed out at the end of each year."
-        : $"{Awards.Count} categor{(Awards.Count == 1 ? "y" : "ies")} · {AwardCategory} · {AwardYear}";
-
-    private void BuildAwards()
-    {
-        Awards.Clear();
-        if (Game is null) { Raise(nameof(AwardsSubtitle)); return; }
-
-        // Keep the year list in step with the career without losing the current pick.
-        var years = new[] { AllYears }.Concat(Game.Awards.Select(a => a.Year.ToString())).ToList();
-        if (!AwardYears.SequenceEqual(years))
-        {
-            var keep = _awardYear;
-            AwardYears.Clear();
-            foreach (var y in years) AwardYears.Add(y);
-            if (!years.Contains(keep)) { _awardYear = AllYears; Raise(nameof(AwardYear)); }
-        }
-
-        foreach (var yr in Game.Awards)
-        {
-            if (_awardYear != AllYears && yr.Year.ToString() != _awardYear) continue;
-            void Add(string cat, IReadOnlyList<AwardWinner> list)
-            {
-                if (list.Count == 0) return;
-                if (_awardCategory != AllAwards && cat != _awardCategory) return;
-                var places = list.Select((w, i) => new AwardPlace(
-                    i == 0 ? "1st" : i == 1 ? "2nd" : "3rd",
-                    w.Name, w.Div.DisplayName(), w.Detail, i == 0, cat, yr.Year, w.Commentary, w.Bout)).ToList();
-                Awards.Add(new AwardRow(cat, yr.Year, places));
-            }
-            Add("Fighter of the Year", yr.FighterOfYear);
-            Add("Fight of the Year", yr.FightOfYear);
-            Add("Knockout of the Year", yr.KnockoutOfYear);
-            Add("Upset of the Year", yr.UpsetOfYear);
-        }
-        Raise(nameof(AwardsSubtitle));
     }
 
     // ---- an award opened out ----
@@ -2792,88 +2477,6 @@ public sealed class CareerViewModel : Observable
         }
         return Game.Player.Name == name ? Game.Player : null;
     }
-
-    // ---- filtering the feed ----
-    //
-    // Twelve divisions all reporting at once buries the two things anyone actually scans a boxing feed for:
-    // what happened to the belts, and what happened in a weight he cares about. CareerEvent has carried Div
-    // and Kind all along for exactly this.
-
-    private bool _newsTitlesOnly;
-    public bool NewsTitlesOnly
-    {
-        get => _newsTitlesOnly;
-        set { if (_newsTitlesOnly == value) return; _newsTitlesOnly = value; Raise(); BuildNews(); }
-    }
-
-    /// <summary>The divisions the feed can be narrowed to — only those that have actually reported something,
-    /// so the list never offers a weight with nothing in it. Heaviest first, matching the rankings.</summary>
-    public ObservableCollection<NewsDivChoice> NewsDivisions { get; } = new();
-
-    private NewsDivChoice? _newsDiv;
-    public NewsDivChoice? NewsDivision
-    {
-        get => _newsDiv ??= NewsDivisions.FirstOrDefault();
-        set { _newsDiv = value; Raise(); BuildNews(); }
-    }
-
-    public bool NewsIsFiltered => _newsTitlesOnly || NewsDivision?.Div is not null;
-    public bool NewsIsEmpty => News.Count == 0;
-
-    private void BuildDivisionChoices()
-    {
-        var had = _newsDiv?.Div;
-        bool hadMine = _newsDiv?.IsMine == true;
-        NewsDivisions.Clear();
-        NewsDivisions.Add(new NewsDivChoice("Every division", null));
-
-        // Your own weight, first and named as yours. It is the division anyone checks first, and unlike picking
-        // "Middleweight" off the list it follows you when you move up — choose it once and it stays right.
-        if (Game is not null && InCareer)
-            NewsDivisions.Add(new NewsDivChoice($"Your division · {Game.Player.WeightClass.DisplayName()}",
-                                               Game.Player.WeightClass, IsMine: true));
-
-        if (Game is not null)
-            foreach (var d in Game.Log.Where(e => e.Div is not null)
-                                      .Select(e => e.Div!.Value)
-                                      .Distinct()
-                                      .OrderByDescending(d => (int)d))
-                NewsDivisions.Add(new NewsDivChoice(d.DisplayName(), d));
-
-        // Hold the player's choice across a rebuild; the collection is replaced every turn. "Your division" is
-        // matched on being YOURS rather than on the weight it happened to mean, so moving up carries it with you
-        // instead of quietly pinning you to the division you left.
-        _newsDiv = hadMine
-            ? NewsDivisions.FirstOrDefault(c => c.IsMine) ?? NewsDivisions.FirstOrDefault()
-            : NewsDivisions.FirstOrDefault(c => c.Div == had && !c.IsMine) ?? NewsDivisions.FirstOrDefault();
-        Raise(nameof(NewsDivision));
-    }
-
-    private void BuildNews()
-    {
-        News.Clear();
-        if (Game is null) { RaiseNewsState(); return; }
-
-        var div = NewsDivision?.Div;
-        // By DATE, newest first — the world resolves a division at a time, so the order events are logged in is
-        // not the order they happened in. Filtered BEFORE the cap, or narrowing to one weight would show only
-        // whatever survived from the newest 120 across all of them.
-        foreach (var (e, _) in Game.Log.Select((e, i) => (e, i))
-                                       .Where(x => !_newsTitlesOnly || x.e.Kind == "title")
-                                       .Where(x => div is null || x.e.Div == div)
-                                       .OrderByDescending(x => x.e.On).ThenByDescending(x => x.i)
-                                       .Take(120))
-            News.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout, e.Bout, e.Detail ?? ""));
-
-        RaiseNewsState();
-    }
-
-    private void RaiseNewsState()
-    {
-        foreach (var n in new[] { nameof(NewsIsFiltered), nameof(NewsIsEmpty) }) Raise(n);
-    }
-
-    public Cmd ClearNewsFilter { get; }
 
     private void BuildLedger()
     {
@@ -2971,81 +2574,5 @@ public sealed class CareerViewModel : Observable
             : $"A bad style night: the {b.DisplayName().ToLowerInvariant()} is exactly the wrong man for a {a.DisplayName().ToLowerInvariant()}.";
 
         foreach (var n in new[] { nameof(MyStyle), nameof(TheirStyle), nameof(StyleRead) }) Raise(n);
-    }
-
-    private void BuildStats()
-    {
-        Stats.Clear();
-        if (Game is null) return;
-        var p = Game.Player;
-        int fights = p.Record.Wins + p.Record.Losses + p.Record.Draws;
-        int koPct = p.Record.Wins > 0 ? (int)Math.Round(100.0 * p.Record.KnockoutWins / p.Record.Wins) : 0;
-
-        var titleWins = p.History.Count(h => h.Result == 'W' && h.Note is not null && h.Note.EndsWith(" title"));
-        var reigns = Game.Reigns.ToList();
-        var divisions = p.History.Count > 0
-            ? Game.Reigns.Select(r => r.Belt).Distinct().Count()
-            : 0;
-
-        // Longest win streak across the whole ledger.
-        int best = 0, run = 0;
-        foreach (var h in p.History.OrderBy(h => h.Date))
-        {
-            if (h.Result == 'W') { run++; best = Math.Max(best, run); } else run = 0;
-        }
-
-        var bestWin = p.History.Where(h => h.Result == 'W' && h.Note is not null)
-                               .OrderByDescending(h => h.Date).FirstOrDefault();
-
-        Stats.Add(new StatRow("Record", p.Record.ToString(), $"{fights} fights"));
-        Stats.Add(new StatRow("Knockout wins", $"{p.Record.KnockoutWins}", $"{koPct}% of wins"));
-        Stats.Add(new StatRow("Longest win streak", best.ToString(), best >= 10 ? "a real run" : ""));
-        Stats.Add(new StatRow("Title bouts won", titleWins.ToString(), ""));
-        Stats.Add(new StatRow("Title reigns", reigns.Count.ToString(),
-                              reigns.Count > 0 ? string.Join(", ", reigns.Select(r => r.Belt).Distinct()) : ""));
-        Stats.Add(new StatRow("Title defences", Game.TitleDefenses.ToString(), ""));
-        Stats.Add(new StatRow("Days as champion", Game.DaysAsChampion.ToString("N0"),
-                              Game.DaysAsChampion > 365 ? $"{Game.DaysAsChampion / 365} years" : ""));
-        Stats.Add(new StatRow("Current rating", $"{p.Overall} OVR", $"class {p.Class}"));
-
-        // Everything below is aggregated from the per-round cards stored on each bout — the same data the
-        // fight detail view shows one fight at a time.
-        var scored = p.History.Where(h => h.Rounds is { Count: > 0 }).ToList();
-        if (scored.Count > 0)
-        {
-            var rounds = scored.SelectMany(h => h.Rounds!).ToList();
-            int lf = rounds.Sum(r => r.LandedFor), la = rounds.Sum(r => r.LandedAgainst);
-            int kf = rounds.Sum(r => r.KdFor), ka = rounds.Sum(r => r.KdAgainst);
-            int roundsWon = rounds.Count(r => r.ScoreFor > r.ScoreAgainst);
-
-            Stats.Add(new StatRow("Rounds boxed", rounds.Count.ToString(),
-                                  $"{roundsWon} won ({100.0 * roundsWon / rounds.Count:0}%)"));
-            Stats.Add(new StatRow("Punches landed", lf.ToString("N0"),
-                                  $"{(double)lf / rounds.Count:0.0} a round"));
-            Stats.Add(new StatRow("Punches absorbed", la.ToString("N0"),
-                                  $"{(double)la / rounds.Count:0.0} a round"));
-            // The spread, not just the average — a man averaging 14 who ranges 4 to 30 is a different fighter
-            // from one who lands 13 or 15 every round.
-            Stats.Add(new StatRow("Output range",
-                                  $"{rounds.Min(r => r.LandedFor)}–{rounds.Max(r => r.LandedFor)}",
-                                  "landed in a round, worst to best"));
-            Stats.Add(new StatRow("Absorbed range",
-                                  $"{rounds.Min(r => r.LandedAgainst)}–{rounds.Max(r => r.LandedAgainst)}",
-                                  "taken in a round, best to worst"));
-            Stats.Add(new StatRow("Punch differential", (lf - la >= 0 ? "+" : "") + (lf - la).ToString("N0"),
-                                  lf >= la ? "outlanding them" : "being outlanded"));
-            Stats.Add(new StatRow("Knockdowns", $"{kf}–{ka}",
-                                  $"{kf} scored, {ka} suffered"));
-        }
-
-        int koWins = p.History.Count(h => h.Result == 'W' && h.Method is "KO" or "TKO");
-        int decWins = p.Record.Wins - koWins;
-        int koLosses = p.History.Count(h => h.Result == 'L' && h.Method is "KO" or "TKO");
-        Stats.Add(new StatRow("Wins by stoppage", $"{koWins}", $"{decWins} on the cards"));
-        Stats.Add(new StatRow("Times stopped", $"{koLosses}",
-                              koLosses == 0 && p.Record.Losses > 0 ? "never stopped" : ""));
-        Stats.Add(new StatRow("Peak potential", $"{p.Potential}", ""));
-        if (bestWin is not null)
-            Stats.Add(new StatRow("Latest title win", bestWin.Opponent, $"{bestWin.Note} · {bestWin.Date:d MMM yyyy}"));
     }
 }

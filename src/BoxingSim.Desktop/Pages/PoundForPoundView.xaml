@@ -1,0 +1,8 @@
+<UserControl x:Class="BoxingSim.Desktop.Pages.PoundForPoundView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BoxingSim.Desktop">
+    <local:PageHost Title="POUND-FOR-POUND" Subtitle="Ranked on what they have won, across every division">
+        <ItemsControl ItemsSource="{Binding PoundForPound}" ItemTemplate="{StaticResource RankRowTemplate}" />
+    </local:PageHost>
+</UserControl>

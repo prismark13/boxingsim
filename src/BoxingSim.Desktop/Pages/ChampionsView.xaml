@@ -1,0 +1,97 @@
+<UserControl x:Class="BoxingSim.Desktop.Pages.ChampionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BoxingSim.Desktop">
+    <local:PageHost Title="CHAMPIONS" Subtitle="Every belt in every division">
+        <ItemsControl ItemsSource="{Binding Champions}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="0,0,0,8">
+                        <!-- The division name is a link through to that division's rankings. -->
+                        <Button Style="{StaticResource RowButton}" HorizontalAlignment="Left"
+                                AutomationProperties.Name="{Binding Division}"
+                                ToolTip="See this division's rankings"
+                                Command="{Binding DataContext.ViewDivisionCmd, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}">
+                            <StackPanel Orientation="Horizontal" Margin="18,16,18,8">
+                                <TextBlock Text="{Binding Division}" Style="{StaticResource Label}"
+                                           Foreground="{StaticResource Text}" />
+                                <TextBlock Text="›" Foreground="{StaticResource Accent}" FontSize="15"
+                                           Margin="7,-3,0,0" />
+                                <Border Style="{StaticResource Tag}" BorderBrush="{StaticResource GoldLine}"
+                                        Margin="10,0,0,0"
+                                        Visibility="{Binding Undisputed, Converter={StaticResource EmptyVis}}">
+                                    <TextBlock Text="{Binding Undisputed}" Style="{StaticResource TagText}"
+                                               Foreground="{StaticResource Gold}" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
+                        <ItemsControl ItemsSource="{Binding Belts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource RowButton}"
+                                            AutomationProperties.Name="{Binding Holder}"
+                                            Command="{Binding DataContext.ShowFighter, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <Border Margin="12,2" CornerRadius="8" Padding="8,6">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Lineal}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource GoldSoft}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="60" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Belt}" FontSize="11"
+                                                           FontWeight="Bold" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource Faint}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Lineal}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="1" Text="{Binding Holder}"
+                                                           FontSize="13" VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Vacant}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Faint}" />
+                                                                    <Setter Property="FontWeight" Value="Normal" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="2" Text="{Binding Detail}"
+                                                           FontSize="12" Foreground="{StaticResource Muted}"
+                                                           VerticalAlignment="Center" Margin="10,0,0,0" />
+                                            </Grid>
+                                        </Border>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Border Height="1" Background="{StaticResource Line}" Margin="0,10,0,0" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </local:PageHost>
+</UserControl>
