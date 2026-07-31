@@ -1035,10 +1035,9 @@
                                          Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
                                                       Converter={StaticResource PageVis}, ConverterParameter=P4P}" />
 
-                <local:PageHost Title="HALL OF FAME" Subtitle="The retired greats of this world"
-                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Hall}">
-                    <ItemsControl ItemsSource="{Binding HallOfFame}" ItemTemplate="{StaticResource RankRowTemplate}" />
-                </local:PageHost>
+                <pages:HallOfFameView DataContext="{Binding HallOfFamePage}"
+                                      Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
+                                                   Converter={StaticResource PageVis}, ConverterParameter=Hall}" />
 
                 <!-- ============ CHAMPIONS ============ -->
                 <local:PageHost Title="CHAMPIONS" Subtitle="Every belt in every division"
