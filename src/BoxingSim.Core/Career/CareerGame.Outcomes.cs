@@ -40,13 +40,25 @@ public sealed partial class CareerGame
         return when;
     }
 
-    private void ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null)
+    /// <summary>Apply a result to both men, on a given night.
+    ///
+    /// <paramref name="on"/> is the night the bout was made for; left out, it is the day the world is living
+    /// in, which is right for the player's own fight and for anything resolved in the present.
+    ///
+    /// The clock is STILL assigned here, and that is deliberate for now. Staging a bout has always been done
+    /// by setting the world clock and calling in, so every caller that reads the clock afterwards — and the
+    /// next bout on the same card, which starts from wherever this one pushed it — depends on that assignment.
+    /// Taking the date as an argument and moving the clock are two changes; this is only the first, so that
+    /// the fingerprint can prove it changed nothing. The assignment goes when the callers no longer need
+    /// it.</summary>
+    private void ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null, DateOnly? on = null)
     {
-        Date = LegalNightFor(a, b, Date);
+        var night = LegalNightFor(a, b, on ?? Date);
+        Date = night;
         if (_watch is not null)
         {
             var w = res.Winner ?? a; var l = res.Loser ?? b;
-            _watch.Add(new WorldBout(Date, a.WeightClass, RegionOf(a) ?? "Rest of the world", a.Country ?? "",
+            _watch.Add(new WorldBout(night, a.WeightClass, RegionOf(a) ?? "Rest of the world", a.Country ?? "",
                                      w.Name, l.Name, res.Method, res.EndRound, res.IsDraw, note));
         }
         // Giving up a regional strap belongs to WINNING a world belt, not to turning up for the fight.
@@ -68,7 +80,7 @@ public sealed partial class CareerGame
                 // A knockout means a medical suspension — a fragile fighter (low durability: chin/heart/conditioning)
                 // is hurt worse and sits out far longer; a granite-chinned man is back in a month or two.
                 int dura = Durability(res.Loser.Ratings);
-                _outUntil[res.Loser.Id] = Date.AddDays(35 + Math.Max(0, 85 - dura) * 2 + _rng.Next(45));
+                _outUntil[res.Loser.Id] = night.AddDays(35 + Math.Max(0, 85 - dura) * 2 + _rng.Next(45));
             }
         }
         // Cuts and hand injuries can sideline either man, win or lose — a fighter with poor cut resistance is far
@@ -78,7 +90,7 @@ public sealed partial class CareerGame
             if (ko && f.Id == res.Loser?.Id) continue;   // the KO'd man is already on the shelf
             double proneness = 0.012 + (1.0 - f.Ratings.CutResistance / 100.0) * 0.06;
             if (_rng.NextDouble() < proneness)
-                _outUntil[f.Id] = Date.AddDays(28 + _rng.Next(63));
+                _outUntil[f.Id] = night.AddDays(28 + _rng.Next(63));
         }
 
         // Each fighter's ledger: date, result, method, round, knockdowns scored / suffered.
@@ -106,8 +118,8 @@ public sealed partial class CareerGame
         // The weight it was made at. Equal for an ordinary bout; for a superfight between two divisions it is
         // the heavier man's, because that is the weight the lighter man came up to.
         var at = (WeightClass)Math.Max((int)a.WeightClass, (int)b.WeightClass);
-        Record(a, b.Name, ra, res.Method, res.EndRound, res.KnockdownsB, res.KnockdownsA, note, cardsA, keepRounds ? roundsA : null, commentary, at);
-        Record(b, a.Name, rb, res.Method, res.EndRound, res.KnockdownsA, res.KnockdownsB, note, cardsB, keepRounds ? roundsB : null, commentary, at);
+        Record(a, b.Name, ra, res.Method, res.EndRound, res.KnockdownsB, res.KnockdownsA, note, cardsA, keepRounds ? roundsA : null, commentary, at, night);
+        Record(b, a.Name, rb, res.Method, res.EndRound, res.KnockdownsA, res.KnockdownsB, note, cardsB, keepRounds ? roundsB : null, commentary, at, night);
 
         double scoreA = res.IsDraw ? 0.5 : res.Winner!.Id == a.Id ? 1.0 : 0.0;
         const double k = 32.0;

@@ -28,9 +28,14 @@ public sealed partial class CareerGame
         static int Dn(int v) => Ratings.Clamp((int)Math.Round(v * 0.96));
     }
 
-    private void Record(Boxer f, string opp, char result, string method, int round, int kdFor, int kdAgainst, string? note, string? cards, IReadOnlyList<BoutRound>? rounds, IReadOnlyList<string>? commentary, WeightClass at)
+    /// <summary>Put a bout in a fighter's ledger, on the night it happened.
+    ///
+    /// The night is an argument. It used to be read off the world clock, which meant staging a fight was done
+    /// by ASSIGNING to that clock first and hoping nothing else looked at it in between — see the note on
+    /// <see cref="ApplyOutcome"/>.</summary>
+    private void Record(Boxer f, string opp, char result, string method, int round, int kdFor, int kdAgainst, string? note, string? cards, IReadOnlyList<BoutRound>? rounds, IReadOnlyList<string>? commentary, WeightClass at, DateOnly on)
     {
-        f.History.Add(new BoutLine { Date = Date, Opponent = opp, Result = result, Method = method, Round = round, KdFor = kdFor, KdAgainst = kdAgainst, Note = note, Cards = cards, Rounds = rounds, Commentary = commentary, Division = at });
+        f.History.Add(new BoutLine { Date = on, Opponent = opp, Result = result, Method = method, Round = round, KdFor = kdFor, KdAgainst = kdAgainst, Note = note, Cards = cards, Rounds = rounds, Commentary = commentary, Division = at });
         if (f.History.Count > 60) f.History.RemoveAt(0);   // keep the ledger bounded
     }
 
@@ -283,13 +288,16 @@ public sealed partial class CareerGame
     }
 
     private string Pick(params string[] opts) => opts[_rng.Next(opts.Length)];
+    /// <summary>File a headline. <paramref name="on"/> is the day it happened; left out, it is today — which
+    /// is right for everything the world does in the present, and wrong for a bout being staged onto a night
+    /// of its own. Those pass it.</summary>
     private void LogEvent(string text, bool playerBout = false, string? kind = null, WeightClass? div = null,
-                          BoutRef? bout = null, string? detail = null)
+                          BoutRef? bout = null, string? detail = null, DateOnly? on = null)
     {
         // Say why he should care. A result is a scoreboard until it touches him.
         if (!playerBout && bout is BoutRef br && PlayerAngle(br, div) is string angle)
             text = $"{text} — {angle}";
-        _log.Add(new CareerEvent { On = Date, Text = text, PlayerBout = playerBout, Kind = kind,
+        _log.Add(new CareerEvent { On = on ?? Date, Text = text, PlayerBout = playerBout, Kind = kind,
                                    Div = div ?? Division, Bout = bout, Detail = detail });
         _logWrites++;
         if (_log.Count > 1500) _log.RemoveAt(0);   // bounded; eight divisions produce more news
