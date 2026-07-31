@@ -14,7 +14,7 @@ public sealed partial class CareerGame
     /// alphabet belts it never changes hands on a relinquishment, a stripping, or a vacant-title bout — only in
     /// the ring. A draw leaves it where it is. When it's vacant it's filled the way The Ring fills it: by the
     /// division's two leading men meeting for a world title, or by a man unifying the belts.</summary>
-    private void UpdateLineal(FightResult res, Boxer a, Boxer b, string? note)
+    private void UpdateLineal(FightResult res, Boxer a, Boxer b, string? note, DateOnly on)
     {
         var wc = a.WeightClass;
         if (wc != b.WeightClass || res.IsDraw || res.Winner is null || res.Loser is null) return;
@@ -27,7 +27,7 @@ public sealed partial class CareerGame
                 _lineal[wc] = res.Winner;
                 _everChampion.Add(res.Winner.Id);
                 LogEvent($"{res.Winner.Name} beats the man who beat the man — {res.Loser.Name}'s {LinealBelt} championship changes hands.",
-                         res.Winner.Id == Player.Id, kind: "title", div: wc);
+                         res.Winner.Id == Player.Id, kind: "title", div: wc, on: on);
             }
             else if (res.Winner.Id == champ.Id && IsWorldTitleNote(note))
                 Defended(wc, "Ring", champ.Id);
@@ -41,7 +41,7 @@ public sealed partial class CareerGame
         _lineal[wc] = res.Winner;
         _everChampion.Add(res.Winner.Id);
         LogEvent($"{res.Winner.Name} beats {res.Loser.Name} to establish himself as the {LinealBelt} champion at {wc.DisplayName()}.",
-                 res.Winner.Id == Player.Id, kind: "title", div: wc);
+                 res.Winner.Id == Player.Id, kind: "title", div: wc, on: on);
     }
 
     /// <summary>A unified champion holds every belt going, so he IS the man — he takes a vacant lineal title.</summary>
@@ -153,13 +153,13 @@ public sealed partial class CareerGame
     }
 
     /// <summary>Give up any regional belts a fighter holds — used when he WINS a world title.</summary>
-    private void DropRegionals(Boxer b)
+    private void DropRegionals(Boxer b, DateOnly on)
     {
         foreach (var region in RegionalBelts)
             if (_regional.GetValueOrDefault((b.WeightClass, region))?.Id == b.Id)
             {
                 _regional.Remove((b.WeightClass, region));
-                if (b.WeightClass == Division) LogEvent($"{b.Name} relinquishes the {region} title to campaign for a world belt.", b.Id == Player.Id, kind: "title");
+                if (b.WeightClass == Division) LogEvent($"{b.Name} relinquishes the {region} title to campaign for a world belt.", b.Id == Player.Id, kind: "title", on: on);
             }
     }
 

@@ -55,9 +55,9 @@ public sealed partial class CareerGame
                 if (ch is not null)
                 {
                     var res = FastBout(Champ, ch, 12);
-                    ApplyOutcome(res, Champ, ch, $"{PrimaryBelt} title");
-                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {Champ.Name} for the {PrimaryBelt} title!", RefOf(res)); CrownChampion(ch); }
-                    else { Defended(_cursor, "WBA", Champ.Id); LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(Champ); }
+                    var on = ApplyOutcome(res, Champ, ch, $"{PrimaryBelt} title");
+                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {Champ.Name} for the {PrimaryBelt} title!", RefOf(res, on), on); CrownChampion(ch); }
+                    else { Defended(_cursor, "WBA", Champ.Id); LogTitle($"{Champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", RefOf(res, on), on); ConsiderTitleStepUp(Champ); }
                 }
             }
             if (Wbc is not null && Wbc.Id != Player.Id && DaysSinceLastBout(Wbc) >= (int)(112 / CareerMileage.Activity(Wbc)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(Wbc))   // ~2 defences a year, min 14 weeks apart
@@ -66,9 +66,9 @@ public sealed partial class CareerGame
                 if (ch is not null)
                 {
                     var res = FastBout(Wbc, ch, 12);
-                    ApplyOutcome(res, Wbc, ch, "WBC title");
-                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {Wbc.Name}!", RefOf(res)); CrownWbc(ch); }
-                    else { Defended(_cursor, "WBC", Wbc.Id); LogTitle($"{Wbc.Name} retains the WBC title against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(Wbc); }
+                    var on = ApplyOutcome(res, Wbc, ch, "WBC title");
+                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {Wbc.Name}!", RefOf(res, on), on); CrownWbc(ch); }
+                    else { Defended(_cursor, "WBC", Wbc.Id); LogTitle($"{Wbc.Name} retains the WBC title against {ch.Name}.", RefOf(res, on), on); ConsiderTitleStepUp(Wbc); }
                 }
             }
         }
@@ -80,9 +80,9 @@ public sealed partial class CareerGame
             if (ch is not null)
             {
                 var res = FastBout(Ibf, ch, 12);
-                ApplyOutcome(res, Ibf, ch, "IBF title");
-                if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {Ibf.Name}!", RefOf(res)); CrownIbf(ch); }
-                else { Defended(_cursor, "IBF", Ibf.Id); LogTitle($"{Ibf.Name} retains the IBF title against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(Ibf); }
+                var on = ApplyOutcome(res, Ibf, ch, "IBF title");
+                if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {Ibf.Name}!", RefOf(res, on), on); CrownIbf(ch); }
+                else { Defended(_cursor, "IBF", Ibf.Id); LogTitle($"{Ibf.Name} retains the IBF title against {ch.Name}.", RefOf(res, on), on); ConsiderTitleStepUp(Ibf); }
             }
         }
 
@@ -104,8 +104,8 @@ public sealed partial class CareerGame
                 : candidates.Skip(_rng.Next(4)).FirstOrDefault() ?? candidates.FirstOrDefault();
             if (chall is null) continue;
             var rres = FastBout(rc, chall, 12);
-            ApplyOutcome(rres, rc, chall, $"{region} title");
-            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(_cursor, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", RefOf(rres)); }
+            var ron = ApplyOutcome(rres, rc, chall, $"{region} title");
+            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(_cursor, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", RefOf(rres, ron), ron); }
         }
 
         // A fortnight's cards across a whole division, scaled to how many men are in it. This used to be a
@@ -136,8 +136,8 @@ public sealed partial class CareerGame
             if (j < 0) continue;
             used.Add(i); used.Add(j);
             var res = FastBout(pool[i], pool[j], 10);
-            ApplyOutcome(res, pool[i], pool[j]);
-            ReportBout(res);
+            var on = ApplyOutcome(res, pool[i], pool[j]);
+            ReportBout(res, on);
         }
     }
 
@@ -186,9 +186,9 @@ public sealed partial class CareerGame
             var pool = ActiveHere.Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
                                           && (!WorldRanked(b) || _rng.NextDouble() < FightChancePerCard(b)))
                              .OrderByDescending(b => b.Overall).ToList();
-            Date = SpreadDate(yr, pass, 6);
+            var cardNight = SpreadDate(yr, pass, 6);
             var owed = new HashSet<int>();
-            StageDueRematches(pool, owed);
+            StageDueRematches(pool, owed, on: cardNight);
 
             int n = pool.Count;
             var used = new bool[n];
@@ -227,7 +227,8 @@ public sealed partial class CareerGame
                 ApplyOutcome(FastBout(pr, foe, pr.History.Count < 6 ? 6 : 8), pr, foe, on: night);
             }
         }
-        Date = new DateOnly(yr, 1, 1);   // leave the clock where the warmup loop expects it
+        // The clock used to be put back to 1 January here, because laying out a season moved it. It does not
+        // any more: a season dates its own bouts and leaves the world where it found it.
     }
 
     /// <summary>The two world champions meet; the winner unifies both belts. Uses the current date.</summary>
@@ -235,11 +236,11 @@ public sealed partial class CareerGame
     {
         if (Champ is null || Wbc is null || Champ.Id == Wbc.Id) return;
         var res = FastBout(Champ, Wbc, 12);
-        ApplyOutcome(res, Champ, Wbc, "unification");
+        var on = ApplyOutcome(res, Champ, Wbc, "unification");
         if (!res.IsDraw)
         {
             var w = res.Winner!;
-            LogTitle($"{w.Name} UNIFIES the {PrimaryBelt} and WBC titles!", RefOf(res));
+            LogTitle($"{w.Name} UNIFIES the {PrimaryBelt} and WBC titles!", RefOf(res, on), on);
             CrownChampion(w); CrownWbc(w);
             ClaimLinealByUnification(w.WeightClass);
         }
@@ -251,13 +252,13 @@ public sealed partial class CareerGame
         var ch = PickChallenger(champ, null);
         if (ch is null) return;
         var res = FastBout(champ, ch, 12);
-        ApplyOutcome(res, champ, ch, "Undisputed title");
+        var on = ApplyOutcome(res, champ, ch, "Undisputed title");
         if (!res.IsDraw && res.Winner!.Id == ch.Id)
         {
-            LogTitle($"{ch.Name} DETHRONES {champ.Name} to take the unified {PrimaryBelt} and WBC titles!", RefOf(res));
+            LogTitle($"{ch.Name} DETHRONES {champ.Name} to take the unified {PrimaryBelt} and WBC titles!", RefOf(res, on), on);
             CrownChampion(ch); CrownWbc(ch);
         }
-        else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}.", RefOf(res)); ConsiderTitleStepUp(champ); }
+        else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}.", RefOf(res, on), on); ConsiderTitleStepUp(champ); }
     }
 
     /// <summary>Warmup: a unified champion runs a season of 2–3 combined defences, and may vacate a belt.</summary>
@@ -273,10 +274,10 @@ public sealed partial class CareerGame
             if (ch is null) return;
             if (NextTitleDate(c, ch, yr, d, titleBouts) is not DateOnly nd) return;
             var res = FastBout(c, ch, 12);
-            ApplyOutcome(res, c, ch, "Undisputed title", on: nd);
+            var on = ApplyOutcome(res, c, ch, "Undisputed title", on: nd);
             if (!res.IsDraw && res.Winner!.Id == ch.Id)
             {
-                LogTitle($"{ch.Name} beats {c.Name} to take the unified {PrimaryBelt} and WBC titles.");
+                LogTitle($"{ch.Name} beats {c.Name} to take the unified {PrimaryBelt} and WBC titles.", on: on);
                 CrownChampion(ch); CrownWbc(ch);
             }
         }
@@ -315,11 +316,11 @@ public sealed partial class CareerGame
             }
             if (NextTitleDate(c, challenger, yr, d, titleBouts) is not DateOnly td) return;
             var res = FastBout(c, challenger, 12);
-            ApplyOutcome(res, c, challenger, $"{belt} title", on: td);
+            var on = ApplyOutcome(res, c, challenger, $"{belt} title", on: td);
             if (!res.IsDraw && res.Winner!.Id == challenger.Id)
             {
                 LogTitle(dethrone ? $"{challenger.Name} dethrones {c.Name} for the {belt} title."
-                                  : $"{challenger.Name} takes the {belt} title from {c.Name}.");
+                                  : $"{challenger.Name} takes the {belt} title from {c.Name}.", on: on);
                 crown(challenger);
             }
             else { Defended(c.WeightClass, BeltSlot(belt), c.Id); ConsiderTitleStepUp(c); }

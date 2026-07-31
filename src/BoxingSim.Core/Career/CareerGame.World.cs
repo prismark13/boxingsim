@@ -67,10 +67,9 @@ public sealed partial class CareerGame
         long mark = _logWrites;   // not _log.Count — see the field. The log is capped; its length is not a position.
         var next = Date.AddDays(days);
         if (next > target) next = target;
-        Date = next;
+        AdvanceClockTo(next);
         CatchUpYears();
         RunEvent();
-        CatchUpYears();   // the cards move the clock themselves, and can carry it over New Year on their own
         return NewsSince(mark);
     }
 
@@ -217,7 +216,7 @@ public sealed partial class CareerGame
             field.Add(next);
         }
 
-        var (savedDate, savedCursor) = (Date, _cursor);
+        var savedCursor = _cursor;   // the clock no longer needs saving: nothing below moves it
         _cursor = wc;
         // Spread forward through the rest of the year while a year of history is being laid out, but never past
         // the day the player is living in. Crowning a vacant belt is settled here and now — the result is
@@ -236,7 +235,7 @@ public sealed partial class CareerGame
         _everChampion.Add(winner.Id);
         LogEvent($"{winner.Name} wins the vacant {belt} title.", winner.Id == Player.Id, kind: "title", div: wc,
                  on: night);
-        (Date, _cursor) = (savedDate, savedCursor);          // don't disturb the caller's clock/cursor
+        _cursor = savedCursor;          // don't disturb the caller's cursor
         return winner;
     }
 
@@ -280,7 +279,7 @@ public sealed partial class CareerGame
 
     /// <summary>Log a completed bout as a candidate for the year-end awards — only fights worth honouring
     /// (a world title bout, two decent men, or a knockout of a decent fighter).</summary>
-    private void CaptureBout(FightResult res, Boxer a, Boxer b, string? note)
+    private void CaptureBout(FightResult res, Boxer a, Boxer b, string? note, DateOnly on)
     {
         bool title = IsWorldTitleNote(note);
         bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
@@ -289,7 +288,7 @@ public sealed partial class CareerGame
         var w = res.Winner; var l = res.Loser;
         bool close = res.IsDraw || res.Method is "SD" or "MD"
                      || (res.Scorecards.Count > 0 && res.Scorecards.All(c => Math.Abs(c.A - c.B) <= 4));
-        _yearBouts.Add(new YearBout(Date.Year, Date, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
+        _yearBouts.Add(new YearBout(on.Year, on, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
             res.Method, res.EndRound, title, w?.Overall ?? a.Overall, l?.Overall ?? b.Overall,
             res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass, l is not null ? Standing(l) : ""));
     }
@@ -375,7 +374,8 @@ public sealed partial class CareerGame
     }
 
     /// <summary>Log a title event, tagged with the division being simulated so the news feed can filter it.</summary>
-    private void LogTitle(string text, BoutRef? bout = null) => LogEvent(text, kind: "title", div: _cursor, bout: bout);
+    private void LogTitle(string text, BoutRef? bout = null, DateOnly? on = null) =>
+        LogEvent(text, kind: "title", div: _cursor, bout: bout, on: on);
 
     // The ranked order of the player's division, computed at most once a day. The angle below asks for it on
     // every headline in his weight, and re-sorting two hundred men for each one is not free.
@@ -457,7 +457,7 @@ public sealed partial class CareerGame
     }
 
     /// <summary>How to find a just-fought bout again. A draw has no winner to key on, so it gets no link.</summary>
-    private BoutRef? RefOf(FightResult res) =>
-        res.Winner is null || res.Loser is null ? null : new BoutRef(res.Winner.Name, res.Loser.Name, Date);
+    private BoutRef? RefOf(FightResult res, DateOnly? on = null) =>
+        res.Winner is null || res.Loser is null ? null : new BoutRef(res.Winner.Name, res.Loser.Name, on ?? Date);
 
 }

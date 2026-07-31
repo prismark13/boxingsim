@@ -45,12 +45,10 @@ public sealed partial class CareerGame
     /// <paramref name="on"/> is the night the bout was made for; left out, it is the day the world is living
     /// in, which is right for the player's own fight and for anything resolved in the present.
     ///
-    /// The clock is STILL assigned here, and that is deliberate for now. Staging a bout has always been done
-    /// by setting the world clock and calling in, so every caller that reads the clock afterwards — and the
-    /// next bout on the same card, which starts from wherever this one pushed it — depends on that assignment.
-    /// Taking the date as an argument and moving the clock are two changes; this is only the first, so that
-    /// the fingerprint can prove it changed nothing. The assignment goes when the callers no longer need
-    /// it.
+    /// It no longer touches the world clock. It used to open by assigning to it, which meant a bout could not
+    /// be resolved without moving the date the whole world was standing on — so the second fight on a card
+    /// began from wherever the first one had pushed the clock, and a "week" of the sport could advance a
+    /// month. Everything a result produces that carries a date now takes that date as an argument.
     ///
     /// RETURNS the night the bout actually landed on, which is not necessarily the one asked for:
     /// <see cref="LegalNightFor"/> pushes a fight off a date either man has already boxed on. A caller that
@@ -59,7 +57,6 @@ public sealed partial class CareerGame
     private DateOnly ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null, DateOnly? on = null)
     {
         var night = LegalNightFor(a, b, on ?? Date);
-        Date = night;
         if (_watch is not null)
         {
             var w = res.Winner ?? a; var l = res.Loser ?? b;
@@ -69,7 +66,7 @@ public sealed partial class CareerGame
         // Giving up a regional strap belongs to WINNING a world belt, not to turning up for the fight.
         // Both men used to drop theirs the moment a world title bout happened — so a challenger who lost was
         // stripped of the national title he still held, for a belt he did not win.
-        if (IsWorldTitleNote(note) && !res.IsDraw && res.Winner is not null) DropRegionals(res.Winner);
+        if (IsWorldTitleNote(note) && !res.IsDraw && res.Winner is not null) DropRegionals(res.Winner, night);
 
         bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
         if (res.IsDraw) { a.Record.Draws++; b.Record.Draws++; }
@@ -143,7 +140,7 @@ public sealed partial class CareerGame
         }
         if (res.Loser is not null) res.Loser.RankPoints -= 12;   // a defeat that ends a run stings the standing
 
-        UpdateLineal(res, a, b, note);
+        UpdateLineal(res, a, b, note, night);
 
         // Rare permanent wear carries forward (only matters for non-historical fighters, whose ratings
         // are recomputed from their prime each year — so apply to the player and generated fighters).
@@ -159,7 +156,7 @@ public sealed partial class CareerGame
         ConsiderStepUp(b);
 
         NoteRematchDemand(res, a, b, note);   // did this one leave a question?
-        CaptureBout(res, a, b, note);         // a candidate for the year-end awards
+        CaptureBout(res, a, b, note, night);  // a candidate for the year-end awards
         return night;
     }
 

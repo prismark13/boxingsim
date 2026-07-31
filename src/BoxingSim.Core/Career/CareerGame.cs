@@ -138,6 +138,21 @@ public sealed partial class CareerGame
     private bool UnifiedIn(WeightClass wc) => ChampOf(wc) is Boxer a && WbcOf(wc) is Boxer b && a.Id == b.Id;
     public DateOnly Date { get; private set; }
     public int Year => Date.Year;
+
+    /// <summary>Move the world clock. The ONLY thing that may, outside setting up a world.
+    ///
+    /// Resolving a bout used to move it, so a step that meant "one week" could advance a month: each fight on
+    /// a card pushed the date on, and the next fight started from there. A universe reported WEEK 30 beside a
+    /// date two and a bit years along, and a wait for fight night overshot the fight. Every bout carries its
+    /// own night now, and the clock belongs to the calendar.
+    ///
+    /// It does not throw on a backwards move. A clock anomaly should not end a career somebody has played for
+    /// hours — the tests assert the guard is never reached, which is the right place for that to be loud.</summary>
+    private void AdvanceClockTo(DateOnly d)
+    {
+        if (d <= Date) return;
+        Date = d;
+    }
     private FightOffer? _offer;
     /// <summary>The fight on the table. Setting it draws up the card it sits on — the hall, the size of the
     /// night, his billing, and the rest of the bill — because a card is something you read BEFORE you agree
@@ -202,15 +217,17 @@ public sealed partial class CareerGame
         var target = Date.AddDays(days);
         while (Date < target)
         {
-            Date = Date.AddDays(Math.Min(days, target.DayNumber - Date.DayNumber));
+            AdvanceClockTo(Date.AddDays(Math.Min(days, target.DayNumber - Date.DayNumber)));
             // There used to be an "if this step crossed New Year, run the yearly pass" here as well. Once
             // CatchUpYears started asking which years had not been run, that was a second pass over the same
             // year — but only when the STEP crossed the boundary, not when a card carried the clock over, so
             // it read as a world ageing about a third faster than the calendar rather than twice. Sixteen and
             // a half years passed and every fighter in it aged twenty-one.
+            // There was a second CatchUpYears after RunEvent too, because a card could carry the clock over
+            // New Year by itself. Cards do not move the clock any more, so a step crosses at most the boundary
+            // it was going to cross, and one pass before the cards run is the whole of it.
             CatchUpYears();
             RunEvent();
-            CatchUpYears();
         }
     }
     private static readonly WeightClass[] AllDivisions = WeightClasses.All;

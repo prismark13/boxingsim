@@ -136,11 +136,15 @@ public sealed partial class CareerGame
     /// <summary>Stage the returns that have come due in this division, ahead of the ordinary card. A rematch
     /// is not squeezed in around the undercard - it IS the card, so it is made first and the men are then
     /// unavailable for anything else that night.</summary>
-    private void StageDueRematches(List<Boxer> pool, HashSet<int>? used = null)
+    /// <param name="on">The night this card is on. Left out, it is today — which is right for a fortnightly
+    /// card happening now, and wrong for a season being laid out across a year, where the card has its own
+    /// date. That used to be arranged by assigning the world clock before calling in.</param>
+    private void StageDueRematches(List<Boxer> pool, HashSet<int>? used = null, DateOnly? on = null)
     {
+        var when = on ?? Date;
         // Materialised first: the fights below write to _rematch through ApplyOutcome.
         var due = _rematch.Values
-            .Where(r => Date >= r.Wanted && Date <= r.Expires)
+            .Where(r => when >= r.Wanted && when <= r.Expires)
             .OrderBy(r => r.Wanted)
             .ToList();
 
@@ -158,11 +162,11 @@ public sealed partial class CareerGame
             // A return for a belt goes the championship distance; so does one between two ranked men.
             int rounds = r.WasTitle || (WorldRanked(x) && WorldRanked(y)) ? 12 : 10;
             var res = FastBout(x, y, rounds);
-            ApplyOutcome(res, x, y, r.WasTitle ? null : "rematch");
-            ReportBout(res);
+            var night = ApplyOutcome(res, x, y, r.WasTitle ? null : "rematch", on: when);
+            ReportBout(res, night);
             if (WorldRanked(x) || WorldRanked(y))
                 LogEvent($"{(res.IsDraw ? $"{x.Name} and {y.Name} drew their rematch" : $"{res.Winner!.Name} settles it with {res.Loser!.Name}")} — the return after {r.Why}.",
-                         kind: "fight", div: x.WeightClass, bout: RefOf(res));
+                         kind: "fight", div: x.WeightClass, bout: RefOf(res, night), on: night);
         }
     }
 
@@ -189,21 +193,21 @@ public sealed partial class CareerGame
     /// everyone.</summary>
     /// <summary>The turn-of-the-year pass, with the calendar pinned to the day it began on.
     ///
-    /// The stagers below move <see cref="Date"/> to place each bout on the card and never put it back, so the
+    /// The stagers below used to MOVE <see cref="Date"/> to place each bout and never put it back, so the
     /// calendar was left wherever the last superfight of the year happened to fall — up to twelve months after
-    /// the day the player was living in. Transient, because the next week's step reset it, but not harmless:
-    /// a year that turned on the LAST week before a fight collapsed DaysToFight to zero, which is what opened
-    /// the year's honours on top of a bout and let it run on behind them.
+    /// the day the player was living in. That is why this had to restore the clock in a finally. Bouts carry
+    /// their own night now, so there is nothing to put back.
     ///
-    /// <see cref="_asOf"/> also stops the spread running into the future. These bouts are resolved here and
-    /// now — their results are applied to records immediately — so dating them months ahead showed the player
-    /// fights that had not happened yet, and put news in the feed below older news.</summary>
+    /// <see cref="_asOf"/> stays, and is not the same thing. It says a yearly pass is RUNNING, which changes
+    /// where a bout may be dated: a pass resolves its fights here and now, so it must not spread them into the
+    /// future — that showed the player fights which had not happened yet, and put news in the feed underneath
+    /// older news. Outside a pass, laying a year of history across its months is exactly the intent, and no
+    /// clamp applies. A mode, not a clock.</summary>
     private void YearlyPass()
     {
-        var resume = Date;
-        _asOf = resume;
+        _asOf = Date;
         try { InjectDebuts(); AgeRetireCrown(); PruneRematches(); RetireOutgrownRegionals(); StageSuperfights(); }
-        finally { _asOf = null; Date = resume; }
+        finally { _asOf = null; }
     }
 
     /// <summary>The day the yearly pass began, while it is running; null the rest of the time, when SpreadDate
@@ -285,10 +289,10 @@ public sealed partial class CareerGame
                      : IbfOf(heavier.WeightClass)?.Id == heavier.Id ? "IBF" : null;
         string note = belt is not null ? $"{belt} title" : "superfight";
 
-        var night = NoLaterThanAsOf(SpreadDate(Date.Year, 1 + _rng.Next(4), 6));
+        var wanted = NoLaterThanAsOf(SpreadDate(Date.Year, 1 + _rng.Next(4), 6));
         var res = FastBout(a, b, 12);
-        ApplyOutcome(res, a, b, note, on: night);
-        ReportBout(res);
+        var night = ApplyOutcome(res, a, b, note, on: wanted);
+        ReportBout(res, night);
         // A belt changing hands here has to actually change hands, or the champions board still shows the
         // beaten man holding it.
         if (belt is not null && !res.IsDraw && res.Winner!.Id == lighter.Id)
@@ -308,7 +312,7 @@ public sealed partial class CareerGame
                     : belt is not null
                         ? $"{res.Winner!.Name} beats {res.Loser!.Name} for the {belt} {heavier.WeightClass.DisplayName()} title — the best against the best, with a belt on it."
                         : $"{res.Winner!.Name} beats {res.Loser!.Name} in the superfight — the best against the best, at {heavier.WeightClass.DisplayName()}.",
-                 kind: "fight", div: heavier.WeightClass, bout: RefOf(res));
+                 kind: "fight", div: heavier.WeightClass, bout: RefOf(res, night), on: night);
         _cursor = Division;
     }
 
@@ -329,15 +333,15 @@ public sealed partial class CareerGame
         if (RecentFoes(a, 3).Contains(b.Name)) return;
 
         _cursor = wc;
-        var night = NoLaterThanAsOf(SpreadDate(Date.Year, _rng.Next(6), 6));
+        var wanted = NoLaterThanAsOf(SpreadDate(Date.Year, _rng.Next(6), 6));
         var res = FastBout(a, b, 12);
-        ApplyOutcome(res, a, b, "eliminator", on: night);
-        ReportBout(res);
+        var night = ApplyOutcome(res, a, b, "eliminator", on: wanted);
+        ReportBout(res, night);
         if (!res.IsDraw)
         {
-            _mandatory[wc] = (res.Winner!.Id, Date.AddDays(540));
+            _mandatory[wc] = (res.Winner!.Id, night.AddDays(540));
             LogEvent($"{res.Winner.Name} beats {res.Loser!.Name} in the final eliminator — he is next for the title.",
-                     kind: "fight", div: wc, bout: RefOf(res));
+                     kind: "fight", div: wc, bout: RefOf(res, night), on: night);
         }
         _cursor = Division;
     }

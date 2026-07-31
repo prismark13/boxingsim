@@ -103,7 +103,10 @@ public class GoldenMasterTests
 
         var body = Fingerprint(g);
         Dump("career", body);
-        Assert.Equal("A6694BC3EF2FA89F", Hash(body));
+        // Moved from A6694BC3EF2FA89F when resolving a bout stopped moving the world clock. Read before it
+        // was updated: the same 25 fights now span 5.3 years rather than 7.8, because the calendar advances
+        // only as far as the steps ask it to instead of being dragged along by every card.
+        Assert.Equal("DD25B557DFBF1848", Hash(body));
     }
 
     [Fact]
@@ -119,9 +122,10 @@ public class GoldenMasterTests
         var body = Fingerprint(u.World);
         Dump("universe", body);
         Universe.Release();
-        // Moved from BF3BBA6241417D32 when the doubled turn of the year came off the universe path. Only this
-        // fingerprint moved — the career one did not, which is what you would expect from a fault that lived
-        // in AdvanceWorld and nowhere else. See AgeingTests.AUniverseAgesNoFasterThanItsCalendar.
-        Assert.Equal("F57BB7444F6C045B", Hash(body));
+        // BF3BBA6241417D32 -> F57BB7444F6C045B when the doubled turn of the year came off the universe path,
+        // then -> here when a bout stopped moving the clock. 156 weeks of this universe used to cover twelve
+        // calendar years because each card dragged the date on; it covers three now, which is what "52 * 3
+        // weeks" was always supposed to mean. See ClockTests.
+        Assert.Equal("6C5686EE7CD9D7FF", Hash(body));
     }
 }

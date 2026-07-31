@@ -221,7 +221,9 @@ public sealed partial class CareerGame
         return $"{w.Name} {w.Record}, {Where(w)}  ·  {l.Name} {l.Record}, {Where(l)}";
     }
 
-    private void ReportBout(FightResult res)
+    /// <summary>Put a result in the news, on the night it happened. The night is passed in: a bout resolved
+    /// during a season is dated across the year, and is not necessarily the day the world is standing on.</summary>
+    private void ReportBout(FightResult res, DateOnly on)
     {
         if (res.IsDraw || res.Winner is null || res.Loser is null) return;
         var w = res.Winner; var l = res.Loser;
@@ -234,7 +236,7 @@ public sealed partial class CareerGame
             LogEvent(Pick($"UPSET! {w.Name} shocks {l.Name}{(ko ? $", stopped in {res.EndRound}" : "")}.",
                           $"Against the odds — {w.Name} outpoints the fancied {l.Name}.",
                           $"{l.Name} is stunned by {w.Name} in a major upset."), kind: "upset", div: div,
-                     bout: new BoutRef(w.Name, l.Name, Date), detail: who);
+                     bout: new BoutRef(w.Name, l.Name, on), detail: who, on: on);
             return;
         }
         // A long unbeaten run is news in itself — reported once it hits 10, then every 5 (15, 20, …).
@@ -244,7 +246,7 @@ public sealed partial class CareerGame
             LogEvent(Pick($"{w.Name} extends his unbeaten run to {wins} straight.",
                           $"Still perfect — {w.Name} makes it {wins} wins in a row and is knocking on the door.",
                           $"{w.Name} runs his streak to {wins} in a row, forcing his way into the picture."), kind: "streak", div: div,
-                     bout: new BoutRef(w.Name, l.Name, Date), detail: who);
+                     bout: new BoutRef(w.Name, l.Name, on), detail: who, on: on);
             return;
         }
         if (ko)
@@ -255,13 +257,13 @@ public sealed partial class CareerGame
                 LogEvent(Pick($"{w.Name} rolls on — {streak} straight inside the distance.",
                               $"{w.Name} keeps the KO streak going, now {streak} in a row.",
                               $"Frightening — {w.Name} up to {streak} consecutive knockouts."), kind: "streak", div: div,
-                         bout: new BoutRef(w.Name, l.Name, Date), detail: who);
+                         bout: new BoutRef(w.Name, l.Name, on), detail: who, on: on);
                 return;
             }
             if (w.Overall >= 76 && WorldRanked(l) && _rng.NextDouble() < 0.4)
                 LogEvent(Pick($"{w.Name} halts {l.Name} in {res.EndRound}.",
                               $"{w.Name} takes out {l.Name} inside the distance."), kind: "ko", div: div,
-                         bout: new BoutRef(w.Name, l.Name, Date), detail: who);
+                         bout: new BoutRef(w.Name, l.Name, on), detail: who, on: on);
             return;
         }
     }
