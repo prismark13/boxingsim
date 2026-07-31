@@ -147,13 +147,26 @@ public sealed partial class CareerGame
 
     /// <summary>An ordinary night: who he is matched with when there is no belt in it.
     ///
-    /// Match by career stage. A prospect (starter/pre-prime) is fed beatable opposition so he can build a
-    /// record — a higher target index is a LOWER-ranked, weaker opponent. Once he matures, he fights the men
-    /// ranked above him.</summary>
+    /// This used to pick one man off the ranking and then rewrite that choice through six guard passes, each
+    /// re-running the search with a different filter. The passes could not see each other, so they undid each
+    /// other's work — a comment on the last of them recorded two that did it outright, "the top-15 guard picked
+    /// a champion, and the champion guard picked a top-15 man" — and the answer depended on the order they
+    /// happened to be written in. Adding a seventh rule meant reasoning about six invisible predecessors.
+    ///
+    /// It is a scoring problem, and it is written as one now:
+    ///
+    ///   1. Decide what KIND of night this is. That is a real roll and stays a roll.
+    ///   2. Throw out everyone he must not be matched with. Hard rules are conjunctive, so they cannot fight.
+    ///   3. Score everyone left against the night we are making, and take the best.
+    ///
+    /// Every rule carries its own reason, which is what makes a wrong-looking matchup answerable: you can ask
+    /// why a man was refused instead of reasoning backwards through the passes that might have swapped him.</summary>
     private FightOffer OrdinaryOffer(List<Boxer> ranked, int idx, int proFights, int maxOvr)
     {
         var stage = CareerStages.Of(Player);
 
+        // 1. WHAT KIND OF NIGHT. A prospect is fed beatable opposition so he can build a record; a contender
+        //    takes mostly seasoned tune-ups with roughly one clash in three. The roll is unchanged.
         int target = stage switch
         {
             CareerStage.Starter => idx + 3 + _rng.Next(5),   // clearly weaker — build the record
@@ -165,110 +178,78 @@ public sealed partial class CareerGame
         };
         target = Math.Clamp(target, 0, ranked.Count - 1);
         if (target == idx) target = idx + 1 <= ranked.Count - 1 ? idx + 1 : idx - 1;
-        var opp = ranked[Math.Clamp(target, 0, ranked.Count - 1)];
-        if (opp.Id == Player.Id) opp = ranked[Math.Max(0, idx - 1)];
+        int wantOvr = ranked[Math.Clamp(target, 0, ranked.Count - 1)].Overall;
 
-        // Enforce the experience ceiling — a hot prospect who's ranked high won't be fed to the elite
-        // before he's ready; instead he gets the best opponent his record has earned.
-        bool capped = false;
-        if (opp.Overall > maxOvr)
-        {
-            var pool = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr).ToList();
-            if (pool.Count > 0) { opp = pool[_rng.Next(Math.Min(pool.Count, 5))]; capped = true; }
-        }
+        bool ranking = WorldRanked(Player);
+        bool clash = ranking && idx >= 0 && idx <= 20 && _rng.Next(3) == 0;
 
-        // Avoid a stale rematch — don't keep serving up a man he's just fought or has met many times.
-        if (RecentFoes(Player, 3).Contains(opp.Name) || TimesFaced(opp.Name) >= 3)
-        {
-            var fresh = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr
-                                       && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-            if (fresh.Count > 0) opp = NearOne(fresh, opp.Overall);
-        }
-
-        // A gatekeeper is a SEASONED fighter (15+ bouts) — a mid-rated man with a thin record is a rising prospect,
-        // not a test. If a gatekeeper-tier opponent (not an elite contender, and not a ranked man) is green, swap
-        // him for an experienced fighter at a similar level, else drop back to a journeyman tune-up.
-        if (opp.Overall is > 55 and < 78 && ProFights(opp) < 15 && !Top20Ids(Player.WeightClass).Contains(opp.Id))
-        {
-            var seasoned = ranked.Where(b => b.Id != Player.Id && b.Id != opp.Id && b.Overall <= maxOvr
-                                          && (ProFights(b) >= 15 || b.Overall <= 55)
-                                          && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-            if (seasoned.Count > 0) opp = NearOne(seasoned, opp.Overall);
-        }
-
-        // A ranked contender's schedule: NOT a top-10 war every time out, and NEVER fed raw prospects. Most dates
-        // are seasoned gatekeeper tune-ups; roughly one in three is a genuine clash with a fellow contender.
-        if (WorldRanked(Player) && idx >= 0 && idx <= 20)
-        {
-            var seasoned = ranked.Where(b => b.Id != Player.Id && !IsProspect(b) && ProFights(b) >= 15
-                                          && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-            bool clash = _rng.Next(3) == 0;
-            var pick = clash ? seasoned.Where(b => b.Overall >= 74).OrderByDescending(RankScore).Take(10).ToList()
-                             : seasoned.Where(b => b.Overall is >= 58 and <= 76).OrderByDescending(RankScore).Take(10).ToList();
-            if (pick.Count == 0) pick = seasoned;
-            if (pick.Count > 0) opp = pick[_rng.Next(pick.Count)];
-        }
-
-        // Before he is world-ranked, the OPPOSITION'S experience climbs with his own — and the man in the other
-        // corner is a PROFESSIONAL OPPONENT, not another kid starting out.
-        //
-        // This used to select by career stage, and asked for a "Starter" in the first half-dozen bouts on the
-        // reasoning that you begin against green boys who cannot hurt you. That is not how a record is built.
-        // A debutant does not fight another debutant - somebody has to lose, and the sport does not throw away
-        // two prospects to find out which. He fights a designated opponent: a man with twenty fights and
-        // fifteen losses whose trade is losing competitively in somebody else's home town.
-        //
-        // Measured, the old rule had 79% of a player's first fourteen opponents carrying under a dozen fights
-        // and only 17% carrying a losing record - a parade of 0-0 and 3-2 boys, some of whom were other
-        // people's prospects. So the band is now drawn on EXPERIENCE AND RECORD, which is what makes a man an
-        // opponent, and the career-stage question does not come into it.
-        if (!WorldRanked(Player))
-        {
-            int sofar = ProFights(Player);
-            // What he needs in the other corner: fights behind him, and a record that says he loses.
-            int wantFights = sofar <= 6 ? 8 : sofar <= 13 ? 10 : 12;
-            double wantWinRate = sofar <= 6 ? 0.58 : sofar <= 13 ? 0.65 : 1.00;
-
-            bool Opponent(Boxer b)
-            {
-                int f = ProFights(b);
-                if (f < wantFights) return false;
-                int decided = b.Record.Wins + b.Record.Losses;
-                return decided == 0 || b.Record.Wins / (double)decided <= wantWinRate;
-            }
-
-            var pool = ranked.Where(b => b.Id != Player.Id && b.Overall <= maxOvr
-                                      && !DangerousProspect(b)
-                                      && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-
-            // The men who are genuinely opponents; failing that, anyone seasoned; failing that, leave it be.
-            var band = pool.Where(Opponent).ToList();
-            if (band.Count == 0) band = pool.Where(b => ProFights(b) >= wantFights).ToList();
-            if (band.Count > 0) opp = NearOne(band, opp.Overall);
-        }
-
-        // ABSOLUTE final guard, enforcing BOTH hard rules at once. Run as separate passes they each undid the
-        // other — the top-15 guard picked a champion, and the champion guard picked a top-15 man.
-        //   1. A reigning world champion only ever meets the player with his belt on the line. The NPC world
-        //      already keeps champions off undercards; without the same rule here the player could beat the WBA
-        //      champion in a stay-busy bout and walk away with nothing.
-        //   2. Until he's world-ranked (20 bouts) the player is kept away from the division's top men BY RANKING,
-        //      not just by rating — an unproven #1 is often a young fighter whose rating hasn't caught up. This
-        //      holds for a fast-tracked wonder kid too: graduating early earns him ranked opposition (#16 and
-        //      below), not the very best.
-        // Title bouts return far above this, so a genuinely earned challenge is unaffected.
-        var offLimits = WorldRanked(Player)
+        // 2. WHO HE MUST NOT BE MATCHED WITH. Conjunctive, so no rule can undo another, and each says why.
+        //    Until he is world-ranked he is kept off the division's leading men BY RANKING as well as by
+        //    rating: an unproven #1 is often a young fighter whose rating has not caught up.
+        var offLimits = ranking
             ? new HashSet<int>()
             : ActiveIn(Player.WeightClass).Where(RankedContender)
                   .OrderByDescending(RankScore).Take(15).Select(b => b.Id).ToHashSet();
-        bool Barred(Boxer b) => IsWorldChampion(b) || offLimits.Contains(b.Id);
-        if (Barred(opp))
+        var recent = RecentFoes(Player, 3);
+
+        var hard = new (string Why, Func<Boxer, bool> No)[]
         {
-            var ok = ranked.Where(b => b.Id != Player.Id && !Barred(b) && b.Overall <= maxOvr
-                                    && !RecentFoes(Player, 3).Contains(b.Name) && TimesFaced(b.Name) < 3).ToList();
-            if (ok.Count == 0) ok = ranked.Where(b => b.Id != Player.Id && !Barred(b)).ToList();
-            if (ok.Count > 0) opp = NearOne(ok, opp.Overall);
+            ("it is him",                 b => b.Id == Player.Id),
+            ("a champion, and no belt",   IsWorldChampion),
+            ("top of a division he has not earned", b => offLimits.Contains(b.Id)),
+            ("over his ceiling",          b => b.Overall > maxOvr),
+            ("he has just fought him",    b => recent.Contains(b.Name)),
+            ("they have met three times", b => TimesFaced(b.Name) >= 3),
+            ("somebody else's prospect",  b => !ranking && DangerousProspect(b)),
+        };
+
+        var pool = ranked.Where(b => !hard.Any(r => r.No(b))).ToList();
+        // Nothing at all fits: relax the preferences, never the two guards that exist to stop a mismatch.
+        if (pool.Count == 0)
+            pool = ranked.Where(b => b.Id != Player.Id && !IsWorldChampion(b) && !offLimits.Contains(b.Id)).ToList();
+        if (pool.Count == 0) pool = ranked.Where(b => b.Id != Player.Id).ToList();
+
+        // 3. SCORE WHAT IS LEFT. Closeness to the night we are making, then the things that make a man the
+        //    right OPPONENT rather than merely the right rating.
+        int sofar = ProFights(Player);
+        int wantFights = sofar <= 6 ? 8 : sofar <= 13 ? 10 : 12;
+        double wantWinRate = sofar <= 6 ? 0.58 : sofar <= 13 ? 0.65 : 1.00;
+
+        double Fitness(Boxer b)
+        {
+            double s = -Math.Abs(b.Overall - wantOvr) * 3.0;   // the fight we set out to make
+
+            // A gatekeeper is a SEASONED fighter. A mid-rated man with a thin record is a rising prospect,
+            // not a test, and putting the player in with him is somebody else's career being risked.
+            if (b.Overall is > 55 and < 78) s += ProFights(b) >= 15 ? 25 : -35;
+
+            if (ranking)
+            {
+                // A contender's schedule: never raw prospects, and the band depends on whether tonight is a
+                // real clash or a stay-busy.
+                if (IsProspect(b) || ProFights(b) < 15) s -= 60;
+                s += clash ? (b.Overall >= 74 ? 45 : -20)
+                           : (b.Overall is >= 58 and <= 76 ? 45 : -20);
+            }
+            else
+            {
+                // Before he is ranked the man opposite is a PROFESSIONAL OPPONENT: fights behind him, and a
+                // record that says he loses. Measured once at 79% of a player's first fourteen opponents
+                // carrying under a dozen bouts and only 17% a losing record — a parade of other people's
+                // prospects, which is not how a record is built.
+                int f = ProFights(b);
+                s += f >= wantFights ? 30 : -50;
+                int decided = b.Record.Wins + b.Record.Losses;
+                if (decided > 0 && b.Record.Wins / (double)decided <= wantWinRate) s += 35;
+            }
+            return s;
         }
+
+        // Best fit, with the near-misses shuffled so a division does not serve the same man every time his
+        // rating happens to sit closest.
+        var shortlist = pool.OrderByDescending(Fitness).Take(Math.Min(5, pool.Count)).ToList();
+        var opp = shortlist[_rng.Next(shortlist.Count)];
+        bool capped = opp.Overall < wantOvr - 6;   // he was steered down to something his record has earned
 
         // The distance a man is trusted with follows his mileage, the way a real career does: six-rounders to
         // begin with, then eight, and ten once he is established. It used to come off the career STAGE, which

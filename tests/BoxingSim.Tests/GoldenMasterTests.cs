@@ -110,7 +110,10 @@ public class GoldenMasterTests
         // else — a universe has no player, so it never draws one.
         // ... then -> here when a fortnightly card became fortnightly by the calendar rather than by the step,
         // and a man had to be rested to be MATCHED rather than matched and then moved. See ClockTests.
-        Assert.Equal("80BE1F8618EAB186", Hash(body));
+        // ... then -> here when the ordinary matchmaker stopped picking a man and rewriting that choice six
+        // times, and started scoring every eligible opponent once. OpponentTests is what says the intent
+        // survived; this only says something changed.
+        Assert.Equal("22BB7DA56527D043", Hash(body));
     }
 
     [Fact]
@@ -132,6 +135,9 @@ public class GoldenMasterTests
         // weeks" was always supposed to mean. See ClockTests.
         // ... then -> here with the card cadence and the rest rules. The universe moves for these where it did
         // not for the player's bill, which is right: cards and rest are the world's, a bill is the player's.
-        Assert.Equal("B6D6C049E17ECCA4", Hash(body));
+        // ... and here for the scored matchmaker, which looks wrong for a world with no player in it. It is
+        // not: a universe builds ONE offer, for the ghost it retires before the first week, and that single
+        // call draws a different count of random numbers than it used to. Everything after it shifts.
+        Assert.Equal("29676A8CAD0B989B", Hash(body));
     }
 }
