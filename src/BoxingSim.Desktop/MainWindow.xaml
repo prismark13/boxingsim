@@ -676,7 +676,7 @@
                         <!-- Held between weeks, so the build-up can be read rather than watched going
                              past. "Run the rest" hands the pacing back to the clock for this one run. -->
                         <Grid Margin="24,0,24,10"
-                              Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}">
+                              Visibility="{Binding ShowCampActions, Converter={StaticResource BoolVis}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="9" />
@@ -684,12 +684,20 @@
                                 <ColumnDefinition Width="9" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
+                            <!-- The walk-out. Once the date has come there are no weeks left to run, so
+                                 Continue goes and this takes its place in the same spot. -->
+                            <Button Content="Fight now" Command="{Binding TakeFight}"
+                                    Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
+                                    ToolTip="The date has come — first bell"
+                                    Visibility="{Binding ReadyToFight, Converter={StaticResource BoolVis}}" />
                             <Button Content="Continue" Command="{Binding StepForward}"
                                     Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
-                                    ToolTip="One more week" />
+                                    ToolTip="One more week"
+                                    Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
                             <Button Grid.Column="2" Content="Go to fight night" Command="{Binding RunTheRest}"
                                     Padding="14,10" FontSize="13"
-                                    ToolTip="Run the remaining weeks straight through to the first bell" />
+                                    ToolTip="Run the remaining weeks straight through to the first bell"
+                                    Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
 
                         </Grid>
 

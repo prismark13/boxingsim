@@ -383,7 +383,7 @@ public sealed class CareerViewModel : Observable
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn));
-            Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); });
+            Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); Raise(nameof(ReadyToFight)); Raise(nameof(ShowCampActions)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
@@ -1060,6 +1060,16 @@ public sealed class CareerViewModel : Observable
     /// had not begun. It is the same condition as being in camp, so it says so.</summary>
     public bool CanCarryOn => InCamp;
 
+    /// <summary>The date has come. Deliberately NOT dependent on being in camp: InCamp requires days still to
+    /// run, so at zero it goes false and takes Continue with it — and the camp page had nothing left, because
+    /// accepting and refusing moved to Home when the pages were split. Counting down to a fight and then being
+    /// shown no way to have it is the second time that has happened, from a different direction.</summary>
+    public bool ReadyToFight =>
+        Game?.Offer is not null && Game?.Player.Retired == false && Game?.DaysToFight == 0;
+
+    /// <summary>Whether the camp panel has anything to offer: weeks to run, or a fight to walk out to.</summary>
+    public bool ShowCampActions => CanCarryOn || ReadyToFight;
+
     /// <summary>Whether the fight has been taken and the run-up is under way.
     ///
     /// The page went on offering "go to fight night" and "turn it down" all the way through the build-up, as
@@ -1080,7 +1090,7 @@ public sealed class CareerViewModel : Observable
     {
         if (_committed == v) return;
         _committed = v;
-        foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer) }) Raise(n);
+        foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions) }) Raise(n);
     }
 
     /// <summary>True while the run is holding, waiting to be told to go on. What the Continue button hangs off.</summary>
@@ -1308,7 +1318,7 @@ public sealed class CareerViewModel : Observable
         _autoRestPending = false;
         if (!resuming) { Camp.Clear(); _campAll.Clear(); }
         _theOne = null; TheOne = "";
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
         while (_waiting)
         {
@@ -1333,7 +1343,7 @@ public sealed class CareerViewModel : Observable
                 _waiting = false;
                 foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
             }
-            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer) }) Raise(n);
+            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions) }) Raise(n);
             CheckForAwards();
             if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
 
@@ -1341,7 +1351,7 @@ public sealed class CareerViewModel : Observable
             if (_waiting) await Gate(550);
         }
         _waiting = false;
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
         RefreshAll();
         CheckForAwards();
     }
