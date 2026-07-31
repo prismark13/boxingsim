@@ -684,6 +684,13 @@
                                 <ColumnDefinition Width="9" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
+                            <!-- Accepting, here as well as on Home. This page shows a countdown whether or not
+                                 the fight has been taken, and a countdown with no button under it is a dead
+                                 end — which is what it was. -->
+                            <Button Content="Accept fight" Command="{Binding TakeFight}"
+                                    Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
+                                    ToolTip="{Binding TakeFightHint}"
+                                    Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
                             <!-- The walk-out. Once the date has come there are no weeks left to run, so
                                  Continue goes and this takes its place in the same spot. -->
                             <Button Content="Fight now" Command="{Binding TakeFight}"
@@ -698,6 +705,10 @@
                                     Padding="14,10" FontSize="13"
                                     ToolTip="Run the remaining weeks straight through to the first bell"
                                     Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
+                            <Button Grid.Column="2" Content="Turn it down" Command="{Binding HoldOut}"
+                                    Padding="14,10" FontSize="13"
+                                    ToolTip="Refuse this fight and wait for another offer"
+                                    Visibility="{Binding FightIsStillAnOffer, Converter={StaticResource BoolVis}}" />
 
                         </Grid>
 

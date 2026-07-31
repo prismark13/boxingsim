@@ -1067,8 +1067,13 @@ public sealed class CareerViewModel : Observable
     public bool ReadyToFight =>
         Game?.Offer is not null && Game?.Player.Retired == false && Game?.DaysToFight == 0;
 
-    /// <summary>Whether the camp panel has anything to offer: weeks to run, or a fight to walk out to.</summary>
-    public bool ShowCampActions => CanCarryOn || ReadyToFight;
+    /// <summary>Whether this page has anything to offer at all — and it must always have something, because it
+    /// shows a countdown either way.
+    ///
+    /// The page could sit there reading "4 weeks to fight night" with no button on it, because accepting a
+    /// fight had moved to Home when the pages were split and this page only ever offered the things that come
+    /// AFTER accepting. A screen that counts down to a fight has to let you have the fight.</summary>
+    public bool ShowCampActions => CanCarryOn || ReadyToFight || FightIsStillAnOffer;
 
     /// <summary>Whether the fight has been taken and the run-up is under way.
     ///
