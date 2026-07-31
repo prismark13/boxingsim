@@ -343,6 +343,7 @@ public sealed class CareerViewModel : Observable
         PoundForPoundPage = new PoundForPoundViewModel(() => Game);
         HallOfFamePage = new HallOfFameViewModel(() => Game);
         ChampionsPage = new ChampionsViewModel(() => Game);
+        AwardsPage = new AwardsViewModel(() => Game);
 
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
@@ -665,6 +666,9 @@ public sealed class CareerViewModel : Observable
     /// <summary>The champions board — its own page. See ChampionsViewModel.</summary>
     public ChampionsViewModel ChampionsPage { get; }
 
+    /// <summary>The year's honours, and the two filters they are read through. See AwardsViewModel.</summary>
+    public AwardsViewModel AwardsPage { get; }
+
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
     public IReadOnlyList<string> Countries { get; } = new[]
@@ -758,7 +762,6 @@ public sealed class CareerViewModel : Observable
     public Cmd Dismiss { get; }
 
     // ---- collections ----
-    public ObservableCollection<AwardRow> Awards { get; } = new();
     public ObservableCollection<NewsRow> News { get; } = new();
     public ObservableCollection<LedgerRow> Ledger { get; } = new();
     public ObservableCollection<TapeRow> Tape { get; } = new();
@@ -1966,7 +1969,7 @@ public sealed class CareerViewModel : Observable
         BuildDivisionChoices();
         BuildNews();
         HallOfFamePage.Rebuild();
-        BuildAwards();
+        AwardsPage.Rebuild();
         BuildRival();
         BuildUndercard();
     }
@@ -2460,7 +2463,7 @@ public sealed class CareerViewModel : Observable
         PoundForPoundPage.Rebuild();
         ChampionsPage.Rebuild();
         HallOfFamePage.Rebuild();
-        BuildAwards();
+        AwardsPage.Rebuild();
         BuildRival();
         BuildUndercard();
         OfferSlate.Rebuild();
@@ -2490,70 +2493,6 @@ public sealed class CareerViewModel : Observable
     {
         TakeFight.Refresh(); HoldOut.Refresh(); MoveUp.Refresh();
         StartCareer.Refresh(); ContinueCareer.Refresh();
-    }
-
-    // ---- award filters ----
-
-    public IReadOnlyList<string> AwardCategories { get; } = new[]
-    {
-        AllAwards, "Fighter of the Year", "Fight of the Year", "Knockout of the Year", "Upset of the Year"
-    };
-    private const string AllAwards = "All awards";
-    private const string AllYears = "All years";
-
-    public ObservableCollection<string> AwardYears { get; } = new();
-
-    private string _awardCategory = AllAwards;
-    public string AwardCategory
-    {
-        get => _awardCategory;
-        set { if (_awardCategory == value) return; _awardCategory = value; Raise(); BuildAwards(); }
-    }
-
-    private string _awardYear = AllYears;
-    public string AwardYear
-    {
-        get => _awardYear;
-        set { if (_awardYear == value) return; _awardYear = value; Raise(); BuildAwards(); }
-    }
-
-    public string AwardsSubtitle => Awards.Count == 0
-        ? "Nothing matches this filter — awards are handed out at the end of each year."
-        : $"{Awards.Count} categor{(Awards.Count == 1 ? "y" : "ies")} · {AwardCategory} · {AwardYear}";
-
-    private void BuildAwards()
-    {
-        Awards.Clear();
-        if (Game is null) { Raise(nameof(AwardsSubtitle)); return; }
-
-        // Keep the year list in step with the career without losing the current pick.
-        var years = new[] { AllYears }.Concat(Game.Awards.Select(a => a.Year.ToString())).ToList();
-        if (!AwardYears.SequenceEqual(years))
-        {
-            var keep = _awardYear;
-            AwardYears.Clear();
-            foreach (var y in years) AwardYears.Add(y);
-            if (!years.Contains(keep)) { _awardYear = AllYears; Raise(nameof(AwardYear)); }
-        }
-
-        foreach (var yr in Game.Awards)
-        {
-            if (_awardYear != AllYears && yr.Year.ToString() != _awardYear) continue;
-            void Add(string cat, IReadOnlyList<AwardWinner> list)
-            {
-                if (list.Count == 0) return;
-                if (_awardCategory != AllAwards && cat != _awardCategory) return;
-                var places = list.Select((w, i) => new AwardPlace(
-                    i == 0 ? "1st" : i == 1 ? "2nd" : "3rd",
-                    w.Name, w.Div.DisplayName(), w.Detail, i == 0, cat, yr.Year, w.Commentary, w.Bout)).ToList();
-                Awards.Add(new AwardRow(cat, yr.Year, places));
-            }
-            Add("Fighter of the Year", yr.FighterOfYear);
-            Add("Fight of the Year", yr.FightOfYear);
-            Add("Knockout of the Year", yr.KnockoutOfYear);
-            Add("Upset of the Year", yr.UpsetOfYear);
-        }
-        Raise(nameof(AwardsSubtitle));
     }
 
     // ---- an award opened out ----
