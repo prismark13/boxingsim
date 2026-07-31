@@ -15,7 +15,12 @@ namespace BoxingSim.Tests;
 /// a date more than two years on; a wait for fight night overshot the fight by anything up to eight weeks,
 /// which is why the build-up ran out of weeks before it ran out of camp.
 ///
-/// Bouts carry their own night now and the clock belongs to the calendar. These say so.</summary>
+/// Bouts carry their own night now and the clock belongs to the calendar. These say so.
+///
+/// The two Universe tests below build their own worlds and have to: a Universe is not a CareerGame and drives
+/// its own weeks, which is the thing being measured. Two warm-up years is cheap. The career tests take a warmed
+/// copy — a stride is a property of the step, and the sixty-five years of history they used to seed first told
+/// them nothing about it.</summary>
 public class ClockTests
 {
     [Fact]
@@ -65,23 +70,24 @@ public class ClockTests
     [Fact]
     public void AWaitNeverOvershootsFightNight()
     {
-        var rng = new Random(9);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 88);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               seedHistory: true);
+        var g = Worlds.Fresh(potential: 88, seed: 9);
 
         var overshot = new List<string>();
         var longStrides = new List<int>();
+        int waited = 0;
         for (int i = 0; i < 200 && !g.Player.Retired; i++)
         {
             if (g.Offer is null) break;
             var before = g.Date;
             if (g.WaitAWeek() is null) { g.TakeOffer(); continue; }
+            waited++;
             int moved = g.Date.DayNumber - before.DayNumber;
             if (moved > 7) longStrides.Add(moved);
             if (g.Date > g.OfferDate) overshot.Add($"{g.Date:d MMM yyyy} past fight night {g.OfferDate:d MMM yyyy}");
         }
 
+        // Both lists below are empty in a world that never waited at all; say that a wait happened.
+        Assert.True(waited > 50, $"only {waited} waits were made; the overshoot rule was barely exercised");
         Assert.True(overshot.Count == 0, "waiting went past the fight: " + string.Join("; ", overshot.Take(5)));
         Assert.True(longStrides.Count == 0,
                     $"{longStrides.Count} waits moved more than a week: " + string.Join(", ", longStrides.Take(8)));
@@ -105,43 +111,54 @@ public class ClockTests
     [Fact]
     public void NoHeadlineIsDatedAfterTheDayTheWorldHasReached()
     {
-        var rng = new Random(9);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 88);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               seedHistory: true);
-
+        // Two hundred and sixty steps of one world, split across three. A headline from the future is a
+        // property of the week that produced it, so three shorter walks read three sets of cards for the same
+        // money — and it was a rare enough violation that seeing more worlds is worth more than seeing one
+        // world for longer.
         var future = new List<string>();
-        for (int i = 0; i < 260 && !g.Player.Retired; i++)
+        int weeks = 0;
+        foreach (int seed in new[] { 9, 19, 29 })
         {
-            if (g.Offer is null) break;
-            var week = g.WaitAWeek();
-            if (week is null) { g.TakeOffer(); continue; }
-            foreach (var e in week)
-                if (e.On > g.Date)
-                    future.Add($"{e.On:d MMM yyyy} (world is on {g.Date:d MMM yyyy}, {(e.On.DayNumber - g.Date.DayNumber)}d ahead): {e.Text}");
+            var g = Worlds.Fresh(potential: 88, seed: seed);
+            for (int i = 0; i < 90 && !g.Player.Retired; i++)
+            {
+                if (g.Offer is null) break;
+                var week = g.WaitAWeek();
+                if (week is null) { g.TakeOffer(); continue; }
+                weeks++;
+                foreach (var e in week)
+                    if (e.On > g.Date)
+                        future.Add($"seed {seed}: {e.On:d MMM yyyy} (world is on {g.Date:d MMM yyyy}, {(e.On.DayNumber - g.Date.DayNumber)}d ahead): {e.Text}");
+            }
         }
 
+        Assert.True(weeks > 100, $"only {weeks} weeks of news were read; this is not looking at enough of the world");
         Assert.True(future.Count == 0,
                     $"{future.Count} headlines arrived from the future: " + string.Join(" | ", future.Take(4)));
     }
 
     /// <summary>A camp has weeks in it. The point of the build-up is that it can be read a week at a time, and
-    /// a wait that overshoots leaves a four-month camp with three steps in it.</summary>
+    /// a wait that overshoots leaves a four-month camp with three steps in it.
+    ///
+    /// This used to give up quietly if no long camp came up on its one seed, which is a test that can pass by
+    /// never running. It tries seeds until it finds one now, and says so if none of them had a long camp in
+    /// it — the search costs nothing extra when the first seed obliges, which it does.</summary>
     [Fact]
     public void ALongCampHasAWeekForEveryWeek()
     {
-        var rng = new Random(9);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 88);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               seedHistory: true);
+        CareerGame? camp = null;
+        foreach (int seed in new[] { 9, 19, 29 })
+        {
+            var g = Worlds.Fresh(potential: 88, seed: seed);
+            // Find a camp with real time in it, then walk it out a week at a time.
+            for (int i = 0; i < 40 && g.Offer is not null && g.DaysToFight < 42; i++) g.TakeOffer();
+            if (g.Offer is not null && g.DaysToFight >= 42) { camp = g; break; }
+        }
+        Assert.True(camp is not null, "no seed produced a camp longer than six weeks to walk");
 
-        // Find a camp with real time in it, then walk it out a week at a time.
-        for (int i = 0; i < 40 && g.Offer is not null && g.DaysToFight < 42; i++) g.TakeOffer();
-        if (g.Offer is null || g.DaysToFight < 42) return;   // no long camp came up on this seed
-
-        int days = g.DaysToFight;
+        int days = camp!.DaysToFight;
         int steps = 0;
-        while (g.WaitAWeek() is not null && steps < 200) steps++;
+        while (camp.WaitAWeek() is not null && steps < 200) steps++;
 
         int expected = (int)Math.Ceiling(days / 7.0);
         Assert.True(steps >= expected - 1,

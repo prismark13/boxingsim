@@ -29,7 +29,13 @@ public static class Fixtures
 }
 
 /// <summary>A world run forward through a full seeded history — expensive to build, so every integrity
-/// assertion that only reads the finished world shares this one instance.</summary>
+/// assertion that only reads the finished world shares this one instance.
+///
+/// This is the one world in the suite that cannot come from Worlds.Fresh, and it is worth saying why: the
+/// assertions below read the HALL OF FAME — a hundred title bouts, twenty unifications, a hundred-odd retired
+/// champions with their ledgers intact. That is what seedHistory buys and what a twelve-year warm-up has none
+/// of, because the Hall is cleared at the player's first day unless the sport's whole past came with it. Seven
+/// tests share this one build; that is the saving available here.</summary>
 public sealed class SeededWorld
 {
     public CareerGame Game { get; }
@@ -195,11 +201,14 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
 /// bout that turned out to have no belt on it.</summary>
 public class MatchmakingIntegrityTests
 {
-    private static CareerGame Career(int seed, int potential, out Boxer player)
+    /// <summary>A warmed copy of a top prospect's world. Neither of these reads the Hall of Fame — they judge
+    /// the OFFERS a career is shown, which the live matchmaker makes out of the current rankings. Seeding the
+    /// sport's whole past first bought them nothing and cost eighty seconds.</summary>
+    private static CareerGame Career(int seed, out Boxer player)
     {
-        var rng = new Random(seed);
-        player = CareerGame.CreatePlayer(rng, "Ladder Player", "USA", WeightClass.Lightweight, potential);
-        return new CareerGame(1984, player, Fixtures.Roster.ToList(), rng, WeightClass.Lightweight, seedHistory: true);
+        var g = Worlds.Fresh(potential: 94, seed: seed);
+        player = g.Player;
+        return g;
     }
 
     [Fact]
@@ -207,7 +216,7 @@ public class MatchmakingIntegrityTests
     {
         // The NPC world already keeps champions off undercards. Without the same rule for the player you could
         // beat the WBA champion in a "stay-busy" bout and walk away with nothing.
-        var game = Career(11, 95, out var player);
+        var game = Career(11, out var player);
         int offers = 0, titleBouts = 0;
         for (int i = 0; i < 60 && game.Offer is not null; i++)
         {
@@ -228,13 +237,15 @@ public class MatchmakingIntegrityTests
     {
         // A wonder kid (high potential) graduates his apprenticeship early. That earns him ranked contenders,
         // NOT the division's very best — the ceiling has to ramp rather than jump straight to "anyone".
-        var game = Career(11, 95, out var player);
+        var game = Career(11, out var player);
+        int judged = 0;
         for (int i = 0; i < 24 && game.Offer is not null; i++)
         {
             var o = game.Offer!;
             int fights = player.Record.Wins + player.Record.Losses + player.Record.Draws;
             if (fights < 20 && o.Belt is null)
             {
+                judged++;
                 var top15 = game.RankingOf(player.WeightClass, 15).Select(b => b.Id).ToHashSet();
                 Assert.DoesNotContain(o.Opponent.Id, top15);
                 // The rating ceiling ramps with experience. A 14-fight novice was once handed a class-14
@@ -246,5 +257,8 @@ public class MatchmakingIntegrityTests
             game.TakeOffer();
             if (player.Retired) break;
         }
+        // Every assertion above sits behind "he is still a novice with no belt on the table"; without this the
+        // test passes for a career that skipped straight past the window it is about.
+        Assert.True(judged > 5, $"only {judged} novice offers were judged; the ramp was barely looked at");
     }
 }

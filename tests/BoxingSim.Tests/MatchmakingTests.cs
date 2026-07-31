@@ -13,12 +13,11 @@ public class MatchmakingTests
     /// carry real records — and are not the simulation's to answer for.</summary>
     private const int StartYear = 1972;
 
+    /// <summary>A warmed copy rather than a world built from scratch. Only bouts from StartYear on are judged
+    /// here, so the decades of history this used to seed first were being filtered straight back out.</summary>
     private static CareerGame RunAWorld(int seed, int fights)
     {
-        var rng = new Random(seed);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 88);
-        var g = new CareerGame(StartYear, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               seedHistory: true);
+        var g = Worlds.Fresh(potential: 88, seed: seed);
         int taken = 0, guard = 0;
         while (taken < fights && !g.Player.Retired && guard++ < 2000)
         {

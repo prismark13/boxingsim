@@ -1,6 +1,7 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
+using System.Threading;
 using BoxingSim.Core.Career;
 using BoxingSim.Core.Model;
 
@@ -21,24 +22,27 @@ namespace BoxingSim.Tests;
 /// down what came out; handing it a pre-built one would destroy the thing it measures.</summary>
 public static class Worlds
 {
-    private static readonly Dictionary<(int Potential, WeightClass Div), CareerSave> Warmed = new();
-    private static readonly object Gate = new();
+    /// <summary>One warm-up per profile, and — the part that matters — profiles warm CONCURRENTLY.
+    ///
+    /// This was a dictionary behind one lock, which makes every profile queue behind every other. That was
+    /// nearly free while two classes used it; with the suite on it there are eight profiles, and eight
+    /// warm-ups taken one at a time on a six-way parallel runner is most of them waiting. A Lazy per key
+    /// keeps the "warm once" guarantee — ExecutionAndPublication means one racer builds and the rest get his
+    /// copy — while letting a different profile be built on another thread at the same time.</summary>
+    private static readonly ConcurrentDictionary<(int Potential, WeightClass Div), Lazy<CareerSave>> Warmed = new();
 
     /// <summary>A fresh, independent world at the player's first day. Callers may fight, decline and mutate
     /// it freely — each gets its own copy.</summary>
     public static CareerGame Fresh(int potential = 88, WeightClass div = WeightClass.Middleweight, int seed = 1)
     {
-        CareerSave save;
-        lock (Gate)   // xUnit runs classes in parallel; the warm-up must happen once, not once per racer
+        var save = Warmed.GetOrAdd((potential, div), key => new Lazy<CareerSave>(() =>
         {
-            if (!Warmed.TryGetValue((potential, div), out save!))
-            {
-                var rng = new Random(potential * 31 + (int)div);
-                var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", div, potential);
-                var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, div, warmupYears: 12);
-                Warmed[(potential, div)] = save = g.ToSave();
-            }
-        }
+            var rng = new Random(key.Potential * 31 + (int)key.Div);
+            var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", key.Div, key.Potential);
+            var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, key.Div, warmupYears: 12);
+            return g.ToSave();
+        }, LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+
         return CareerGame.Load(save, new Random(seed));
     }
 }
