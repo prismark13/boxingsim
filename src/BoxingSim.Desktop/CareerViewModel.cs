@@ -1065,7 +1065,7 @@ public sealed class CareerViewModel : Observable
     /// accepting and refusing moved to Home when the pages were split. Counting down to a fight and then being
     /// shown no way to have it is the second time that has happened, from a different direction.</summary>
     public bool ReadyToFight =>
-        Game?.Offer is not null && Game?.Player.Retired == false && Game?.DaysToFight == 0;
+        _committed && Game?.Offer is not null && Game?.Player.Retired == false && Game?.DaysToFight == 0;
 
     /// <summary>Whether this page has anything to offer at all — and it must always have something, because it
     /// shows a countdown either way.
@@ -1086,10 +1086,23 @@ public sealed class CareerViewModel : Observable
     /// a session you walked away from.</summary>
     private bool _committed;
 
+    // THREE STATES, and every one of them derived from the same two facts: have you taken the fight, and has
+    // the date come. They are mutually exclusive and they cover everything, which is the point — four dead
+    // ends have shipped from rules that each read ONE fact and were therefore right about one state and wrong
+    // about a neighbouring one.
+    //
+    //                         taken?   date come?
+    //   FightIsStillAnOffer     no         -          accept it, or turn it down
+    //   InCamp                  yes        no         continue, or run the weeks out
+    //   ReadyToFight            yes        yes        walk out
+
     public bool InCamp => _committed && Game?.DaysToFight > 0 && Game?.Player.Retired == false;
 
-    /// <summary>The opposite, for the controls that only make sense while the fight is still an offer.</summary>
-    public bool FightIsStillAnOffer => Game?.Offer is not null && Game?.Player.Retired == false && !InCamp;
+    /// <summary>Not taken yet. Deliberately keyed on having COMMITTED rather than on being in camp: in camp
+    /// also requires days still to run, so on the night itself it goes false and the fight you had already
+    /// accepted was offered back to you with a "turn it down" beside it.</summary>
+    public bool FightIsStillAnOffer =>
+        Game?.Offer is not null && Game?.Player.Retired == false && !_committed;
 
     private void SetCommitted(bool v)
     {
@@ -1503,7 +1516,7 @@ public sealed class CareerViewModel : Observable
     /// green "WIN — beat Duane Reeves by TKO" about a fight in July, above a poster for a different opponent,
     /// with the same result already listed in his record underneath. It is the last thing that happened only
     /// until something else is happening.</summary>
-    public bool ShowResultBanner => HasResult && !IsPlayingBack && !InCamp && !IsCardRunning;
+    public bool ShowResultBanner => HasResult && !IsPlayingBack && !IsCardRunning && !_committed;
 
     /// <summary>The call, grouped by round. A finished round folds down to its one-line verdict so the round
     /// being fought is always the thing in front of you; any of them can be opened again.</summary>
