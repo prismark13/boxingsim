@@ -1027,49 +1027,9 @@
                 </Grid>
 
                 <!-- ============ LIST PAGES ============ -->
-                <!-- Rankings can show ANY division, not just the player's — otherwise following a fighter to his
-                     own division was impossible without abandoning the page. -->
-                <Grid Margin="28,26,28,28"
-                      Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=Rankings}">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Grid Margin="2,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="RANKINGS" FontSize="18" FontWeight="Light"
-                                       Foreground="{StaticResource Text}" />
-                            <TextBlock Text="{Binding RankingsSubtitle}" FontSize="12"
-                                       Foreground="{StaticResource Muted}" Margin="0,4,0,0" />
-                        </StackPanel>
-                        <ComboBox Grid.Column="1" Width="210" VerticalAlignment="Center"
-                                  ItemsSource="{Binding RankingDivisions}" SelectedItem="{Binding ViewDivision}"
-                                  ItemTemplate="{StaticResource DivisionItem}" />
-                    </Grid>
-                    <!-- Say plainly when you're reading somebody else's division, with the way home. -->
-                    <Border Grid.Row="1" Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
-                            BorderThickness="1" CornerRadius="9" Padding="14,9" Margin="0,0,0,12"
-                            Visibility="{Binding IsAwayDivision, Converter={StaticResource BoolVis}}">
-                        <Grid>
-                            <TextBlock Text="{Binding AwayDivisionNote}" FontSize="12"
-                                       Foreground="#CFE4FF" VerticalAlignment="Center" />
-                            <Button Content="{Binding HomeDivisionLabel}" Command="{Binding GoHomeDivision}"
-                                    AutomationProperties.Name="Back to my division"
-                                    HorizontalAlignment="Right" Padding="12,5" FontSize="11" />
-                        </Grid>
-                    </Border>
-                    <Border Grid.Row="2" Style="{StaticResource Card}">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                                      Padding="0,4,0,8">
-                            <ItemsControl ItemsSource="{Binding Rankings}" ItemTemplate="{StaticResource RankRowTemplate}" />
-                        </ScrollViewer>
-                    </Border>
-                </Grid>
+                <pages:RankingsView DataContext="{Binding RankingsPage}"
+                                    Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
+                                                 Converter={StaticResource PageVis}, ConverterParameter=Rankings}" />
 
                 <local:PageHost Title="POUND-FOR-POUND" Subtitle="Ranked on what they have won, across every division"
                                 Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=P4P}">
