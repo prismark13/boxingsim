@@ -1047,83 +1047,9 @@
                                   Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
                                                Converter={StaticResource PageVis}, ConverterParameter=Awards}" />
 
-                <!-- ============ NEWS ============ -->
-                <local:PageHost Title="NEWS" Subtitle="Across the whole sport, most recent first"
-                                Visibility="{Binding CurrentPage, Converter={StaticResource PageVis}, ConverterParameter=News}">
-                  <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <!-- Twelve divisions reporting at once buries the two things anyone scans a boxing feed
-                         for: the belts, and one weight in particular. -->
-                    <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
-                            BorderThickness="1" CornerRadius="9" Padding="14,10" Margin="18,4,18,12">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <CheckBox Content="Title fights only" IsChecked="{Binding NewsTitlesOnly}"
-                                      VerticalAlignment="Center" />
-                            <ComboBox Grid.Column="1" ItemsSource="{Binding NewsDivisions}"
-                                      SelectedItem="{Binding NewsDivision}" Margin="20,0,0,0"
-                                      MinWidth="190" AutomationProperties.Name="Division" />
-                            <Button Grid.Column="3" Content="Clear" Command="{Binding ClearNewsFilter}"
-                                    Padding="12,6" FontSize="12"
-                                    Visibility="{Binding NewsIsFiltered, Converter={StaticResource BoolVis}}" />
-                        </Grid>
-                    </Border>
-
-                    <!-- A filter that matches nothing must say so, or an empty page reads as a broken feed. -->
-                    <TextBlock Grid.Row="1" Margin="20,10,20,0" FontSize="13" TextWrapping="Wrap"
-                               Foreground="{StaticResource Muted}" VerticalAlignment="Top"
-                               Text="Nothing in the feed matches that. Try another division, or clear the filter."
-                               Visibility="{Binding NewsIsEmpty, Converter={StaticResource BoolVis}}" />
-
-                    <ItemsControl Grid.Row="1" ItemsSource="{Binding News}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <!-- A headline that reports a fight is a way INTO that fight. The rest of the
-                                     feed stays as plain text, so only the openable ones invite a click. -->
-                                <Button Style="{StaticResource RowButton}" HorizontalAlignment="Stretch"
-                                        AutomationProperties.Name="{Binding Text}"
-                                        Command="{Binding DataContext.WatchNews, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding}"
-                                        IsHitTestVisible="{Binding CanWatch}">
-                                    <Grid Margin="18,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="96" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="{StaticResource Muted}" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding PlayerBout}" Value="True">
-                                                            <Setter Property="Foreground" Value="{StaticResource Text}" />
-                                                            <Setter Property="FontWeight" Value="SemiBold" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock Grid.Column="2" Text="watch ›" FontSize="11" Margin="12,0,0,0"
-                                                   VerticalAlignment="Center" Foreground="{StaticResource Gold}"
-                                                   Visibility="{Binding CanWatch, Converter={StaticResource BoolVis}}" />
-                                    </Grid>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </Grid>
-                </local:PageHost>
+                <pages:NewsView DataContext="{Binding NewsPage}"
+                                Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window},
+                                             Converter={StaticResource PageVis}, ConverterParameter=News}" />
 
                 <!-- ============ CAREER STATS ============ -->
                 <local:PageHost Title="CAREER" Subtitle="What this fighter has done so far"
@@ -2024,7 +1950,7 @@
 
                         <!-- The same two filters as the News page, stacked because 430px will not take a row.
                              They share the state, so narrowing here narrows there. -->
-                        <StackPanel Grid.Row="1" Margin="20,0,16,12">
+                        <StackPanel Grid.Row="1" Margin="20,0,16,12" DataContext="{Binding NewsPage}">
                             <ComboBox ItemsSource="{Binding NewsDivisions}" SelectedItem="{Binding NewsDivision}"
                                       AutomationProperties.Name="Division in the news" />
                             <Grid Margin="0,9,0,0">
@@ -2041,7 +1967,8 @@
                         </StackPanel>
 
                         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled" Padding="0,0,0,14">
+                                      HorizontalScrollBarVisibility="Disabled" Padding="0,0,0,14"
+                                      DataContext="{Binding NewsPage}">
                             <ItemsControl ItemsSource="{Binding News}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>

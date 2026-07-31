@@ -1,0 +1,80 @@
+<UserControl x:Class="BoxingSim.Desktop.Pages.NewsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BoxingSim.Desktop">
+    <local:PageHost Title="NEWS" Subtitle="Across the whole sport, most recent first">
+        <Grid>
+          <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+
+          <!-- Twelve divisions reporting at once buries the two things anyone scans a boxing feed
+               for: the belts, and one weight in particular. -->
+          <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}"
+                  BorderThickness="1" CornerRadius="9" Padding="14,10" Margin="18,4,18,12">
+              <Grid>
+                  <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <CheckBox Content="Title fights only" IsChecked="{Binding NewsTitlesOnly}"
+                            VerticalAlignment="Center" />
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding NewsDivisions}"
+                            SelectedItem="{Binding NewsDivision}" Margin="20,0,0,0"
+                            MinWidth="190" AutomationProperties.Name="Division" />
+                  <Button Grid.Column="3" Content="Clear" Command="{Binding ClearNewsFilter}"
+                          Padding="12,6" FontSize="12"
+                          Visibility="{Binding NewsIsFiltered, Converter={StaticResource BoolVis}}" />
+              </Grid>
+          </Border>
+
+          <!-- A filter that matches nothing must say so, or an empty page reads as a broken feed. -->
+          <TextBlock Grid.Row="1" Margin="20,10,20,0" FontSize="13" TextWrapping="Wrap"
+                     Foreground="{StaticResource Muted}" VerticalAlignment="Top"
+                     Text="Nothing in the feed matches that. Try another division, or clear the filter."
+                     Visibility="{Binding NewsIsEmpty, Converter={StaticResource BoolVis}}" />
+
+          <ItemsControl Grid.Row="1" ItemsSource="{Binding News}">
+              <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                      <!-- A headline that reports a fight is a way INTO that fight. The rest of the
+                           feed stays as plain text, so only the openable ones invite a click. -->
+                      <Button Style="{StaticResource RowButton}" HorizontalAlignment="Stretch"
+                              AutomationProperties.Name="{Binding Text}"
+                              Command="{Binding DataContext.WatchNews, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}"
+                              IsHitTestVisible="{Binding CanWatch}">
+                          <Grid Margin="18,8">
+                              <Grid.ColumnDefinitions>
+                                  <ColumnDefinition Width="96" />
+                                  <ColumnDefinition Width="*" />
+                                  <ColumnDefinition Width="Auto" />
+                              </Grid.ColumnDefinitions>
+                              <TextBlock Text="{Binding Date}" FontSize="11" Foreground="{StaticResource Faint}" />
+                              <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap">
+                                  <TextBlock.Style>
+                                      <Style TargetType="TextBlock">
+                                          <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                          <Style.Triggers>
+                                              <DataTrigger Binding="{Binding PlayerBout}" Value="True">
+                                                  <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                  <Setter Property="FontWeight" Value="SemiBold" />
+                                              </DataTrigger>
+                                          </Style.Triggers>
+                                      </Style>
+                                  </TextBlock.Style>
+                              </TextBlock>
+                              <TextBlock Grid.Column="2" Text="watch ›" FontSize="11" Margin="12,0,0,0"
+                                         VerticalAlignment="Center" Foreground="{StaticResource Gold}"
+                                         Visibility="{Binding CanWatch, Converter={StaticResource BoolVis}}" />
+                          </Grid>
+                      </Button>
+                  </DataTemplate>
+              </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </Grid>
+    </local:PageHost>
+</UserControl>

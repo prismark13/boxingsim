@@ -344,6 +344,7 @@ public sealed class CareerViewModel : Observable
         HallOfFamePage = new HallOfFameViewModel(() => Game);
         ChampionsPage = new ChampionsViewModel(() => Game);
         AwardsPage = new AwardsViewModel(() => Game);
+        NewsPage = new NewsViewModel(() => Game, () => InCareer);
 
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
@@ -389,13 +390,6 @@ public sealed class CareerViewModel : Observable
             else if (!_waiting) Take(resuming: true);
         });
         // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
-        ClearNewsFilter = new Cmd(() =>
-        {
-            _newsTitlesOnly = false;
-            _newsDiv = NewsDivisions.FirstOrDefault();
-            foreach (var n in new[] { nameof(NewsTitlesOnly), nameof(NewsDivision) }) Raise(n);
-            BuildNews();
-        });
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn));
@@ -669,6 +663,10 @@ public sealed class CareerViewModel : Observable
     /// <summary>The year's honours, and the two filters they are read through. See AwardsViewModel.</summary>
     public AwardsViewModel AwardsPage { get; }
 
+    /// <summary>The feed. Read by the News page AND the shell's drawer, which share it on purpose. See
+    /// NewsViewModel.</summary>
+    public NewsViewModel NewsPage { get; }
+
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
     public IReadOnlyList<string> Countries { get; } = new[]
@@ -762,7 +760,6 @@ public sealed class CareerViewModel : Observable
     public Cmd Dismiss { get; }
 
     // ---- collections ----
-    public ObservableCollection<NewsRow> News { get; } = new();
     public ObservableCollection<LedgerRow> Ledger { get; } = new();
     public ObservableCollection<TapeRow> Tape { get; } = new();
     public ObservableCollection<StatRow> Stats { get; } = new();
@@ -1966,8 +1963,7 @@ public sealed class CareerViewModel : Observable
             Raise(n);
         RankingsPage.Rebuild();
         ChampionsPage.Rebuild();
-        BuildDivisionChoices();
-        BuildNews();
+        NewsPage.Rebuild();
         HallOfFamePage.Rebuild();
         AwardsPage.Rebuild();
         BuildRival();
@@ -2467,8 +2463,7 @@ public sealed class CareerViewModel : Observable
         BuildRival();
         BuildUndercard();
         OfferSlate.Rebuild();
-        BuildDivisionChoices();
-        BuildNews();
+        NewsPage.Rebuild();
         BuildLedger();
         BuildTape();
         BuildStats();
@@ -2562,88 +2557,6 @@ public sealed class CareerViewModel : Observable
         }
         return Game.Player.Name == name ? Game.Player : null;
     }
-
-    // ---- filtering the feed ----
-    //
-    // Twelve divisions all reporting at once buries the two things anyone actually scans a boxing feed for:
-    // what happened to the belts, and what happened in a weight he cares about. CareerEvent has carried Div
-    // and Kind all along for exactly this.
-
-    private bool _newsTitlesOnly;
-    public bool NewsTitlesOnly
-    {
-        get => _newsTitlesOnly;
-        set { if (_newsTitlesOnly == value) return; _newsTitlesOnly = value; Raise(); BuildNews(); }
-    }
-
-    /// <summary>The divisions the feed can be narrowed to — only those that have actually reported something,
-    /// so the list never offers a weight with nothing in it. Heaviest first, matching the rankings.</summary>
-    public ObservableCollection<NewsDivChoice> NewsDivisions { get; } = new();
-
-    private NewsDivChoice? _newsDiv;
-    public NewsDivChoice? NewsDivision
-    {
-        get => _newsDiv ??= NewsDivisions.FirstOrDefault();
-        set { _newsDiv = value; Raise(); BuildNews(); }
-    }
-
-    public bool NewsIsFiltered => _newsTitlesOnly || NewsDivision?.Div is not null;
-    public bool NewsIsEmpty => News.Count == 0;
-
-    private void BuildDivisionChoices()
-    {
-        var had = _newsDiv?.Div;
-        bool hadMine = _newsDiv?.IsMine == true;
-        NewsDivisions.Clear();
-        NewsDivisions.Add(new NewsDivChoice("Every division", null));
-
-        // Your own weight, first and named as yours. It is the division anyone checks first, and unlike picking
-        // "Middleweight" off the list it follows you when you move up — choose it once and it stays right.
-        if (Game is not null && InCareer)
-            NewsDivisions.Add(new NewsDivChoice($"Your division · {Game.Player.WeightClass.DisplayName()}",
-                                               Game.Player.WeightClass, IsMine: true));
-
-        if (Game is not null)
-            foreach (var d in Game.Log.Where(e => e.Div is not null)
-                                      .Select(e => e.Div!.Value)
-                                      .Distinct()
-                                      .OrderByDescending(d => (int)d))
-                NewsDivisions.Add(new NewsDivChoice(d.DisplayName(), d));
-
-        // Hold the player's choice across a rebuild; the collection is replaced every turn. "Your division" is
-        // matched on being YOURS rather than on the weight it happened to mean, so moving up carries it with you
-        // instead of quietly pinning you to the division you left.
-        _newsDiv = hadMine
-            ? NewsDivisions.FirstOrDefault(c => c.IsMine) ?? NewsDivisions.FirstOrDefault()
-            : NewsDivisions.FirstOrDefault(c => c.Div == had && !c.IsMine) ?? NewsDivisions.FirstOrDefault();
-        Raise(nameof(NewsDivision));
-    }
-
-    private void BuildNews()
-    {
-        News.Clear();
-        if (Game is null) { RaiseNewsState(); return; }
-
-        var div = NewsDivision?.Div;
-        // By DATE, newest first — the world resolves a division at a time, so the order events are logged in is
-        // not the order they happened in. Filtered BEFORE the cap, or narrowing to one weight would show only
-        // whatever survived from the newest 120 across all of them.
-        foreach (var (e, _) in Game.Log.Select((e, i) => (e, i))
-                                       .Where(x => !_newsTitlesOnly || x.e.Kind == "title")
-                                       .Where(x => div is null || x.e.Div == div)
-                                       .OrderByDescending(x => x.e.On).ThenByDescending(x => x.i)
-                                       .Take(120))
-            News.Add(new NewsRow(e.DateLabel, e.Text, e.Kind ?? "", e.PlayerBout, e.Bout, e.Detail ?? ""));
-
-        RaiseNewsState();
-    }
-
-    private void RaiseNewsState()
-    {
-        foreach (var n in new[] { nameof(NewsIsFiltered), nameof(NewsIsEmpty) }) Raise(n);
-    }
-
-    public Cmd ClearNewsFilter { get; }
 
     private void BuildLedger()
     {
