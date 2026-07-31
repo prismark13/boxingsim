@@ -2241,6 +2241,11 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel>
+                                                <!-- The place on the bill. The list is the poster, top to
+                                                     bottom, and the night climbs it from the foot. -->
+                                                <TextBlock Text="{Binding Slot}" FontSize="10" FontWeight="Bold"
+                                                           Margin="0,0,0,3" Foreground="{StaticResource Faint}"
+                                                           Visibility="{Binding HasSlot, Converter={StaticResource BoolVis}}" />
                                                 <TextBlock Text="{Binding Fight}" FontSize="13" TextWrapping="Wrap">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">

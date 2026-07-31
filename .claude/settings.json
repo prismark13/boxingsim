@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($s = \"C:\\\\Users\\\\matth\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-matth-BoxingSim\\\\57549013-cf85-4666-b554-589e6b2162f2\\\\scratchpad\"; & \"$s\\\\camplook.ps1\" -Dll \"c:\\\\Users\\\\matth\\\\BoxingSim\\\\src\\\\BoxingSim.Desktop\\\\bin\\\\Debug\\\\net10.0-windows\\\\BoxingSim.dll\" -OutDir $s)",
+      "PowerShell(Get-Process testhost -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:$false; cd c:\\\\Users\\\\matth\\\\BoxingSim; dotnet build BoxingSim.slnx -v q --nologo 2>&1 | Select-String \"error CS\" | Select-Object -First 5; $o = dotnet test tests\\\\BoxingSim.Tests\\\\BoxingSim.Tests.csproj --nologo 2>&1 | Out-String; \\($o -split \"`n\" | Select-String \"Error Message|Failed |Passed!\" | Select-Object -First 6\\) -join \"`n\")"
+    ]
+  }
+}

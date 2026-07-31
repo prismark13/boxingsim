@@ -90,6 +90,11 @@ public sealed class CardBout : Observable
     public string Billing { get; init; } = "";
     public bool HasBilling => Billing.Length > 0;
 
+    /// <summary>MAIN EVENT / CHIEF SUPPORT / OPENER, as the poster prints it — so the list reads as a bill
+    /// rather than as a queue.</summary>
+    public string Slot { get; init; } = "";
+    public bool HasSlot => Slot.Length > 0;
+
     private string _state = "pending";           // pending | current | done
     public string State
     {
@@ -959,27 +964,31 @@ public sealed class CareerViewModel : Observable
             Raise(n);
     }
 
-    /// <summary>Build the night in the order it is actually boxed.
+    /// <summary>Build the night as a POSTER, and box it from the foot upward.
     ///
-    /// A poster lists the main event at the top; a card is fought from the bottom up, so the running order is
-    /// simply the bill reversed — which puts the player in his own slot without any special casing. Bouts the
-    /// sim did not stage (a man hurt, a man retired) are left off rather than shown as fights that never
-    /// happened.</summary>
+    /// These are two different orders and the card used to show only one of them. It was built reversed —
+    /// running order — so the screen listed the opener at the top and the main event last, underneath it.
+    /// That is not what a card looks like anywhere: the biggest fight is at the TOP of the bill and goes on
+    /// LAST. Reading down the list you should see the main event first and the four-rounder at the bottom,
+    /// and the fight being boxed should climb from the bottom of that list toward the top.
+    ///
+    /// So the list is the bill as printed, and the running order is expressed by which line is current —
+    /// starting at the last and walking up. Bouts the sim did not stage (a man hurt, a man retired) are left
+    /// off rather than shown as fights that never happened.</summary>
     private void BuildCardNight()
     {
         CardNight.Clear();
-        var bill = (Game?.LastNightsCard ?? Array.Empty<BillLine>()).ToList();
-        foreach (var l in Enumerable.Reverse(bill))
+        foreach (var l in Game?.LastNightsCard ?? Array.Empty<BillLine>())
         {
             if (!l.Fought && !l.IsPlayer) continue;
             CardNight.Add(new CardBout
             {
                 Fight = l.Fight, Distance = l.Distance, What = l.What,
                 Verdict = l.Verdict, Note = l.Note, IsPlayer = l.IsPlayer,
-                Billing = BillingLine(l),
+                Billing = BillingLine(l), Slot = l.Slot,
             });
         }
-        if (CardNight.Count > 0) CardNight[0].State = "current";
+        if (CardNight.Count > 0) CardNight[^1].State = "current";   // the opener boxes first
         RaiseCard();
     }
 
@@ -999,11 +1008,13 @@ public sealed class CareerViewModel : Observable
         return string.Join("  ·  ", bits);
     }
 
+    /// <summary>Up the bill, not down it. The list is the poster, so the next bout on is the LAST one still
+    /// waiting — the night climbs toward the main event.</summary>
     private void AdvanceCard()
     {
         var cur = Current;
         if (cur is not null) cur.State = "done";
-        var next = CardNight.FirstOrDefault(b => b.IsPending);
+        var next = CardNight.LastOrDefault(b => b.IsPending);
         if (next is not null) next.State = "current";
         RaiseCard();
     }
