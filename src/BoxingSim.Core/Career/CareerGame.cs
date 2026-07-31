@@ -29,9 +29,10 @@ public sealed partial class CareerGame
     // Hall of Fame + the trackers that decide induction. _everChampion / _peakOverall persist across saves so a
     // fighter who held a belt (or peaked as an elite) in an earlier session still qualifies when he finally retires.
     private readonly List<HallOfFamer> _hof = new();
-    private readonly List<AwardsYear> _awards = new();
-    private readonly List<YearBout> _yearBouts = new();   // this year's honourable-mention bouts, cleared each year end
-    public IReadOnlyList<AwardsYear> Awards => _awards.OrderByDescending(a => a.Year).ToList();
+
+    /// <summary>The year's honours — the shortlist of bouts still in contention and every year already decided.</summary>
+    private readonly AwardsBoard _awards = new();
+    public IReadOnlyList<AwardsYear> Awards => _awards.NewestFirst;
 
     /// <summary>A year's honours that the player has not been shown yet.
     ///
@@ -51,14 +52,6 @@ public sealed partial class CareerGame
 
     /// <summary>Mark the honours as read.</summary>
     public void AwardsSeen() => UnseenAwards = null;
-    private sealed record YearBout(int Year, DateOnly Date, string Winner, string Loser, int WinnerId, int LoserId,
-                                   string Method, int Round, bool Title, int WinnerOvr, int LoserOvr, int Kds,
-                                   bool Draw, bool Close, WeightClass Div, string LoserStanding)
-    {
-        /// <summary>How to find this night again in either man's record.</summary>
-        public BoutRef Ref => new(Winner, Loser, Date);
-    }
-    private sealed class FoyAcc { public string Name = ""; public WeightClass Div; public double Score; public int Wins, Losses, Titles, Kos; public double BestScore = -1; public YearBout? Best; }
     private readonly HashSet<int> _everChampion = new();
     private readonly Dictionary<int, int> _peakOverall = new();
     private readonly Dictionary<int, int> _peakClass = new();
@@ -446,8 +439,8 @@ public sealed partial class CareerGame
         // The decade of build-up isn't the player's story — start his timeline (and the Hall of Fame) clean, so
         // the Hall fills with fighters who retire during his career rather than a generation he never saw.
         _news.Clear();
-        _yearBouts.Clear();
-        if (!seedHistory) { _hof.Clear(); _awards.Clear(); }   // when seeding history, keep the past greats + their era's awards
+        _awards.ClearShortlist();
+        if (!seedHistory) { _hof.Clear(); _awards.ClearDecided(); }   // when seeding history, keep the past greats + their era's awards
         Date = new DateOnly(startYear, 3, 1);
         if (Champion is not null) LogEvent($"{Champion.Name} reigns as {PrimaryBelt} champion as {player.Name} turns pro.", kind: "title");
 
@@ -535,7 +528,7 @@ public sealed partial class CareerGame
             Bout = w.BoutWinner is not null && w.BoutLoser is not null && DateOnly.TryParse(w.BoutDate, out var bd)
                    ? new BoutRef(w.BoutWinner, w.BoutLoser, bd) : null
         };
-        foreach (var a in s.Awards) _awards.Add(new AwardsYear
+        foreach (var a in s.Awards) _awards.Load(new AwardsYear
         {
             Year = a.Year,
             FighterOfYear = a.FighterOfYear.Select(AwLoad).ToList(),
@@ -632,7 +625,7 @@ public sealed partial class CareerGame
             BoutWinner = w.Bout?.Winner, BoutLoser = w.Bout?.Loser,
             BoutDate = w.Bout?.Date.ToString("yyyy-MM-dd")
         };
-        foreach (var a in _awards) s.Awards.Add(new AwardsYearSave
+        foreach (var a in _awards.All) s.Awards.Add(new AwardsYearSave
         {
             Year = a.Year,
             FighterOfYear = a.FighterOfYear.Select(AwSave).ToList(),

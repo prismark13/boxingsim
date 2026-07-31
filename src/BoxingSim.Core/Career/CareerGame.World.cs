@@ -46,7 +46,7 @@ public sealed partial class CareerGame
             // A year of the sport just ended. Hand its honours to whoever is watching — but not in a
             // universe, which has no player to hand them to.
             if (Universe is null && !Player.Retired)
-                UnseenAwards = _awards.FirstOrDefault(a => a.Year == _lastYearRun - 1);
+                UnseenAwards = _awards.For(_lastYearRun - 1);
             YearlyPass();
         }
     }
@@ -277,7 +277,7 @@ public sealed partial class CareerGame
         var w = res.Winner; var l = res.Loser;
         bool close = res.IsDraw || res.Method is "SD" or "MD"
                      || (res.Scorecards.Count > 0 && res.Scorecards.All(c => Math.Abs(c.A - c.B) <= 4));
-        _yearBouts.Add(new YearBout(on.Year, on, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
+        _awards.Capture(new YearBout(on.Year, on, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
             res.Method, res.EndRound, title, w?.Overall ?? a.Overall, l?.Overall ?? b.Overall,
             res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass, l is not null ? Standing(l) : ""));
     }
@@ -295,65 +295,17 @@ public sealed partial class CareerGame
         return WorldRanked(b) && b.Class >= 8 ? "a top contender" : WorldRanked(b) ? "a ranked contender" : "";
     }
 
-    /// <summary>Expand a method abbreviation into words for award commentary.</summary>
-    private static string Long(string method) => method switch
-    {
-        "KO" => "knockout", "TKO" => "stoppage", "UD" => "a unanimous decision", "SD" => "a split decision",
-        "MD" => "a majority decision", "DQ" => "disqualification", "D" => "a draw", _ => method
-    };
-
-    /// <summary>Hand out the end-of-year honours (top three per category) from the year's captured bouts.</summary>
+    /// <summary>Decide the year's honours, then say the loud ones out loud.
+    ///
+    /// The scoring is the board's business and none of this file's. What is left here is the part that needs a
+    /// world to make sense: whether the man who won it is the one holding the controller.</summary>
     private void ComputeAwardsFor(int year)
     {
-        var bouts = _yearBouts.Where(x => x.Year == year).ToList();
-        _yearBouts.RemoveAll(x => x.Year <= year);
-        if (bouts.Count == 0) return;
-
-        // Fighter of the Year rewards the QUALITY of results — beating high-rated men, winning titles, pulling
-        // upsets — not volume, and a loss that year is a heavy negative (a Fighter of the Year rarely loses).
-        var acc = new Dictionary<int, FoyAcc>();
-        FoyAcc Get(int id, string name, WeightClass div)
-        {
-            if (!acc.TryGetValue(id, out var a)) acc[id] = a = new FoyAcc { Name = name, Div = div };
-            return a;
-        }
-        foreach (var x in bouts)
-        {
-            if (x.Draw) continue;
-            bool inside = x.Method is "KO" or "TKO";
-            var w = Get(x.WinnerId, x.Winner, x.Div);
-            w.Score += 6 + x.LoserOvr * 0.4 + (x.Title ? 45 : 0) + Math.Max(0, x.LoserOvr - x.WinnerOvr) * 0.9 + (inside ? 5 : 0);
-            w.Wins++; if (x.Title) w.Titles++; if (inside) w.Kos++;
-            double q = x.LoserOvr + (x.Title ? 25 : 0);
-            if (q > w.BestScore) { w.BestScore = q; w.Best = x; }
-            var l = Get(x.LoserId, x.Loser, x.Div);
-            l.Score -= 32 + Math.Max(0, x.WinnerOvr - x.LoserOvr) * 0.7 + (x.Title ? 8 : 0);   // a defeat sinks his case
-            l.Losses++;
-        }
-        var foy = acc.Values.Where(a => a.Wins > a.Losses && a.Best is not null)   // must have had a winning year
-            .OrderByDescending(a => a.Score).Take(3)
-            .Select(a => new AwardWinner { Name = a.Name, Div = a.Div, Bout = a.Best!.Ref,
-                Detail = $"{a.Wins}-{a.Losses}{(a.Titles > 0 ? $", {a.Titles} title win{(a.Titles == 1 ? "" : "s")}" : "")}",
-                Commentary = $"A standout {year} in {a.Div.DisplayName()} — {a.Wins}-{a.Losses} with {a.Kos} inside the distance{(a.Titles > 0 ? $", including {a.Titles} world-title win{(a.Titles == 1 ? "" : "s")}" : "")}. His best: beating {a.Best!.Loser}{(string.IsNullOrEmpty(a.Best.LoserStanding) ? $" (rated {a.Best.LoserOvr})" : $", {a.Best.LoserStanding},")}{(a.Best.Title ? " for the belt" : "")}." }).ToList();
-
-        var upset = bouts.Where(x => !x.Draw && x.WinnerOvr < x.LoserOvr)
-            .OrderByDescending(x => (x.LoserOvr - x.WinnerOvr) + (x.Title ? 15 : 0)).Take(3)
-            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div, Bout = x.Ref,
-                Detail = $"beat {x.Loser} ({x.WinnerOvr} vs {x.LoserOvr}){(x.Title ? " · title" : "")}",
-                Commentary = $"Nobody saw it coming: {x.Winner} (rated {x.WinnerOvr}) upset {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? $" (rated {x.LoserOvr})" : $", {x.LoserStanding},")} by {Long(x.Method)}{(x.Title ? " to rip away the world title" : "")} in {x.Div.DisplayName()}." }).ToList();
-
-        var ko = bouts.Where(x => x.Method is "KO" or "TKO")
-            .OrderByDescending(x => x.LoserOvr + (x.Title ? 12 : 0) + Math.Max(0, 9 - x.Round) * 2 + x.Kds * 3).Take(3)
-            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div, Bout = x.Ref,
-                Detail = $"KO{(x.Round > 0 ? $" rd{x.Round}" : "")} {x.Loser}{(x.Title ? " · title" : "")}",
-                Commentary = $"{x.Winner} flattened {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? "" : $", {x.LoserStanding},")}{(x.Round > 0 ? $" in round {x.Round}" : "")}{(x.Title ? " in a world-title fight" : "")} — the year's most emphatic knockout in {x.Div.DisplayName()}." }).ToList();
-
-        var foty = bouts.OrderByDescending(x => Math.Min(x.WinnerOvr, x.LoserOvr) + (x.Title ? 15 : 0) + (x.Close ? 12 : 0) + x.Kds * 4).Take(3)
-            .Select(x => new AwardWinner { Name = $"{x.Winner} vs {x.Loser}", Div = x.Div, Bout = x.Ref,
-                Detail = $"{(x.Draw ? "draw" : x.Method)}{(x.Title ? " · title" : "")}{(x.Kds > 0 ? $" · {x.Kds} KD" : "")}",
-                Commentary = $"{x.Winner} and {x.Loser} went to war in {x.Div.DisplayName()}{(x.Title ? " with the world title on the line" : "")}{(x.Kds > 0 ? $", trading {x.Kds} knockdown{(x.Kds == 1 ? "" : "s")}" : "")} — settled by {(x.Draw ? "a draw" : Long(x.Method))}." }).ToList();
-
-        _awards.Add(new AwardsYear { Year = year, FighterOfYear = foy, UpsetOfYear = upset, KnockoutOfYear = ko, FightOfYear = foty });
+        if (_awards.ComputeFor(year) is not AwardsYear decided) return;
+        var foy = decided.FighterOfYear;
+        var upset = decided.UpsetOfYear;
+        var ko = decided.KnockoutOfYear;
+        var foty = decided.FightOfYear;
 
         // The headline honours crop up in the news feed.
         if (foy.Count > 0) LogEvent($"{year} Fighter of the Year: {foy[0].Name} ({foy[0].Detail}).", foy[0].Name == Player.Name, kind: "award", div: foy[0].Div);
