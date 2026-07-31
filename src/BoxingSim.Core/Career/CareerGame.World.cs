@@ -46,7 +46,7 @@ public sealed partial class CareerGame
             // A year of the sport just ended. Hand its honours to whoever is watching — but not in a
             // universe, which has no player to hand them to.
             if (Universe is null && !Player.Retired)
-                UnseenAwards = _awards.FirstOrDefault(a => a.Year == _lastYearRun - 1);
+                UnseenAwards = _awards.For(_lastYearRun - 1);
             YearlyPass();
         }
     }
@@ -64,7 +64,7 @@ public sealed partial class CareerGame
     private IReadOnlyList<CareerEvent> AdvanceSome(DateOnly target, int days)
     {
         if (Date >= target) return Array.Empty<CareerEvent>();
-        long mark = _logWrites;   // not _log.Count — see the field. The log is capped; its length is not a position.
+        long mark = _news.Mark;   // a position in the stream, not a length — see NewsLog.
         var next = Date.AddDays(days);
         if (next > target) next = target;
         AdvanceClockTo(next);
@@ -73,13 +73,7 @@ public sealed partial class CareerGame
         return NewsSince(mark);
     }
 
-    /// <summary>The headlines written since a mark. Clamped to what the log still holds, because a single step
-    /// of a busy world can write more than the whole window keeps.</summary>
-    private IReadOnlyList<CareerEvent> NewsSince(long mark)
-    {
-        int added = (int)Math.Min(_logWrites - mark, _log.Count);
-        return added <= 0 ? Array.Empty<CareerEvent>() : _log.Skip(_log.Count - added).ToList();
-    }
+    private IReadOnlyList<CareerEvent> NewsSince(long mark) => _news.Since(mark);
 
     /// <summary>Run the sport forward one week toward fight night and report what happened, so the wait can
     /// be watched rather than skipped. Null once there is nothing left to wait for.</summary>
@@ -149,13 +143,11 @@ public sealed partial class CareerGame
             // there is no way to reconstruct what he was at 22 once he is 30.
             if (b.Id == Player.Id && _playerArc.All(x => x.Age != b.Age))
                 _playerArc.Add((CareerMileage.Fights(b), b.Age, b.Ratings.Clone()));
-            _peakOverall[b.Id] = Math.Max(_peakOverall.GetValueOrDefault(b.Id), b.Overall);
-            _peakClass[b.Id] = Math.Max(_peakClass.GetValueOrDefault(b.Id), b.Class);
-            if (ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id)
+            _hall.RecordPeak(b.Id, b.Overall, b.Class);
+            if (IsWorldChampion(b))
             {
-                _everChampion.Add(b.Id);
-                if (!_titleDivisions.TryGetValue(b.Id, out var divs)) _titleDivisions[b.Id] = divs = new();
-                divs.Add(b.WeightClass);   // he campaigned up and won here too → a multi-weight champion
+                _hall.MarkChampion(b.Id);
+                _hall.MarkTitleDivision(b.Id, b.WeightClass);   // he campaigned up and won here too → a multi-weight champion
             }
 
             // Fight regularly or hang them up: a generated fighter who's been idle for ~2 years drifts out
@@ -166,9 +158,7 @@ public sealed partial class CareerGame
             {
                 b.Retired = true;
                 if (b.IsChampion) b.IsChampion = false;
-                if (ChampOf(b.WeightClass)?.Id == b.Id) _champions[b.WeightClass] = null;
-                if (WbcOf(b.WeightClass)?.Id == b.Id) _wbc[b.WeightClass] = null;
-                if (IbfOf(b.WeightClass)?.Id == b.Id) _ibf[b.WeightClass] = null;
+                _titles.VacateWorldBelts(b.WeightClass, b);
                 VacateLineal(b.WeightClass, b, "retires as champion");
                 bool inducted = MaybeInductHoF(b);
                 if (b.Id == Player.Id) { if (!inducted) LogEvent($"{Player.Name} retires from boxing.", true, kind: "retire"); }
@@ -185,11 +175,11 @@ public sealed partial class CareerGame
             var champ = ChampOf(wc);
             if (champ is null || champ.Retired)
             {
-                _champions[wc] = null;
+                _titles.SetChamp(wc, null);
                 var winner = ContestVacantTitle(wc, PrimaryBelt, WbcOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
                 if (winner is not null)   // announced by ContestVacantTitle, dated to fight night
                 {
-                    _champions[wc] = winner; winner.IsChampion = true;
+                    _titles.SetChamp(wc, winner); winner.IsChampion = true;
                 }
             }
         }
@@ -205,7 +195,7 @@ public sealed partial class CareerGame
     {
         var exclude = excludeIds.Where(id => id != 0).ToHashSet();
         bool Eligible(Boxer b) => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id)
-                               && !RecentlyMovedUp(b) && Available(b) && Rested(b);
+                               && !RecentlyMovedUp(b) && _medical.Available(b) && Rested(b);
         var field = ActiveIn(wc).Where(b => Eligible(b) && WorldRanked(b)).OrderByDescending(RankScore).Take(2).ToList();
         if (field.Count == 0) return null;
         if (field.Count == 1)
@@ -232,46 +222,23 @@ public sealed partial class CareerGame
         // announcement happening BEFORE the clock was put back, which is a rule about statement order that
         // nothing enforces: move this line down three and the headline reads months before the bout that
         // decided it. It carries its own date now, so it cannot be moved into the wrong one.
-        _everChampion.Add(winner.Id);
+        _hall.MarkChampion(winner.Id);
         LogEvent($"{winner.Name} wins the vacant {belt} title.", winner.Id == Player.Id, kind: "title", div: wc,
                  on: night);
         return winner;
     }
 
-    /// <summary>Enshrine a retiring great: a world champion with a real body of work, or a genuinely elite talent.
-    /// The snapshot is self-contained so it survives the roster being pruned on save. Returns true if inducted.</summary>
+    /// <summary>Put a retiring great to the Hall, and announce it if he got in.
+    ///
+    /// The case is the Hall's to judge; what this has to supply is the part of it that lives out here — how
+    /// many fights he had, how many defences he made, whether he is walking away still holding a belt, and
+    /// the prime of a real fighter who was injected into the world part-way through his career instead of
+    /// growing up in it. That last one is a floor, not a value: everyone else passes zero.</summary>
     private bool MaybeInductHoF(Boxer b)
     {
-        if (_hof.Any(x => x.Id == b.Id)) return false;
-        int peak = _peakOverall.GetValueOrDefault(b.Id, b.Overall);
-        int peakClass = Math.Max(_peakClass.GetValueOrDefault(b.Id), b.Class);
-        if (_historical.TryGetValue(b.Id, out var h)) { peak = Math.Max(peak, h.Prime.Overall); peakClass = Math.Max(peakClass, h.Prime.Class); }
-        bool wasChamp = _everChampion.Contains(b.Id)
-                        || ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
-        // The lineal line is not a fourth belt to defend — a Ring defence IS one of the sanctioned defences, so
-        // it's tracked for the champions board but must never be double-counted into a career total.
-        int defenses = _beltDefenses.Where(kv => kv.Key.Holder == b.Id && kv.Key.Belt != "Ring").Sum(kv => kv.Value);
-        int weightTitles = _titleDivisions.TryGetValue(b.Id, out var tds) ? tds.Count : (wasChamp ? 1 : 0);
-        // A real champion with a genuine reign (3+ defences) or a multi-weight champion — but only a true top-tier
-        // fighter (peakClass floor keeps journeyman champions of a thin division out) — or an outright elite talent.
-        // A Hall of Famer needs a real body of work, not a handful of bouts — plus either a genuine title reign,
-        // a multi-weight title, or an elite career-long talent.
-        int pf = ProFights(b);
-        bool worthy = pf >= 15 && ((((wasChamp && defenses >= 3) || weightTitles >= 2) && peakClass >= 8) || (peak >= 88 && pf >= 25));
-        if (!worthy) return false;
-
-        _hof.Add(new HallOfFamer
-        {
-            Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, Division = b.WeightClass,
-            Record = b.Record.ToString(), PeakOverall = peak, PeakClass = peakClass, Defenses = defenses, WasChampion = wasChamp,
-            WeightTitles = weightTitles, TitleDivisions = tds?.OrderBy(d => (int)d).ToList() ?? new(), Age = b.Age, Year = Date.Year,
-            // Snapshot the ledger (drop the heavy per-round grid/commentary) so the Hall keeps his fight history.
-            History = b.History.Select(h => new BoutLine
-            {
-                Date = h.Date, Opponent = h.Opponent, Result = h.Result, Method = h.Method,
-                Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
-            }).ToList()
-        });
+        var prime = _historical.TryGetValue(b.Id, out var h) ? (h.Prime.Overall, h.Prime.Class) : (0, 0);
+        if (!_hall.Induct(b, ProFights(b), _titles.CareerDefenses(b.Id), IsWorldChampion(b),
+                          prime.Item1, prime.Item2, Date.Year)) return false;
         LogEvent($"{b.Name} ({b.Record}) retires and enters the Hall of Fame.", b.Id == Player.Id, kind: "hof", div: b.WeightClass);
         return true;
     }
@@ -287,7 +254,7 @@ public sealed partial class CareerGame
         var w = res.Winner; var l = res.Loser;
         bool close = res.IsDraw || res.Method is "SD" or "MD"
                      || (res.Scorecards.Count > 0 && res.Scorecards.All(c => Math.Abs(c.A - c.B) <= 4));
-        _yearBouts.Add(new YearBout(on.Year, on, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
+        _awards.Capture(new YearBout(on.Year, on, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
             res.Method, res.EndRound, title, w?.Overall ?? a.Overall, l?.Overall ?? b.Overall,
             res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass, l is not null ? Standing(l) : ""));
     }
@@ -305,65 +272,17 @@ public sealed partial class CareerGame
         return WorldRanked(b) && b.Class >= 8 ? "a top contender" : WorldRanked(b) ? "a ranked contender" : "";
     }
 
-    /// <summary>Expand a method abbreviation into words for award commentary.</summary>
-    private static string Long(string method) => method switch
-    {
-        "KO" => "knockout", "TKO" => "stoppage", "UD" => "a unanimous decision", "SD" => "a split decision",
-        "MD" => "a majority decision", "DQ" => "disqualification", "D" => "a draw", _ => method
-    };
-
-    /// <summary>Hand out the end-of-year honours (top three per category) from the year's captured bouts.</summary>
+    /// <summary>Decide the year's honours, then say the loud ones out loud.
+    ///
+    /// The scoring is the board's business and none of this file's. What is left here is the part that needs a
+    /// world to make sense: whether the man who won it is the one holding the controller.</summary>
     private void ComputeAwardsFor(int year)
     {
-        var bouts = _yearBouts.Where(x => x.Year == year).ToList();
-        _yearBouts.RemoveAll(x => x.Year <= year);
-        if (bouts.Count == 0) return;
-
-        // Fighter of the Year rewards the QUALITY of results — beating high-rated men, winning titles, pulling
-        // upsets — not volume, and a loss that year is a heavy negative (a Fighter of the Year rarely loses).
-        var acc = new Dictionary<int, FoyAcc>();
-        FoyAcc Get(int id, string name, WeightClass div)
-        {
-            if (!acc.TryGetValue(id, out var a)) acc[id] = a = new FoyAcc { Name = name, Div = div };
-            return a;
-        }
-        foreach (var x in bouts)
-        {
-            if (x.Draw) continue;
-            bool inside = x.Method is "KO" or "TKO";
-            var w = Get(x.WinnerId, x.Winner, x.Div);
-            w.Score += 6 + x.LoserOvr * 0.4 + (x.Title ? 45 : 0) + Math.Max(0, x.LoserOvr - x.WinnerOvr) * 0.9 + (inside ? 5 : 0);
-            w.Wins++; if (x.Title) w.Titles++; if (inside) w.Kos++;
-            double q = x.LoserOvr + (x.Title ? 25 : 0);
-            if (q > w.BestScore) { w.BestScore = q; w.Best = x; }
-            var l = Get(x.LoserId, x.Loser, x.Div);
-            l.Score -= 32 + Math.Max(0, x.WinnerOvr - x.LoserOvr) * 0.7 + (x.Title ? 8 : 0);   // a defeat sinks his case
-            l.Losses++;
-        }
-        var foy = acc.Values.Where(a => a.Wins > a.Losses && a.Best is not null)   // must have had a winning year
-            .OrderByDescending(a => a.Score).Take(3)
-            .Select(a => new AwardWinner { Name = a.Name, Div = a.Div, Bout = a.Best!.Ref,
-                Detail = $"{a.Wins}-{a.Losses}{(a.Titles > 0 ? $", {a.Titles} title win{(a.Titles == 1 ? "" : "s")}" : "")}",
-                Commentary = $"A standout {year} in {a.Div.DisplayName()} — {a.Wins}-{a.Losses} with {a.Kos} inside the distance{(a.Titles > 0 ? $", including {a.Titles} world-title win{(a.Titles == 1 ? "" : "s")}" : "")}. His best: beating {a.Best!.Loser}{(string.IsNullOrEmpty(a.Best.LoserStanding) ? $" (rated {a.Best.LoserOvr})" : $", {a.Best.LoserStanding},")}{(a.Best.Title ? " for the belt" : "")}." }).ToList();
-
-        var upset = bouts.Where(x => !x.Draw && x.WinnerOvr < x.LoserOvr)
-            .OrderByDescending(x => (x.LoserOvr - x.WinnerOvr) + (x.Title ? 15 : 0)).Take(3)
-            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div, Bout = x.Ref,
-                Detail = $"beat {x.Loser} ({x.WinnerOvr} vs {x.LoserOvr}){(x.Title ? " · title" : "")}",
-                Commentary = $"Nobody saw it coming: {x.Winner} (rated {x.WinnerOvr}) upset {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? $" (rated {x.LoserOvr})" : $", {x.LoserStanding},")} by {Long(x.Method)}{(x.Title ? " to rip away the world title" : "")} in {x.Div.DisplayName()}." }).ToList();
-
-        var ko = bouts.Where(x => x.Method is "KO" or "TKO")
-            .OrderByDescending(x => x.LoserOvr + (x.Title ? 12 : 0) + Math.Max(0, 9 - x.Round) * 2 + x.Kds * 3).Take(3)
-            .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div, Bout = x.Ref,
-                Detail = $"KO{(x.Round > 0 ? $" rd{x.Round}" : "")} {x.Loser}{(x.Title ? " · title" : "")}",
-                Commentary = $"{x.Winner} flattened {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? "" : $", {x.LoserStanding},")}{(x.Round > 0 ? $" in round {x.Round}" : "")}{(x.Title ? " in a world-title fight" : "")} — the year's most emphatic knockout in {x.Div.DisplayName()}." }).ToList();
-
-        var foty = bouts.OrderByDescending(x => Math.Min(x.WinnerOvr, x.LoserOvr) + (x.Title ? 15 : 0) + (x.Close ? 12 : 0) + x.Kds * 4).Take(3)
-            .Select(x => new AwardWinner { Name = $"{x.Winner} vs {x.Loser}", Div = x.Div, Bout = x.Ref,
-                Detail = $"{(x.Draw ? "draw" : x.Method)}{(x.Title ? " · title" : "")}{(x.Kds > 0 ? $" · {x.Kds} KD" : "")}",
-                Commentary = $"{x.Winner} and {x.Loser} went to war in {x.Div.DisplayName()}{(x.Title ? " with the world title on the line" : "")}{(x.Kds > 0 ? $", trading {x.Kds} knockdown{(x.Kds == 1 ? "" : "s")}" : "")} — settled by {(x.Draw ? "a draw" : Long(x.Method))}." }).ToList();
-
-        _awards.Add(new AwardsYear { Year = year, FighterOfYear = foy, UpsetOfYear = upset, KnockoutOfYear = ko, FightOfYear = foty });
+        if (_awards.ComputeFor(year) is not AwardsYear decided) return;
+        var foy = decided.FighterOfYear;
+        var upset = decided.UpsetOfYear;
+        var ko = decided.KnockoutOfYear;
+        var foty = decided.FightOfYear;
 
         // The headline honours crop up in the news feed.
         if (foy.Count > 0) LogEvent($"{year} Fighter of the Year: {foy[0].Name} ({foy[0].Detail}).", foy[0].Name == Player.Name, kind: "award", div: foy[0].Div);

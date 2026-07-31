@@ -24,8 +24,8 @@ public sealed partial class CareerGame
         {
             if (res.Loser.Id == champ.Id)
             {
-                _lineal[wc] = res.Winner;
-                _everChampion.Add(res.Winner.Id);
+                _titles.SetLineal(wc, res.Winner);
+                _hall.MarkChampion(res.Winner.Id);
                 LogEvent($"{res.Winner.Name} beats the man who beat the man — {res.Loser.Name}'s {LinealBelt} championship changes hands.",
                          res.Winner.Id == Player.Id, kind: "title", div: wc, on: on);
             }
@@ -38,8 +38,8 @@ public sealed partial class CareerGame
         if (!IsWorldTitleNote(note)) return;
         var top2 = ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(2).Select(x => x.Id).ToHashSet();
         if (!(top2.Contains(a.Id) && top2.Contains(b.Id))) return;
-        _lineal[wc] = res.Winner;
-        _everChampion.Add(res.Winner.Id);
+        _titles.SetLineal(wc, res.Winner);
+        _hall.MarkChampion(res.Winner.Id);
         LogEvent($"{res.Winner.Name} beats {res.Loser.Name} to establish himself as the {LinealBelt} champion at {wc.DisplayName()}.",
                  res.Winner.Id == Player.Id, kind: "title", div: wc, on: on);
     }
@@ -48,7 +48,7 @@ public sealed partial class CareerGame
     private void ClaimLinealByUnification(WeightClass wc)
     {
         if (LinealOf(wc) is not null || UndisputedOf(wc) is not Boxer u) return;
-        _lineal[wc] = u;
+        _titles.SetLineal(wc, u);
         LogEvent($"{u.Name} holds every belt at {wc.DisplayName()} and is recognised as {LinealBelt} champion.",
                  u.Id == Player.Id, kind: "title", div: wc);
     }
@@ -58,14 +58,13 @@ public sealed partial class CareerGame
     private void VacateLineal(WeightClass wc, Boxer who, string why)
     {
         if (LinealOf(wc)?.Id != who.Id) return;
-        _lineal[wc] = null;
+        _titles.SetLineal(wc, null);
         LogEvent($"The {LinealBelt} championship at {wc.DisplayName()} falls vacant — {who.Name} {why}.",
                  who.Id == Player.Id, kind: "title", div: wc);
     }
 
     // ---- regional belts ----
 
-    private readonly Dictionary<(WeightClass Div, string Region), Boxer> _regional = new();   // (division, region) → belt holder
     private static readonly string[] RegionalBelts = { "NABF", "European", "Commonwealth" };
 
     /// <summary>Does this man hold a world belt in his own division?
@@ -74,8 +73,7 @@ public sealed partial class CareerGame
     /// out — they only defend". It never mentioned the IBF, so the third champion of every division was
     /// quietly available to be matched on a club show, and could be beaten there with nothing on the line.
     /// That is how a man beats a reigning champion and walks away with no belt.</summary>
-    private bool HoldsAnyWorldBelt(Boxer b) =>
-        ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
+    private bool HoldsAnyWorldBelt(Boxer b) => _titles.HoldsAnyWorldBelt(b);
 
     /// <summary>Who is worth putting in for a regional title. A world-ranked contender obviously, but a good
     /// unbeaten prospect too - that is exactly what these belts are for, and holding a man back until he has
@@ -99,13 +97,13 @@ public sealed partial class CareerGame
     private bool ChasesRegional(Boxer b)
     {
         if (IsWorldChampion(b)) return false;
-        if (!_everChampion.Contains(b.Id)) return true;
+        if (!_hall.WasEverChampion(b.Id)) return true;
         return !WorldRanked(b) && _rng.NextDouble() < 0.10;
     }
 
     /// <summary>The regional belts the player currently holds (for the UI header).</summary>
-    public IEnumerable<string> PlayerRegionalBelts => _regional.Where(kv => kv.Key.Div == Division && kv.Value.Id == Player.Id).Select(kv => kv.Key.Region);
-    public Boxer? RegionalChampion(string region) => _regional.GetValueOrDefault((Division, region));
+    public IEnumerable<string> PlayerRegionalBelts => _titles.RegionalBeltsOf(Player, Division);
+    public Boxer? RegionalChampion(string region) => _titles.Regional(Division, region);
 
     /// <summary>Which regional belt a fighter's nationality makes him eligible for (null = none).</summary>
     private static string? RegionOf(Boxer b) => b.Country switch
@@ -124,7 +122,7 @@ public sealed partial class CareerGame
         belt == "WBC" ? WbcChampion :
         belt == "IBF" ? IbfChampion :
         (belt == PrimaryBelt || belt == "WBA" || belt == "World") ? Champion :
-        _regional.GetValueOrDefault((Division, belt));
+        _titles.Regional(Division, belt);
 
     private bool PlayerHolds(string belt) => BeltHolder(belt)?.Id == Player.Id;
 
@@ -139,16 +137,16 @@ public sealed partial class CareerGame
     /// into circulation for the men still climbing. Run once a year, with the rest of the world's business.</summary>
     private void RetireOutgrownRegionals()
     {
-        foreach (var (key, holder) in _regional.ToList())
+        foreach (var (div, region, holder) in _titles.AllRegional)
         {
-            if (holder.Retired) { _regional.Remove(key); continue; }
+            if (holder.Retired) { _titles.ClearRegional(div, region); continue; }
             int place = BoardPlace(holder);
             if (place is <= 0 or > 5) continue;
 
-            _regional.Remove(key);
-            if (key.Div == Division)
-                LogEvent($"{holder.Name} vacates the {key.Region} title — he has outgrown it.",
-                         holder.Id == Player.Id, kind: "title", div: key.Div);
+            _titles.ClearRegional(div, region);
+            if (div == Division)
+                LogEvent($"{holder.Name} vacates the {region} title — he has outgrown it.",
+                         holder.Id == Player.Id, kind: "title", div: div);
         }
     }
 
@@ -156,9 +154,9 @@ public sealed partial class CareerGame
     private void DropRegionals(Boxer b, DateOnly on)
     {
         foreach (var region in RegionalBelts)
-            if (_regional.GetValueOrDefault((b.WeightClass, region))?.Id == b.Id)
+            if (_titles.Regional(b.WeightClass, region)?.Id == b.Id)
             {
-                _regional.Remove((b.WeightClass, region));
+                _titles.ClearRegional(b.WeightClass, region);
                 if (b.WeightClass == Division) LogEvent($"{b.Name} relinquishes the {region} title to campaign for a world belt.", b.Id == Player.Id, kind: "title", on: on);
             }
     }
@@ -168,39 +166,39 @@ public sealed partial class CareerGame
         if (belt == "WBC") CrownWbc(holder);
         else if (belt == "IBF") CrownIbf(holder);
         else if (belt == PrimaryBelt || belt == "WBA" || belt == "World") CrownChampion(holder);
-        else _regional[(holder.WeightClass, belt)] = holder;
+        else _titles.SetRegional(holder.WeightClass, belt, holder);
     }
 
     /// <summary>Brings the WBC belt into being in 1963 and re-crowns vacant world/regional belts in a division.</summary>
     private void UpdateBeltsFor(WeightClass wc)
     {
         if (!DivisionActive(wc)) return;   // the division doesn't exist yet — no belts to fill
-        if (WbcOf(wc) is Boxer w && w.Retired) _wbc[wc] = null;
+        if (WbcOf(wc) is Boxer w && w.Retired) _titles.SetWbc(wc, null);
         if (WbcActive && WbcOf(wc) is null)
         {
             var winner = ContestVacantTitle(wc, "WBC", ChampOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
-            if (winner is not null) _wbc[wc] = winner;   // announced by ContestVacantTitle, dated to fight night
+            if (winner is not null) _titles.SetWbc(wc, winner);   // announced by ContestVacantTitle, dated to fight night
         }
         // The IBF is established in 1983; fill it from the leading contender who isn't already a world champ.
-        if (IbfOf(wc) is Boxer iw && iw.Retired) _ibf[wc] = null;
+        if (IbfOf(wc) is Boxer iw && iw.Retired) _titles.SetIbf(wc, null);
         if (IbfActive && IbfOf(wc) is null)
         {
             var winner = ContestVacantTitle(wc, "IBF", ChampOf(wc)?.Id ?? 0, WbcOf(wc)?.Id ?? 0);
-            if (winner is not null) _ibf[wc] = winner;   // announced by ContestVacantTitle, dated to fight night
+            if (winner is not null) _titles.SetIbf(wc, winner);   // announced by ContestVacantTitle, dated to fight night
         }
 
         // A line that has ended (its holder retired or moved) is cleared, and a man who now holds every belt
         // going is recognised as the lineal champion — otherwise a division can show an "undisputed" champion
         // while the Ring title sits with someone else, which reads as a bug even though the rules allow it.
-        if (_lineal.GetValueOrDefault(wc) is Boxer lc && (lc.Retired || lc.WeightClass != wc)) _lineal[wc] = null;
+        if (_titles.LinealOnRecord(wc) is Boxer lc && (lc.Retired || lc.WeightClass != wc)) _titles.SetLineal(wc, null);
         ClaimLinealByUnification(wc);
 
         // Regional belts: each region's title goes to its best fighter in this division who isn't a world champion.
         foreach (var region in RegionalBelts)
         {
             var champ = ChampOf(wc); var wbc = WbcOf(wc); var ibf = IbfOf(wc);
-            if (_regional.TryGetValue((wc, region), out var cur) && (cur.Retired || cur.WeightClass != wc || RegionOf(cur) != region)) _regional.Remove((wc, region));
-            if (!_regional.ContainsKey((wc, region)))
+            if (_titles.TryRegional(wc, region, out var cur) && (cur.Retired || cur.WeightClass != wc || RegionOf(cur) != region)) _titles.ClearRegional(wc, region);
+            if (_titles.Regional(wc, region) is null)
             {
                 var contenders = ActiveIn(wc).Where(b => b.Id != Player.Id && RegionOf(b) == region
                                           && b.Id != champ?.Id && b.Id != wbc?.Id && b.Id != ibf?.Id
@@ -211,7 +209,7 @@ public sealed partial class CareerGame
                 var pick = contenders.Skip(2).FirstOrDefault() ?? contenders.FirstOrDefault();
                 if (pick is not null)
                 {
-                    _regional[(wc, region)] = pick;
+                    _titles.SetRegional(wc, region, pick);
                     // Say so. A vacant regional belt used to change hands in silence, so the next holder's
                     // "relinquishes the title" line arrived with no explanation of how he came to have it.
                     LogEvent($"{pick.Name} takes the vacant {region} title.", kind: "title", div: wc);
@@ -220,6 +218,6 @@ public sealed partial class CareerGame
         }
     }
 
-    private TitleReign? OpenReign(string belt) => _reigns.LastOrDefault(r => r.Belt == belt && r.Lost is null);
+    private TitleReign? OpenReign(string belt) => _titles.OpenReign(belt);
 
 }

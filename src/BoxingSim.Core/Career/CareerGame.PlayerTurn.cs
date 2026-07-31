@@ -176,7 +176,7 @@ public sealed partial class CareerGame
         // one — a world title with nothing but six-round novices under it is not a championship show.
         bool bigShow = Tier >= CardTier.National;
         var pool = ActiveIn(wc)
-            .Where(b => !used.Contains(b.Id) && Available(b) && !AtYearCap(b) && ProFights(b) >= 2
+            .Where(b => !used.Contains(b.Id) && _medical.Available(b) && !AtYearCap(b) && ProFights(b) >= 2
                      && Rested(b) && (bigShow || !top20.Contains(b.Id)))
             .OrderBy(_ => _rng.Next())
             .ToList();
@@ -219,7 +219,7 @@ public sealed partial class CareerGame
         for (int i = _billed.Count - 1; i >= 0; i--)
         {
             var (a, b, rounds) = _billed[i];
-            if (a.Retired || b.Retired || !Available(a) || !Available(b)) continue;
+            if (a.Retired || b.Retired || !_medical.Available(a) || !_medical.Available(b)) continue;
             var res = FastBout(a, b, rounds);
             ApplyOutcome(res, a, b);
             _undercard.Add(new UndercardBout(
@@ -453,12 +453,12 @@ public sealed partial class CareerGame
             if (playerWon && !held)
             {
                 SetBeltHolder(belt, Player);
-                _reigns.Add(new TitleReign { Belt = belt, Won = Date });
+                _titles.BeginReign(belt, Date);
                 LogEvent($"{Player.Name} WINS THE {belt} TITLE, beating {opp.Name}!", true);
             }
             else if (playerWon && held)
             {
-                Defended(Player.WeightClass, BeltSlot(belt), Player.Id);
+                Defended(Player.WeightClass, belt, Player.Id);
                 var r = OpenReign(belt); if (r is not null) r.Defenses++;   // successful defence
             }
             else if (!playerWon && held)
@@ -519,7 +519,7 @@ public sealed partial class CareerGame
     {
         if (WbcChampion?.Id != Player.Id) return;
         var r = OpenReign("WBC"); if (r is not null) r.Lost = Date;
-        WbcChampion = null;
+        _titles.SetWbc(Division, null);
         LogEvent($"{Player.Name} relinquishes the WBC title.", true);
         UpdateBeltsFor(Division);
         if (!Player.Retired) NewSlate();   // the offer is no longer a unified defence
@@ -535,7 +535,7 @@ public sealed partial class CareerGame
     {
         if (NextDivision is not WeightClass to || Player.Retired) return;
         var from = Player.WeightClass;
-        foreach (var r in _reigns.Where(r => r.Lost is null)) r.Lost = Date;   // old-division reigns end
+        _titles.EndOpenReigns(Date);   // old-division reigns end
         MoveUpTo(Player, to);
         Player.IsChampion = false;
         _lastTitleShot = -100;

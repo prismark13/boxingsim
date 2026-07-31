@@ -81,8 +81,8 @@ public sealed partial class CareerGame
                 _careers.RegisterKnockoutLoss(res.Loser);
                 // A knockout means a medical suspension — a fragile fighter (low durability: chin/heart/conditioning)
                 // is hurt worse and sits out far longer; a granite-chinned man is back in a month or two.
-                int dura = Durability(res.Loser.Ratings);
-                _outUntil[res.Loser.Id] = night.AddDays(35 + Math.Max(0, 85 - dura) * 2 + _rng.Next(45));
+                int dura = MedicalRoom.Durability(res.Loser.Ratings);
+                _medical.Suspend(res.Loser.Id, night.AddDays(35 + Math.Max(0, 85 - dura) * 2 + _rng.Next(45)));
             }
         }
         // Cuts and hand injuries can sideline either man, win or lose — a fighter with poor cut resistance is far
@@ -92,7 +92,7 @@ public sealed partial class CareerGame
             if (ko && f.Id == res.Loser?.Id) continue;   // the KO'd man is already on the shelf
             double proneness = 0.012 + (1.0 - f.Ratings.CutResistance / 100.0) * 0.06;
             if (_rng.NextDouble() < proneness)
-                _outUntil[f.Id] = night.AddDays(28 + _rng.Next(63));
+                _medical.Suspend(f.Id, night.AddDays(28 + _rng.Next(63)));
         }
 
         // Each fighter's ledger: date, result, method, round, knockdowns scored / suffered.
@@ -170,15 +170,10 @@ public sealed partial class CareerGame
         }
     }
 
-    private void CrownChampion(Boxer b)
-    {
-        var wc = b.WeightClass;
-        if (ChampOf(wc) is Boxer old) old.IsChampion = false;
-        _champions[wc] = b;
-        b.IsChampion = true;
-    }
-
-    private void CrownWbc(Boxer b) => _wbc[b.WeightClass] = b;
-    private void CrownIbf(Boxer b) => _ibf[b.WeightClass] = b;
+    // Kept as methods rather than inlined at the call sites: three of them are handed to DefendBeltSeason as
+    // the "and this is how that belt changes hands" argument, so they have to be method groups.
+    private void CrownChampion(Boxer b) => _titles.CrownChampion(b);
+    private void CrownWbc(Boxer b) => _titles.SetWbc(b.WeightClass, b);
+    private void CrownIbf(Boxer b) => _titles.SetIbf(b.WeightClass, b);
 
 }

@@ -23,29 +23,16 @@ public sealed partial class CareerGame
     private readonly List<Boxer> _roster = new();                 // every fighter ever, across all divisions
     private readonly Dictionary<int, (Ratings Prime, int Peak)> _historical = new();
     private readonly List<(int DebutYear, Boxer Proto, int DebutAge, int Peak)> _future = new();
-    private readonly List<CareerEvent> _log = new();
+    /// <summary>What the sport has reported. It owns the cap and the count of headlines ever written, which is
+    /// not the same number as how many are kept — see the type.</summary>
+    private readonly NewsLog _news = new();
+    /// <summary>The Hall, and the long memory that decides who joins it — a man's best rating ever, the
+    /// divisions he took belts in, whether he was ever champion. None of it is readable off a 38-year-old.</summary>
+    private readonly HallOfFame _hall = new();
 
-    /// <summary>Headlines ever written — which is NOT <c>_log.Count</c>.
-    ///
-    /// The log is capped and drops from the front, so once it is full every add is matched by a remove and its
-    /// Count stops moving. A step that asked "how many are there now, minus how many there were before" got
-    /// zero from that moment on, for the rest of the career. Fifteen years of a world is about fifteen hundred
-    /// headlines, so a long career reached the cap and the build-up feed went permanently silent while the
-    /// sport around it carried on making news exactly as loudly as before — a division with three thousand
-    /// active fighters reporting a hundred headlines a year, and not one of them shown.
-    ///
-    /// A position in a stream cannot be the length of a window onto it. Marks are taken against this.</summary>
-    private long _logWrites;
-    private readonly List<TitleReign> _reigns = new();
-    // Successful defences of each belt, keyed by (division, belt slot, current holder) — so a new champion
-    // automatically starts at zero. Belt slots are "WBA" (the primary/World belt), "WBC", "IBF".
-    private readonly Dictionary<(WeightClass Div, string Belt, int Holder), int> _beltDefenses = new();
-    // Hall of Fame + the trackers that decide induction. _everChampion / _peakOverall persist across saves so a
-    // fighter who held a belt (or peaked as an elite) in an earlier session still qualifies when he finally retires.
-    private readonly List<HallOfFamer> _hof = new();
-    private readonly List<AwardsYear> _awards = new();
-    private readonly List<YearBout> _yearBouts = new();   // this year's honourable-mention bouts, cleared each year end
-    public IReadOnlyList<AwardsYear> Awards => _awards.OrderByDescending(a => a.Year).ToList();
+    /// <summary>The year's honours — the shortlist of bouts still in contention and every year already decided.</summary>
+    private readonly AwardsBoard _awards = new();
+    public IReadOnlyList<AwardsYear> Awards => _awards.NewestFirst;
 
     /// <summary>A year's honours that the player has not been shown yet.
     ///
@@ -65,39 +52,19 @@ public sealed partial class CareerGame
 
     /// <summary>Mark the honours as read.</summary>
     public void AwardsSeen() => UnseenAwards = null;
-    private sealed record YearBout(int Year, DateOnly Date, string Winner, string Loser, int WinnerId, int LoserId,
-                                   string Method, int Round, bool Title, int WinnerOvr, int LoserOvr, int Kds,
-                                   bool Draw, bool Close, WeightClass Div, string LoserStanding)
-    {
-        /// <summary>How to find this night again in either man's record.</summary>
-        public BoutRef Ref => new(Winner, Loser, Date);
-    }
-    private sealed class FoyAcc { public string Name = ""; public WeightClass Div; public double Score; public int Wins, Losses, Titles, Kos; public double BestScore = -1; public YearBout? Best; }
-    private readonly HashSet<int> _everChampion = new();
-    private readonly Dictionary<int, int> _peakOverall = new();
-    private readonly Dictionary<int, int> _peakClass = new();
-    private readonly Dictionary<int, HashSet<WeightClass>> _titleDivisions = new();   // id → every division he held a world belt in
-    private readonly Dictionary<int, DateOnly> _outUntil = new();   // NPC id → date he's fit again after an injury (KO layoff)
 
-    /// <summary>True if a fighter is fit to be matched — not currently on the shelf recovering from an injury.</summary>
-    private bool Available(Boxer b) => !_outUntil.TryGetValue(b.Id, out var d) || Date >= d;
-
-    /// <summary>How well a fighter weathers punishment — the injury model's stand-in for a durable frame.</summary>
-    private static int Durability(Ratings r) => (int)Math.Round(r.Chin * 0.5 + r.Heart * 0.3 + r.Conditioning * 0.2);
-    public IReadOnlyList<HallOfFamer> HallOfFame => _hof.OrderByDescending(m => m.Prestige).ToList();
+    /// <summary>Who is injured. Constructed here and handed the clock; nothing else can reach the layoff dates.</summary>
+    private readonly MedicalRoom _medical;
+    public IReadOnlyList<HallOfFamer> HallOfFame => _hall.ByPrestige;
     private const string UndisputedBelt = "Undisputed";
     private const int MaxFightsPerYear = 8;   // nobody boxes more than 8 times in a calendar year
 
     public Boxer Player { get; }
 
-    // Every division runs at once. Belts are held per weight class; the player-facing Champion/WbcChampion
-    // views resolve to the player's CURRENT division (which changes if he moves up in weight).
-    private readonly Dictionary<WeightClass, Boxer?> _champions = new();   // WBA / "World"
-    private readonly Dictionary<WeightClass, Boxer?> _wbc = new();          // WBC (from 1963)
-    private readonly Dictionary<WeightClass, Boxer?> _ibf = new();          // IBF (from 1983)
-    // The lineal ("Ring") championship: unsanctioned, so it never passes on a relinquishment or a vacant-belt
-    // bout. The holder keeps it until he's beaten in the ring, retires, or leaves the division.
-    private readonly Dictionary<WeightClass, Boxer?> _lineal = new();
+    // Every division runs at once. Belts are held per weight class by the registry; the player-facing
+    // Champion/WbcChampion views resolve to the player's CURRENT division (which changes if he moves up in
+    // weight), and every one of them is a question for it rather than state kept here.
+    private readonly TitleRegistry _titles;
 
     // The division the world-sim is currently resolving (RunEvent/RunNpcSeason loop over all eight and set
     // this). Cursor-scoped belt accessors let the season logic stay division-agnostic.
@@ -108,22 +75,21 @@ public sealed partial class CareerGame
     // The weight is passed now, so it cannot be wrong.
 
     public WeightClass Division => Player.WeightClass;
-    public Boxer? Champion { get => _champions.GetValueOrDefault(Division); private set => _champions[Division] = value; }
-    public Boxer? WbcChampion { get => _wbc.GetValueOrDefault(Division); private set => _wbc[Division] = value; }
-    public Boxer? IbfChampion { get => _ibf.GetValueOrDefault(Division); private set => _ibf[Division] = value; }
-    public Boxer? LinealChampion { get => _lineal.GetValueOrDefault(Division); }
-    private Boxer? ChampOf(WeightClass wc) => _champions.GetValueOrDefault(wc);
-    private Boxer? WbcOf(WeightClass wc) => _wbc.GetValueOrDefault(wc);
-    private Boxer? IbfOf(WeightClass wc) => _ibf.GetValueOrDefault(wc);
-    /// <summary>The lineal holder, ignoring a stale reference: the line ends the moment he retires or leaves the
-    /// division, and a seeded-history warmup can retire a champion without passing through the yearly hooks.</summary>
-    private Boxer? LinealOf(WeightClass wc) =>
-        _lineal.GetValueOrDefault(wc) is Boxer b && !b.Retired && b.WeightClass == wc ? b : null;
-    /// <summary>The Ring began recognising champions in 1922 — before that the lineal title is just "the man".</summary>
-    public string LinealBelt => Year >= 1922 ? "Ring" : "Lineal";
-    public string PrimaryBelt => Year < 1962 ? "World" : "WBA";
-    public bool WbcActive => Year >= 1963;
-    public bool IbfActive => Year >= 1983;   // the IBF is the third sanctioning body; no WBO or minor belts
+    public Boxer? Champion { get => _titles.Champ(Division); }
+    public Boxer? WbcChampion { get => _titles.Wbc(Division); }
+    public Boxer? IbfChampion { get => _titles.Ibf(Division); }
+    /// <summary>Deliberately the name on the line rather than the guarded reader every other caller uses: the
+    /// player-facing view has always shown it unchecked, and the two disagree for exactly as long as it takes
+    /// the yearly pass to clear a line whose holder has retired.</summary>
+    public Boxer? LinealChampion { get => _titles.LinealOnRecord(Division); }
+    private Boxer? ChampOf(WeightClass wc) => _titles.Champ(wc);
+    private Boxer? WbcOf(WeightClass wc) => _titles.Wbc(wc);
+    private Boxer? IbfOf(WeightClass wc) => _titles.Ibf(wc);
+    private Boxer? LinealOf(WeightClass wc) => _titles.Lineal(wc);
+    public string LinealBelt => _titles.LinealBelt;
+    public string PrimaryBelt => _titles.PrimaryBelt;
+    public bool WbcActive => _titles.WbcActive;
+    public bool IbfActive => _titles.IbfActive;
     /// <summary>A division only exists from its founding year (the junior/intermediate classes came later).</summary>
     /// <summary>Whether a division exists in this world at all. Two things can switch one off: the year (a
     /// division cannot run before it was founded), and a universe that was asked for a shorter list. The second
@@ -133,8 +99,8 @@ public sealed partial class CareerGame
         Year >= wc.FoundedYear()
         && (Universe is null || Universe.Divisions.Count == 0 || Universe.Divisions.Contains(wc));
     /// <summary>True when one man holds both world belts in the player's division.</summary>
-    public bool Unified => Champion is not null && WbcChampion is not null && Champion.Id == WbcChampion.Id;
-    private bool UnifiedIn(WeightClass wc) => ChampOf(wc) is Boxer a && WbcOf(wc) is Boxer b && a.Id == b.Id;
+    public bool Unified => _titles.Unified(Division);
+    private bool UnifiedIn(WeightClass wc) => _titles.Unified(wc);
     public DateOnly Date { get; private set; }
     public int Year => Date.Year;
 
@@ -178,10 +144,10 @@ public sealed partial class CareerGame
     public string DateLabel => Date.ToString("d MMM yyyy");
     public string OfferDateLabel => OfferDate.ToString("d MMM yyyy");
 
-    public IReadOnlyList<CareerEvent> Log => _log;
-    public IReadOnlyList<TitleReign> Reigns => _reigns;
-    public int TitleDefenses => _reigns.Sum(r => r.Defenses);
-    public int DaysAsChampion => _reigns.Sum(r => (r.Lost ?? Date).DayNumber - r.Won.DayNumber);
+    public IReadOnlyList<CareerEvent> Log => _news.All;
+    public IReadOnlyList<TitleReign> Reigns => _titles.Reigns;
+    public int TitleDefenses => _titles.TitleDefenses;
+    public int DaysAsChampion => _titles.DaysAsChampion;
     // Player-facing views are scoped to the player's current division; the world-sim uses ActiveIn(wc).
     public IEnumerable<Boxer> Active => _roster.Where(b => !b.Retired && b.WeightClass == Division);
     public int ActiveCount => _roster.Count(b => !b.Retired && b.WeightClass == Division);
@@ -250,34 +216,14 @@ public sealed partial class CareerGame
             LinealOf(wc), DefensesOf(wc, "Ring", LinealOf(wc)?.Id ?? 0),
             UndisputedOf(wc))).ToList();
 
-    /// <summary>The man holding every belt going in a division — the true undisputed champion, or null.</summary>
-    private Boxer? UndisputedOf(WeightClass wc)
-    {
-        var a = ChampOf(wc);
-        if (a is null) return null;
-        if (WbcActive && WbcOf(wc)?.Id != a.Id) return null;
-        if (IbfActive && IbfOf(wc)?.Id != a.Id) return null;
-        return a;
-    }
+    private Boxer? UndisputedOf(WeightClass wc) => _titles.Undisputed(wc);
 
-    private static string BeltSlot(string belt) =>
-        belt switch { "WBC" => "WBC", "IBF" => "IBF", "Ring" or "Lineal" => "Ring", _ => "WBA" };
-    private void Defended(WeightClass wc, string slot, int holder) =>
-        _beltDefenses[(wc, slot, holder)] = _beltDefenses.GetValueOrDefault((wc, slot, holder)) + 1;
-    public int DefensesOf(WeightClass wc, string belt, int holderId) => _beltDefenses.GetValueOrDefault((wc, BeltSlot(belt), holderId));
+    private void Defended(WeightClass wc, string belt, int holder) => _titles.Defended(wc, belt, holder);
+    public int DefensesOf(WeightClass wc, string belt, int holderId) => _titles.Defenses(wc, belt, holderId);
 
     /// <summary>The world belts a fighter currently holds in his division, with the defence count of each —
     /// for the card's championship line and to show all straps on a unified champion.</summary>
-    public IEnumerable<(string Belt, int Defenses)> BeltsHeld(Boxer b)
-    {
-        var wc = b.WeightClass;
-        if (ChampOf(wc)?.Id == b.Id) yield return (PrimaryBelt, DefensesOf(wc, "WBA", b.Id));
-        if (WbcOf(wc)?.Id == b.Id) yield return ("WBC", DefensesOf(wc, "WBC", b.Id));
-        if (IbfOf(wc)?.Id == b.Id) yield return ("IBF", DefensesOf(wc, "IBF", b.Id));
-        if (LinealOf(wc)?.Id == b.Id) yield return (LinealBelt, DefensesOf(wc, "Ring", b.Id));
-        foreach (var kv in _regional.Where(kv => kv.Key.Div == wc && kv.Value.Id == b.Id))
-            yield return (kv.Key.Region, 0);
-    }
+    public IEnumerable<(string Belt, int Defenses)> BeltsHeld(Boxer b) => _titles.BeltsHeld(b);
     public int ActiveCountOf(WeightClass wc) => _roster.Count(b => !b.Retired && b.WeightClass == wc);
 
     /// <summary>Every fighter this world has ever held, retired or not — for reading the sport as a whole
@@ -315,8 +261,7 @@ public sealed partial class CareerGame
     }
 
     /// <summary>True if the fighter currently holds any world belt (WBA/WBC/IBF) in his division.</summary>
-    public bool IsWorldChampion(Boxer b) =>
-        ChampOf(b.WeightClass)?.Id == b.Id || WbcOf(b.WeightClass)?.Id == b.Id || IbfOf(b.WeightClass)?.Id == b.Id;
+    public bool IsWorldChampion(Boxer b) => _titles.HoldsAnyWorldBelt(b);
 
     /// <summary>Pound-for-pound: the best fighters across every division, ranked by ability tempered by record.
     /// Reigning world champions are strongly favoured, so the list reads like a real P4P board (champions on top).</summary>
@@ -349,7 +294,7 @@ public sealed partial class CareerGame
 
         // Achievement that outlasts the current belt: title bouts won, and belts won in more than one division.
         score += WorldTitleWins(b) * 3;
-        int divs = _titleDivisions.TryGetValue(b.Id, out var td) ? td.Count : 0;
+        int divs = _hall.TitleDivisionCount(b.Id);
         score += Math.Max(0, divs - 1) * 18;              // a two- or three-weight champion
 
         // Form: staying unbeaten is itself an achievement; defeats undo one.
@@ -378,7 +323,7 @@ public sealed partial class CareerGame
             belts.Add(belt);
             defences = Math.Max(defences, def);
         }
-        int weightTitles = _titleDivisions.TryGetValue(b.Id, out var td) ? td.Count : 0;
+        int weightTitles = _hall.TitleDivisionCount(b.Id);
         return new Achievements(belts, lineal, UndisputedOf(b.WeightClass)?.Id == b.Id, defences, weightTitles, WorldTitleWins(b));
     }
 
@@ -387,7 +332,7 @@ public sealed partial class CareerGame
         ActiveIn(wc).Where(b => b.Id != Player.Id && IsProspect(b) && ProFights(b) >= 3)
                     .OrderByDescending(b => b.Potential).ThenByDescending(b => b.Overall)
                     .Take(take).ToList();
-    public IReadOnlyList<CareerEvent> RecentLog(int n) => _log.Skip(Math.Max(0, _log.Count - n)).ToList();
+    public IReadOnlyList<CareerEvent> RecentLog(int n) => _news.Recent(n);
 
     public CareerGame(int startYear, Boxer player, IEnumerable<Boxer> historicalProtos, Random rng,
                       WeightClass division = WeightClass.Heavyweight, int warmupYears = 10, bool seedHistory = false,
@@ -401,6 +346,8 @@ public sealed partial class CareerGame
         _careers = new CareerProgression(rng);
         _engine = new FightEngine(rng);
         _oppNames = new NameGenerator(rng);
+        _medical = new MedicalRoom(() => Date);
+        _titles = new TitleRegistry(() => Date);
         Player = player;
 
         // Reserve every real fighter's name (and the player's) so generated filler can never be born as a
@@ -455,7 +402,7 @@ public sealed partial class CareerGame
         {
             if (!DivisionActive(wc)) continue;
             var champ = ActiveIn(wc).OrderByDescending(b => RankScore(b)).FirstOrDefault();
-            if (champ is not null) { _champions[wc] = champ; champ.IsChampion = true; }
+            if (champ is not null) { _titles.SetChamp(wc, champ); champ.IsChampion = true; }
         }
 
         // Run the world forward to the player's debut year — a full season each year.
@@ -478,7 +425,7 @@ public sealed partial class CareerGame
             if (ChampOf(wc) is null || ChampOf(wc)!.Retired)
             {
                 var champ = ActiveIn(wc).Where(b => b.Id != Player.Id && !RecentlyMovedUp(b)).OrderByDescending(RankScore).FirstOrDefault();
-                if (champ is not null) { _champions[wc] = champ; champ.IsChampion = true; }
+                if (champ is not null) { _titles.SetChamp(wc, champ); champ.IsChampion = true; }
             }
             UpdateBeltsFor(wc);
         }
@@ -487,10 +434,9 @@ public sealed partial class CareerGame
 
         // The decade of build-up isn't the player's story — start his timeline (and the Hall of Fame) clean, so
         // the Hall fills with fighters who retire during his career rather than a generation he never saw.
-        _log.Clear();
-        _logWrites = 0;
-        _yearBouts.Clear();
-        if (!seedHistory) { _hof.Clear(); _awards.Clear(); }   // when seeding history, keep the past greats + their era's awards
+        _news.Clear();
+        _awards.ClearShortlist();
+        if (!seedHistory) { _hall.Clear(); _awards.ClearDecided(); }   // when seeding history, keep the past greats + their era's awards
         Date = new DateOnly(startYear, 3, 1);
         if (Champion is not null) LogEvent($"{Champion.Name} reigns as {PrimaryBelt} champion as {player.Name} turns pro.", kind: "title");
 
@@ -511,6 +457,8 @@ public sealed partial class CareerGame
         _careers = new CareerProgression(rng);
         _engine = new FightEngine(rng);
         _oppNames = new NameGenerator(rng);
+        _medical = new MedicalRoom(() => Date);
+        _titles = new TitleRegistry(() => Date);
         Date = ParseDate(s.Date, new DateOnly(2000, 1, 1));
 
         var byId = new Dictionary<int, Boxer>();
@@ -521,41 +469,40 @@ public sealed partial class CareerGame
         _factory.Reserve(reserved);
         _oppNames.Reserve(reserved);
         _factory.StartIdsAt(_roster.Select(b => b.Id).Append(Player.Id).DefaultIfEmpty(0).Max() + 1);
-        foreach (var kv in s.Champions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _champions[wc] = c;
-        foreach (var kv in s.WbcChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _wbc[wc] = c;
-        foreach (var kv in s.IbfChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _ibf[wc] = c;
-        foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _lineal[wc] = c;
+        foreach (var kv in s.Champions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.SetChamp(wc, c);
+        foreach (var kv in s.WbcChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.SetWbc(wc, c);
+        foreach (var kv in s.IbfChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.SetIbf(wc, c);
+        foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.SetLineal(wc, c);
         _lastTitleShot = s.LastTitleShot;
         if (s.ShotBelt is string sb) _shot = new TitleShot(sb, s.ShotChampionId, s.ShotGrantedAtFights);
         _declined.AddRange(s.Declined);
         foreach (var h in s.Historical) _historical[h.Id] = (h.Prime.ToRatings(), h.Peak);
         foreach (var a in s.PlayerArc) _playerArc.Add((a.Fights, a.Age, a.R.ToRatings()));
         foreach (var f in s.Future) _future.Add((f.DebutYear, f.Proto.ToBoxer(), f.DebutAge, f.Peak));
-        foreach (var e in s.Log)
+        _news.Restore(s.Log.Select(e =>
         {
             var on = ParseDate(e.On, Date);
-            _log.Add(new CareerEvent
+            return new CareerEvent
             {
                 On = on, Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind,
                 Div = Enum.TryParse<WeightClass>(e.Div, out var ed) ? ed : null,
                 Bout = e.BoutWinner is not null && e.BoutLoser is not null
                        ? new BoutRef(e.BoutWinner, e.BoutLoser, on) : null
-            });
-        }
-        _logWrites = _log.Count;   // a reopened career carries on counting from where the save left off
+            };
+        }));
         // Cards are due a fortnight after the last one, and when the last one was is not saved. Start the
         // clock from today rather than from never: otherwise every division would put a card on the instant a
         // career was opened, and saving and reloading would be a way of buying extra fights.
         foreach (var wc in AllDivisions) _lastCard[wc] = Date;
-        foreach (var r in s.Reigns) _reigns.Add(new TitleReign { Belt = r.Belt, Won = ParseDate(r.Won, Date), Lost = string.IsNullOrEmpty(r.Lost) ? null : ParseDate(r.Lost, Date), Defenses = r.Defenses });
+        foreach (var r in s.Reigns) _titles.LoadReign(new TitleReign { Belt = r.Belt, Won = ParseDate(r.Won, Date), Lost = string.IsNullOrEmpty(r.Lost) ? null : ParseDate(r.Lost, Date), Defenses = r.Defenses });
         foreach (var kv in s.Regional)
         {
             var parts = kv.Key.Split('|');
             if (parts.Length == 2 && Enum.TryParse<WeightClass>(parts[0], out var wc) && byId.TryGetValue(kv.Value, out var rb))
-                _regional[(wc, parts[1])] = rb;
+                _titles.SetRegional(wc, parts[1], rb);
         }
         foreach (var m in s.HallOfFame)
-            _hof.Add(new HallOfFamer
+            _hall.Load(new HallOfFamer
             {
                 Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country,
                 Division = Enum.TryParse<WeightClass>(m.Division, out var md) ? md : WeightClass.Heavyweight,
@@ -577,7 +524,7 @@ public sealed partial class CareerGame
             Bout = w.BoutWinner is not null && w.BoutLoser is not null && DateOnly.TryParse(w.BoutDate, out var bd)
                    ? new BoutRef(w.BoutWinner, w.BoutLoser, bd) : null
         };
-        foreach (var a in s.Awards) _awards.Add(new AwardsYear
+        foreach (var a in s.Awards) _awards.Load(new AwardsYear
         {
             Year = a.Year,
             FighterOfYear = a.FighterOfYear.Select(AwLoad).ToList(),
@@ -585,19 +532,19 @@ public sealed partial class CareerGame
             KnockoutOfYear = a.KnockoutOfYear.Select(AwLoad).ToList(),
             FightOfYear = a.FightOfYear.Select(AwLoad).ToList(),
         });
-        foreach (var id in s.EverChampion) _everChampion.Add(id);
-        foreach (var kv in s.PeakOverall) if (int.TryParse(kv.Key, out var id)) _peakOverall[id] = kv.Value;
-        foreach (var kv in s.PeakClass) if (int.TryParse(kv.Key, out var id)) _peakClass[id] = kv.Value;
+        foreach (var id in s.EverChampion) _hall.MarkChampion(id);
+        foreach (var kv in s.PeakOverall) if (int.TryParse(kv.Key, out var id)) _hall.LoadPeakOverall(id, kv.Value);
+        foreach (var kv in s.PeakClass) if (int.TryParse(kv.Key, out var id)) _hall.LoadPeakClass(id, kv.Value);
         foreach (var kv in s.TitleDivisions)
             if (int.TryParse(kv.Key, out var id))
-                _titleDivisions[id] = kv.Value.Split('|', StringSplitOptions.RemoveEmptyEntries)
+                _hall.LoadTitleDivisions(id, kv.Value.Split('|', StringSplitOptions.RemoveEmptyEntries)
                     .Select(x => Enum.TryParse<WeightClass>(x, out var w) ? (WeightClass?)w : null)
-                    .Where(w => w is not null).Select(w => w!.Value).ToHashSet();
+                    .Where(w => w is not null).Select(w => w!.Value).ToHashSet());
         foreach (var kv in s.BeltDefenses)
         {
             var parts = kv.Key.Split('|');
             if (parts.Length == 3 && Enum.TryParse<WeightClass>(parts[0], out var wc) && int.TryParse(parts[2], out var hid))
-                _beltDefenses[(wc, parts[1], hid)] = kv.Value;
+                _titles.LoadDefenses(wc, parts[1], hid, kv.Value);
         }
 
         OfferDate = ParseDate(s.OfferDate, Date.AddDays(42));
@@ -630,10 +577,10 @@ public sealed partial class CareerGame
             ShotGrantedAtFights = _shot?.GrantedAtFights ?? 0,
             Declined = _declined.ToList()
         };
-        foreach (var kv in _champions) if (kv.Value is Boxer c) s.Champions[kv.Key.ToString()] = c.Id;
-        foreach (var kv in _wbc) if (kv.Value is Boxer c) s.WbcChampions[kv.Key.ToString()] = c.Id;
-        foreach (var kv in _ibf) if (kv.Value is Boxer c) s.IbfChampions[kv.Key.ToString()] = c.Id;
-        foreach (var kv in _lineal) if (kv.Value is Boxer c) s.LinealChampions[kv.Key.ToString()] = c.Id;
+        foreach (var kv in _titles.AllChampions) if (kv.Value is Boxer c) s.Champions[kv.Key.ToString()] = c.Id;
+        foreach (var kv in _titles.AllWbc) if (kv.Value is Boxer c) s.WbcChampions[kv.Key.ToString()] = c.Id;
+        foreach (var kv in _titles.AllIbf) if (kv.Value is Boxer c) s.IbfChampions[kv.Key.ToString()] = c.Id;
+        foreach (var kv in _titles.AllLineal) if (kv.Value is Boxer c) s.LinealChampions[kv.Key.ToString()] = c.Id;
         // Keep the save lean: only active fighters are persisted (retired journeymen across eight divisions
         // would balloon localStorage). The fight ledger is kept for the player and for anyone above class 9
         // (the contenders and champions you'd actually inspect); their bouts drop the heavy round-by-round
@@ -654,10 +601,10 @@ public sealed partial class CareerGame
         foreach (var kv in _historical) s.Historical.Add(new HistoricalSave { Id = kv.Key, Peak = kv.Value.Peak, Prime = RatingsSave.From(kv.Value.Prime) });
         foreach (var a in _playerArc) s.PlayerArc.Add(new ArcPointSave { Fights = a.Fights, Age = a.Age, R = RatingsSave.From(a.R) });
         foreach (var f in _future) s.Future.Add(new FutureSave { DebutYear = f.DebutYear, DebutAge = f.DebutAge, Peak = f.Peak, Proto = BoxerSave.From(f.Proto) });
-        foreach (var e in _log) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString(), BoutWinner = e.Bout?.Winner, BoutLoser = e.Bout?.Loser });
-        foreach (var r in _reigns) s.Reigns.Add(new TitleReignSave { Belt = r.Belt, Won = r.Won.ToString("yyyy-MM-dd"), Lost = r.Lost?.ToString("yyyy-MM-dd"), Defenses = r.Defenses });
-        foreach (var kv in _regional) s.Regional[$"{kv.Key.Div}|{kv.Key.Region}"] = kv.Value.Id;
-        foreach (var m in _hof) s.HallOfFame.Add(new HallOfFamerSave
+        foreach (var e in _news.All) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString(), BoutWinner = e.Bout?.Winner, BoutLoser = e.Bout?.Loser });
+        foreach (var r in _titles.Reigns) s.Reigns.Add(new TitleReignSave { Belt = r.Belt, Won = r.Won.ToString("yyyy-MM-dd"), Lost = r.Lost?.ToString("yyyy-MM-dd"), Defenses = r.Defenses });
+        foreach (var (div, region, holder) in _titles.AllRegional) s.Regional[$"{div}|{region}"] = holder.Id;
+        foreach (var m in _hall.All) s.HallOfFame.Add(new HallOfFamerSave
         {
             Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country, Division = m.Division.ToString(),
             Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses,
@@ -674,7 +621,7 @@ public sealed partial class CareerGame
             BoutWinner = w.Bout?.Winner, BoutLoser = w.Bout?.Loser,
             BoutDate = w.Bout?.Date.ToString("yyyy-MM-dd")
         };
-        foreach (var a in _awards) s.Awards.Add(new AwardsYearSave
+        foreach (var a in _awards.All) s.Awards.Add(new AwardsYearSave
         {
             Year = a.Year,
             FighterOfYear = a.FighterOfYear.Select(AwSave).ToList(),
@@ -682,11 +629,11 @@ public sealed partial class CareerGame
             KnockoutOfYear = a.KnockoutOfYear.Select(AwSave).ToList(),
             FightOfYear = a.FightOfYear.Select(AwSave).ToList(),
         });
-        s.EverChampion.AddRange(_everChampion);
-        foreach (var kv in _peakOverall) s.PeakOverall[kv.Key.ToString()] = kv.Value;
-        foreach (var kv in _peakClass) s.PeakClass[kv.Key.ToString()] = kv.Value;
-        foreach (var kv in _titleDivisions) s.TitleDivisions[kv.Key.ToString()] = string.Join("|", kv.Value);
-        foreach (var kv in _beltDefenses) s.BeltDefenses[$"{kv.Key.Div}|{kv.Key.Belt}|{kv.Key.Holder}"] = kv.Value;
+        s.EverChampion.AddRange(_hall.EverChampions);
+        foreach (var kv in _hall.PeakOveralls) s.PeakOverall[kv.Key.ToString()] = kv.Value;
+        foreach (var kv in _hall.PeakClasses) s.PeakClass[kv.Key.ToString()] = kv.Value;
+        foreach (var kv in _hall.TitleDivisions) s.TitleDivisions[kv.Key.ToString()] = string.Join("|", kv.Value);
+        foreach (var kv in _titles.AllDefenses) s.BeltDefenses[$"{kv.Key.Div}|{kv.Key.Belt}|{kv.Key.Holder}"] = kv.Value;
         if (Offer is not null) s.Offer = new OfferSave { OpponentId = Offer.Opponent.Id, Rounds = Offer.Rounds, TitleFight = Offer.TitleFight, Belt = Offer.Belt, Context = Offer.Context };
         return s;
     }

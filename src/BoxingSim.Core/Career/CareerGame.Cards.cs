@@ -49,12 +49,12 @@ public sealed partial class CareerGame
     {
         // Champions don't fight on undercards — when they fight, it's a title defence (handled below).
         // A man who's already boxed 8 times this year sits the rest of it out.
-        var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
+        var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && _medical.Available(b)
                                         && Rested(b))
                          .OrderByDescending(b => b.Overall).ToList();
         if (pool.Count < 2) return;
 
-        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _champions[wc] = null;
+        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _titles.SetChamp(wc, null);
 
         // A rare unification is checked FIRST and, when it fires, is the only world-title bout on this card:
         // the belts merge in one fight rather than each champion ALSO making a separate defence the same
@@ -117,7 +117,7 @@ public sealed partial class CareerGame
         // Regional title defences — a regional champ risks his belt against a fellow regional contender.
         foreach (var region in RegionalBelts)
         {
-            if (!_regional.TryGetValue((wc, region), out var rc) || rc.Id == Player.Id || rc.Retired) continue;
+            if (!_titles.TryRegional(wc, region, out var rc) || rc.Id == Player.Id || rc.Retired) continue;
             // Regional belts are meant to be DEFENDED - that is the whole point of holding one on the way up.
             // At a twentieth per card they mostly sat idle on a man's record.
             if (DaysSinceLastBout(rc) < 84 || _rng.NextDouble() >= 0.11 * CareerMileage.Activity(rc)) continue;
@@ -135,7 +135,7 @@ public sealed partial class CareerGame
             if (chall is null) continue;
             var rres = FastBout(rc, chall, 12);
             var ron = ApplyOutcome(rres, rc, chall, $"{region} title");
-            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _regional[(wc, region)] = chall; LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", wc, RefOf(rres, ron), ron); }
+            if (!rres.IsDraw && rres.Winner!.Id == chall.Id) { _titles.SetRegional(wc, region, chall); LogTitle($"{chall.Name} wins the {region} title from {rc.Name}.", wc, RefOf(rres, ron), ron); }
         }
 
         // A fortnight's cards across a whole division, scaled to how many men are in it. This used to be a
@@ -187,7 +187,7 @@ public sealed partial class CareerGame
 
         // Title bouts: each champion defends 2–3 times a year (mandatories and voluntary defences),
         // dated across the calendar. The belt is where the elites meet.
-        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _champions[wc] = null;
+        if (ChampOf(wc) is Boxer stale && !stale.IsChampion) _titles.SetChamp(wc, null);
 
         // A unification (rare) is settled FIRST, early in the year, so the belts merge before the defence
         // campaign runs. The rest of the season is then defended as one undisputed title — never a stray
@@ -215,7 +215,7 @@ public sealed partial class CareerGame
         {
             // A prospect stays busy on the club circuit; an established (world-ranked) fighter takes fewer, bigger
             // bouts — long camps, ~3–4 a year — so he only appears on some cards.
-            var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
+            var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && _medical.Available(b)
                                           && (!WorldRanked(b) || _rng.NextDouble() < FightChancePerCard(b)))
                              .OrderByDescending(b => b.Overall).ToList();
             var cardNight = SpreadDate(yr, pass, 6);
@@ -251,7 +251,7 @@ public sealed partial class CareerGame
             while (FightsThisYear(pr) < 5 && !AtYearCap(pr) && guard++ < 6)
             {
                 var foe = ActiveIn(wc).Where(b => b.Id != pr.Id && b.Id != Player.Id && ProFights(b) >= 4
-                                             && b.Overall <= pr.Overall + 4 && Available(b) && !AtYearCap(b)
+                                             && b.Overall <= pr.Overall + 4 && _medical.Available(b) && !AtYearCap(b)
                                              && !RecentFoes(pr, 3).Contains(b.Name))
                                     .OrderBy(_ => _rng.Next()).FirstOrDefault();
                 if (foe is null) break;
@@ -300,7 +300,7 @@ public sealed partial class CareerGame
         for (int d = 0; d < titleBouts; d++)
         {
             var c = ChampOf(wc);
-            if (c is null || c.Id == Player.Id || !UnifiedIn(wc) || !Available(c)) return;
+            if (c is null || c.Id == Player.Id || !UnifiedIn(wc) || !_medical.Available(c)) return;
             if (_rng.NextDouble() < 0.10) { RelinquishBelt(c); return; }   // ducks a mandatory, splitting the belts
             var ch = PickChallenger(c, null);
             if (ch is null) return;
@@ -321,7 +321,7 @@ public sealed partial class CareerGame
     {
         var wc = champ.WeightClass;
         if (!WbcActive || WbcOf(wc) is null) return;
-        _wbc[wc] = null;
+        _titles.SetWbc(wc, null);
         LogTitle($"{champ.Name} relinquishes the WBC title rather than face the mandatory, keeping the {PrimaryBelt} belt.", wc);
         UpdateBeltsFor(wc);   // the WBC is picked up by the next contender in line
     }
@@ -333,14 +333,14 @@ public sealed partial class CareerGame
         for (int d = 0; d < titleBouts; d++)
         {
             var c = champ();
-            if (c is null || c.Id == Player.Id || !Available(c)) return;   // an injured champion doesn't defend while on the shelf
+            if (c is null || c.Id == Player.Id || !_medical.Available(c)) return;   // an injured champion doesn't defend while on the shelf
             var challenger = PickChallenger(c, other?.Invoke());
             if (challenger is null)
             {
                 // No credible mandatory this slot — rather than sit idle for a year, the champion takes a stay-busy
                 // (non-title) fight against the best available gatekeeper he hasn't just met.
                 var busy = ActiveIn(c.WeightClass).Where(b => b.Id != c.Id && b.Id != Player.Id && b.Overall is >= 58
-                                                          && b.Overall <= c.Overall && Available(b) && !RecentFoes(c, 3).Contains(b.Name))
+                                                          && b.Overall <= c.Overall && _medical.Available(b) && !RecentFoes(c, 3).Contains(b.Name))
                                                   .OrderByDescending(RankScore).FirstOrDefault();
                 if (busy is null) return;
                 if (NextTitleDate(c, busy, yr, d, titleBouts) is not DateOnly bd) return;
@@ -356,7 +356,7 @@ public sealed partial class CareerGame
                                   : $"{challenger.Name} takes the {belt} title from {c.Name}.", wc, on: on);
                 crown(challenger);
             }
-            else { Defended(c.WeightClass, BeltSlot(belt), c.Id); ConsiderTitleStepUp(c); }
+            else { Defended(c.WeightClass, belt, c.Id); ConsiderTitleStepUp(c); }
         }
     }
 
@@ -433,7 +433,7 @@ public sealed partial class CareerGame
         };
         // A reigning champion never reaches this pool at all; he is barred from undercards and his year is
         // his defences. A former champion does, and he is not taking stay-busy fights for short money.
-        if (_everChampion.Contains(b.Id)) basis *= 0.72;
+        if (_hall.WasEverChampion(b.Id)) basis *= 0.72;
         // And no two men keep the same schedule.
         return basis * CareerMileage.Activity(b);
     }
