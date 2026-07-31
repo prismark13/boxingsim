@@ -347,6 +347,7 @@ public sealed class CareerViewModel : Observable
         NewsPage = new NewsViewModel(() => Game, () => InCareer);
         StatsPage = new StatsViewModel(() => Game);
         UniversePage = new UniverseViewModel(() => _svc.Universe);
+        DashboardPage = new DashboardViewModel(() => Game, () => PlayerRank);
 
         TakeFight = new Cmd(() => Take(), () => Game?.Offer is not null && Game?.Player.Retired == false);
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
@@ -660,6 +661,9 @@ public sealed class CareerViewModel : Observable
     /// <summary>A week of the whole sport, region by region. See UniverseViewModel.</summary>
     public UniverseViewModel UniversePage { get; }
 
+    /// <summary>Career mode's hub. See DashboardViewModel.</summary>
+    public DashboardViewModel DashboardPage { get; }
+
     // ---- setup screen ----
     public ObservableCollection<WeightClass> Divisions { get; } = new();
     public IReadOnlyList<string> Countries { get; } = new[]
@@ -757,8 +761,6 @@ public sealed class CareerViewModel : Observable
     public ObservableCollection<TapeRow> Tape { get; } = new();
 
     // ---- the dashboard: career mode's hub ----
-    public ObservableCollection<LedgerRow> RecentForm { get; } = new();
-    public ObservableCollection<RankRow> DivisionTop { get; } = new();
 
     public bool HasLedger => Ledger.Count > 0;
 
@@ -1379,27 +1381,6 @@ public sealed class CareerViewModel : Observable
         _ = WatchAsync(owner, foe, line, notable: line.Note is string n && n.Contains("title", StringComparison.OrdinalIgnoreCase));
     }
 
-    // ---- the man you are measured against ----
-    public string RivalName { get; private set; } = "";
-    public string RivalRecord { get; private set; } = "";
-    public string RivalStanding { get; private set; } = "";
-    public string RivalReason { get; private set; } = "";
-    public bool HasRival => RivalName.Length > 0;
-    private Boxer? _rival;
-
-    private void BuildRival()
-    {
-        _rival = Game?.Rival;
-        RivalName = _rival?.Name ?? "";
-        RivalRecord = _rival is null ? "" : $"{_rival.Record}  ·  class {_rival.Class}";
-        RivalStanding = _rival is null || Game is null ? "" : Game.RivalStanding(_rival);
-        RivalReason = _rival is null || Game is null ? "" : Game.RivalReason(_rival);
-        foreach (var n in new[] { nameof(RivalName), nameof(RivalRecord), nameof(RivalStanding),
-                                  nameof(RivalReason), nameof(HasRival), nameof(RivalFighter) })
-            Raise(n);
-    }
-    public Boxer? RivalFighter => _rival;
-
     // ---- the year's honours ----
     //
     // These were computed the moment the calendar turned and filed on a page the player had to go and look
@@ -1955,7 +1936,7 @@ public sealed class CareerViewModel : Observable
         NewsPage.Rebuild();
         HallOfFamePage.Rebuild();
         AwardsPage.Rebuild();
-        BuildRival();
+        DashboardPage.RebuildRival();
         BuildUndercard();
     }
 
@@ -2138,7 +2119,9 @@ public sealed class CareerViewModel : Observable
         return sp > 0 ? full[(sp + 1)..] : full;
     }
 
-    private static LedgerRow ToLedger(BoutLine h, string? owner = null)
+    /// <summary>internal rather than private: the dashboard's own view-model builds its
+    /// recent-form rows with it, and one row shape beats two that drift.</summary>
+    internal static LedgerRow ToLedger(BoutLine h, string? owner = null)
     {
         string detail = h.Method + (h.Round > 0 && h.Method is "KO" or "TKO" or "cut" ? $" rd{h.Round}" : "");
         // The weight it was made at, on every line. A record that spans divisions is exactly the one you
@@ -2385,71 +2368,19 @@ public sealed class CareerViewModel : Observable
 
     // ---- refresh ----
 
-    /// <summary>The dashboard is a hub, not another list: your form, where you stand in your own division, what
-    /// the sport is saying, and the headline numbers — each a way INTO the fuller screen behind it.</summary>
-    private void BuildDashboard()
-    {
-        RecentForm.Clear(); DivisionTop.Clear();
-        if (Game is null) return;
-        var p = Game.Player;
-
-        foreach (var h in p.History.OrderByDescending(h => h.Date).Take(5)) RecentForm.Add(ToLedger(h, p.Name));
-
-        int r = 1;
-        foreach (var b in Game.RankingBoard(p.WeightClass, 5))
-        {
-            bool champ = Game.IsWorldChampion(b);
-            var belts = Game.BeltsHeld(b).Select(x => x.Belt).ToList();
-            DivisionTop.Add(new RankRow(champ ? "C" : r.ToString(), b.Class, b.Name,
-                                        belts.Count > 0 ? string.Join(" · ", belts) : "",
-                                        b.Record.ToString(), b.Id == p.Id, champ, b));
-            if (!champ) r++;
-        }
-
-    }
-
-    /// <summary>Where he stands, on one line under his name.
-    ///
-    /// This was four cards across the top of the dashboard — Record, Division rank, Titles, Rating — and
-    /// three of the four repeated what the sidebar already showed two inches to the left: the same record,
-    /// the same belts, the same class badge. Only his rank, his defence count and the raw overall were
-    /// genuinely new, so those are what this keeps, and the full record is one click away rather than
-    /// spread across a row of tiles nobody needed twice.
-    ///
-    /// Not to be confused with <see cref="PlayerStanding"/>, which is the sidebar's one-line belt or rank
-    /// caption. This is the fuller line at the head of the dashboard.</summary>
-    public string StandingLine
-    {
-        get
-        {
-            if (Game?.Player is not { } p) return "";
-            string div = p.WeightClass.DisplayName();
-            var bits = new List<string> { PlayerRank > 0 ? $"#{PlayerRank} in {div}" : $"unranked in {div}" };
-
-            var belts = Game.BeltsHeld(p).Select(x => x.Belt).ToList();
-            if (belts.Count > 0)
-                bits.Add(Game.TitleDefenses > 0
-                         ? $"{string.Join(" · ", belts)}, {Game.TitleDefenses} defence{(Game.TitleDefenses == 1 ? "" : "s")}"
-                         : string.Join(" · ", belts));
-
-            bits.Add($"class {p.Class} · {p.Overall} OVR");
-            return string.Join("   ·   ", bits);
-        }
-    }
-
     public void RefreshAll()
     {
         // Anything that moved the world may have crossed a new year. Checking here rather than in the two
         // or three places I first thought of means taking a fight, holding out and moving up all announce
         // the year's honours, instead of only waiting for fight night doing it.
         if (!IsPlayingBack) CheckForAwards();
-        BuildDashboard();
+        DashboardPage.Rebuild();
         RankingsPage.Rebuild();
         PoundForPoundPage.Rebuild();
         ChampionsPage.Rebuild();
         HallOfFamePage.Rebuild();
         AwardsPage.Rebuild();
-        BuildRival();
+        DashboardPage.RebuildRival();
         BuildUndercard();
         OfferSlate.Rebuild();
         NewsPage.Rebuild();
