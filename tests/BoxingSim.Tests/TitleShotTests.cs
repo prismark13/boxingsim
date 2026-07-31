@@ -19,10 +19,7 @@ public class TitleShotTests
 {
     private static CareerGame Contender(int seed, out int guard)
     {
-        var rng = new Random(seed);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 94);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               warmupYears: 12);
+        var g = Worlds.Fresh(potential: 94, seed: seed);
         // Fight until a world title is on the table.
         guard = 0;
         while (guard++ < 60 && g.Offer is not null && !g.Player.Retired)
@@ -40,10 +37,7 @@ public class TitleShotTests
     [Fact]
     public void DecliningRepeatedlyNeverFishesUpATitleShot()
     {
-        var rng = new Random(11);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 78);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               warmupYears: 12);
+        var g = Worlds.Fresh(potential: 78, seed: 11);
 
         int belts = 0;
         for (int i = 0; i < 60 && g.Offer is not null && !g.Player.Retired; i++)

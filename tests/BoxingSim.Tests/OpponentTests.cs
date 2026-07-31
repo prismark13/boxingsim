@@ -37,11 +37,7 @@ public class OpponentTests
         var all = new List<Seen>();
         for (int seed = 1; seed <= careers; seed++)
         {
-            var rng = new Random(seed);
-            var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight,
-                                                 potential: 70 + seed * 6);
-            var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                                   warmupYears: 12);
+            var g = Worlds.Fresh(potential: 70 + seed * 6, seed: seed);
 
             for (int i = 0; i < fights && g.Offer is not null && !g.Player.Retired; i++)
             {
@@ -73,10 +69,7 @@ public class OpponentTests
     [Fact]
     public void AWorldChampionIsOnlyMetForHisBelt()
     {
-        var rng = new Random(3);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 88);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               warmupYears: 12);
+        var g = Worlds.Fresh(potential: 88, seed: 3);
 
         var bad = new List<string>();
         for (int i = 0; i < 30 && g.Offer is not null && !g.Player.Retired; i++)
@@ -113,10 +106,7 @@ public class OpponentTests
     [Fact]
     public void TheSameManIsNotOfferedStraightBack()
     {
-        var rng = new Random(5);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 84);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               warmupYears: 12);
+        var g = Worlds.Fresh(potential: 84, seed: 5);
 
         var bad = new List<string>();
         for (int i = 0; i < 30 && g.Offer is not null && !g.Player.Retired; i++)
@@ -134,10 +124,7 @@ public class OpponentTests
     [Fact]
     public void NobodyIsMetMoreThanThreeTimes()
     {
-        var rng = new Random(6);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 84);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               warmupYears: 12);
+        var g = Worlds.Fresh(potential: 84, seed: 6);
         for (int i = 0; i < 34 && g.Offer is not null && !g.Player.Retired; i++) g.TakeOffer();
 
         var worst = g.Player.History.GroupBy(h => h.Opponent).OrderByDescending(x => x.Count()).FirstOrDefault();
@@ -224,10 +211,7 @@ public class OpponentTests
     [Fact]
     public void OnlyOneFightIsEverOnTheTable()
     {
-        var rng = new Random(8);
-        var player = CareerGame.CreatePlayer(rng, "Probe Man", "USA", WeightClass.Middleweight, potential: 86);
-        var g = new CareerGame(1972, player, Fixtures.Roster.ToList(), rng, WeightClass.Middleweight,
-                               warmupYears: 12);
+        var g = Worlds.Fresh(potential: 86, seed: 8);
         for (int i = 0; i < 20 && !g.Player.Retired; i++)
         {
             Assert.NotNull(g.Offer);
