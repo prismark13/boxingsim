@@ -77,13 +77,9 @@ public sealed partial class CareerGame
     private readonly Dictionary<int, int> _peakOverall = new();
     private readonly Dictionary<int, int> _peakClass = new();
     private readonly Dictionary<int, HashSet<WeightClass>> _titleDivisions = new();   // id → every division he held a world belt in
-    private readonly Dictionary<int, DateOnly> _outUntil = new();   // NPC id → date he's fit again after an injury (KO layoff)
 
-    /// <summary>True if a fighter is fit to be matched — not currently on the shelf recovering from an injury.</summary>
-    private bool Available(Boxer b) => !_outUntil.TryGetValue(b.Id, out var d) || Date >= d;
-
-    /// <summary>How well a fighter weathers punishment — the injury model's stand-in for a durable frame.</summary>
-    private static int Durability(Ratings r) => (int)Math.Round(r.Chin * 0.5 + r.Heart * 0.3 + r.Conditioning * 0.2);
+    /// <summary>Who is injured. Constructed here and handed the clock; nothing else can reach the layoff dates.</summary>
+    private readonly MedicalRoom _medical;
     public IReadOnlyList<HallOfFamer> HallOfFame => _hof.OrderByDescending(m => m.Prestige).ToList();
     private const string UndisputedBelt = "Undisputed";
     private const int MaxFightsPerYear = 8;   // nobody boxes more than 8 times in a calendar year
@@ -401,6 +397,7 @@ public sealed partial class CareerGame
         _careers = new CareerProgression(rng);
         _engine = new FightEngine(rng);
         _oppNames = new NameGenerator(rng);
+        _medical = new MedicalRoom(() => Date);
         Player = player;
 
         // Reserve every real fighter's name (and the player's) so generated filler can never be born as a
@@ -511,6 +508,7 @@ public sealed partial class CareerGame
         _careers = new CareerProgression(rng);
         _engine = new FightEngine(rng);
         _oppNames = new NameGenerator(rng);
+        _medical = new MedicalRoom(() => Date);
         Date = ParseDate(s.Date, new DateOnly(2000, 1, 1));
 
         var byId = new Dictionary<int, Boxer>();

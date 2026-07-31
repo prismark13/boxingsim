@@ -49,7 +49,7 @@ public sealed partial class CareerGame
     {
         // Champions don't fight on undercards — when they fight, it's a title defence (handled below).
         // A man who's already boxed 8 times this year sits the rest of it out.
-        var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
+        var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && _medical.Available(b)
                                         && Rested(b))
                          .OrderByDescending(b => b.Overall).ToList();
         if (pool.Count < 2) return;
@@ -215,7 +215,7 @@ public sealed partial class CareerGame
         {
             // A prospect stays busy on the club circuit; an established (world-ranked) fighter takes fewer, bigger
             // bouts — long camps, ~3–4 a year — so he only appears on some cards.
-            var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && Available(b)
+            var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && _medical.Available(b)
                                           && (!WorldRanked(b) || _rng.NextDouble() < FightChancePerCard(b)))
                              .OrderByDescending(b => b.Overall).ToList();
             var cardNight = SpreadDate(yr, pass, 6);
@@ -251,7 +251,7 @@ public sealed partial class CareerGame
             while (FightsThisYear(pr) < 5 && !AtYearCap(pr) && guard++ < 6)
             {
                 var foe = ActiveIn(wc).Where(b => b.Id != pr.Id && b.Id != Player.Id && ProFights(b) >= 4
-                                             && b.Overall <= pr.Overall + 4 && Available(b) && !AtYearCap(b)
+                                             && b.Overall <= pr.Overall + 4 && _medical.Available(b) && !AtYearCap(b)
                                              && !RecentFoes(pr, 3).Contains(b.Name))
                                     .OrderBy(_ => _rng.Next()).FirstOrDefault();
                 if (foe is null) break;
@@ -300,7 +300,7 @@ public sealed partial class CareerGame
         for (int d = 0; d < titleBouts; d++)
         {
             var c = ChampOf(wc);
-            if (c is null || c.Id == Player.Id || !UnifiedIn(wc) || !Available(c)) return;
+            if (c is null || c.Id == Player.Id || !UnifiedIn(wc) || !_medical.Available(c)) return;
             if (_rng.NextDouble() < 0.10) { RelinquishBelt(c); return; }   // ducks a mandatory, splitting the belts
             var ch = PickChallenger(c, null);
             if (ch is null) return;
@@ -333,14 +333,14 @@ public sealed partial class CareerGame
         for (int d = 0; d < titleBouts; d++)
         {
             var c = champ();
-            if (c is null || c.Id == Player.Id || !Available(c)) return;   // an injured champion doesn't defend while on the shelf
+            if (c is null || c.Id == Player.Id || !_medical.Available(c)) return;   // an injured champion doesn't defend while on the shelf
             var challenger = PickChallenger(c, other?.Invoke());
             if (challenger is null)
             {
                 // No credible mandatory this slot — rather than sit idle for a year, the champion takes a stay-busy
                 // (non-title) fight against the best available gatekeeper he hasn't just met.
                 var busy = ActiveIn(c.WeightClass).Where(b => b.Id != c.Id && b.Id != Player.Id && b.Overall is >= 58
-                                                          && b.Overall <= c.Overall && Available(b) && !RecentFoes(c, 3).Contains(b.Name))
+                                                          && b.Overall <= c.Overall && _medical.Available(b) && !RecentFoes(c, 3).Contains(b.Name))
                                                   .OrderByDescending(RankScore).FirstOrDefault();
                 if (busy is null) return;
                 if (NextTitleDate(c, busy, yr, d, titleBouts) is not DateOnly bd) return;

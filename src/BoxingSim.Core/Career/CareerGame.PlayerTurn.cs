@@ -176,7 +176,7 @@ public sealed partial class CareerGame
         // one — a world title with nothing but six-round novices under it is not a championship show.
         bool bigShow = Tier >= CardTier.National;
         var pool = ActiveIn(wc)
-            .Where(b => !used.Contains(b.Id) && Available(b) && !AtYearCap(b) && ProFights(b) >= 2
+            .Where(b => !used.Contains(b.Id) && _medical.Available(b) && !AtYearCap(b) && ProFights(b) >= 2
                      && Rested(b) && (bigShow || !top20.Contains(b.Id)))
             .OrderBy(_ => _rng.Next())
             .ToList();
@@ -219,7 +219,7 @@ public sealed partial class CareerGame
         for (int i = _billed.Count - 1; i >= 0; i--)
         {
             var (a, b, rounds) = _billed[i];
-            if (a.Retired || b.Retired || !Available(a) || !Available(b)) continue;
+            if (a.Retired || b.Retired || !_medical.Available(a) || !_medical.Available(b)) continue;
             var res = FastBout(a, b, rounds);
             ApplyOutcome(res, a, b);
             _undercard.Add(new UndercardBout(

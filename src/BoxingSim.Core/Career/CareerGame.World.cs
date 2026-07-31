@@ -205,7 +205,7 @@ public sealed partial class CareerGame
     {
         var exclude = excludeIds.Where(id => id != 0).ToHashSet();
         bool Eligible(Boxer b) => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id)
-                               && !RecentlyMovedUp(b) && Available(b) && Rested(b);
+                               && !RecentlyMovedUp(b) && _medical.Available(b) && Rested(b);
         var field = ActiveIn(wc).Where(b => Eligible(b) && WorldRanked(b)).OrderByDescending(RankScore).Take(2).ToList();
         if (field.Count == 0) return null;
         if (field.Count == 1)
