@@ -25,7 +25,7 @@
   <!-- The real roster, copied next to the test assembly so integrity tests run the actual fighter data
        from any checkout rather than an absolute path on one machine. -->
   <ItemGroup>
-    <None Include="..\..\src\BoxingSim.App\wwwroot\data\fighters.json" Link="data\fighters.json"
+    <None Include="..\..\data\fighters.json" Link="data\fighters.json"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

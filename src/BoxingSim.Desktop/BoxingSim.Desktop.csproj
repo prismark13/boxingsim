@@ -40,8 +40,8 @@
   <!-- The roster is BOTH embedded and copied beside the .exe. Embedding keeps a single-file publish genuinely
        standalone; the loose copy lets the data be swapped without a rebuild, and wins when present. -->
   <ItemGroup>
-    <EmbeddedResource Include="..\BoxingSim.App\wwwroot\data\fighters.json" LogicalName="fighters.json" />
-    <None Include="..\BoxingSim.App\wwwroot\data\fighters.json" Link="data\fighters.json"
+    <EmbeddedResource Include="..\..\data\fighters.json" LogicalName="fighters.json" />
+    <None Include="..\..\data\fighters.json" Link="data\fighters.json"
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

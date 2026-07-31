@@ -1,6 +1,5 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/BoxingSim.App/BoxingSim.App.csproj" />
     <Project Path="src/BoxingSim.Cli/BoxingSim.Cli.csproj" />
     <Project Path="src/BoxingSim.Core/BoxingSim.Core.csproj" />
     <Project Path="src/BoxingSim.Desktop/BoxingSim.Desktop.csproj" />

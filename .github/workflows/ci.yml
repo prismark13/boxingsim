@@ -32,6 +32,23 @@ jobs:
       - name: Test
         run: dotnet test tests/BoxingSim.Tests/BoxingSim.Tests.csproj -c Release --no-build --nologo
 
+      # Build and test both pass whatever the roster's path is, because both read it from the source tree.
+      # The EMBEDDED copy only has to be right in a single-file publish, so a broken <EmbeddedResource>
+      # Include ships an exe that starts with no fighters while CI stays entirely green. That is exactly how
+      # the roster move could have gone wrong, and it was caught by hand. Publishing here means it cannot be.
+      - name: Publish the shipping single-file build
+        run: dotnet publish src/BoxingSim.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o out
+
+      - name: The delivery is one file that exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path out/BoxingSim.exe)) { throw "out/BoxingSim.exe was not produced" }
+          $mb = [math]::Round((Get-Item out/BoxingSim.exe).Length / 1MB, 1)
+          Write-Host "out/BoxingSim.exe is $mb MB"
+          # Self-contained and compressed, this lands near 67 MB. A build that forgot the bundled content
+          # would be a fraction of that and still "exist", so assert the size, not just the file.
+          if ($mb -lt 40) { throw "out/BoxingSim.exe is only $mb MB - the bundle looks incomplete" }
+
       # The fingerprints are written out beside the test binary precisely so a failure can be READ rather
       # than guessed at. When one moves, the diff is the whole story — so keep it.
       - name: Keep the golden-master dumps

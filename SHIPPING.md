@@ -59,15 +59,23 @@ Nothing in the code fixes that; it is a matter of code signing.
 - **Unsigned** is fine for people you hand it to directly and can tell to click through. It is not fine for
   strangers downloading from a link.
 
+## Where the roster lives
+
+`data/fighters.json`, at the repository root, belonging to no project. The desktop csproj embeds it as
+`fighters.json` and copies it to `data\fighters.json` beside the exe; the test csproj copies it to the same
+relative place beside the test assembly. Both reach it by relative path, so the roster can be edited in one
+place and every consumer picks it up.
+
+It used to live inside the Blazor project, which is why that project could not be deleted. Keep it neutral: a
+data file owned by a single project is a data file that dies with it.
+
 ## Retired: the web build
 
-`src/BoxingSim.App` is a Blazor WASM version that development has moved on from.
+`src/BoxingSim.App` was a Blazor WASM version that development moved on from. It has been deleted, along with
+its Pages deploy workflow — the roster no longer lives inside it, so there was nothing left to keep it for. The
+history is still there if it is ever wanted back: it was removed on the `chore/free-the-roster` branch, and
+`git log --follow data/fighters.json` still reaches its old home.
 
-The public site at `prismark13.github.io/boxingsim` has been taken down and the Pages configuration removed.
-Note that a Pages site on a public repository cannot be made *private* — private Pages needs GitHub Enterprise
-Cloud — so removing it is the only way to make it non-public. To bring it back: re-enable Pages in the
-repository settings and run the (now manual-only) deploy workflow.
-
-**Do not delete the project.** The fighter roster lives at `src/BoxingSim.App/wwwroot/data/fighters.json` and
-the desktop app embeds it from there, so removing the project would take the roster with it. If the project is
-ever to go properly, move that file somewhere neutral first and repoint both csproj references.
+The public site at `prismark13.github.io/boxingsim` was taken down and the Pages configuration removed. Note
+that a Pages site on a public repository cannot be made *private* — private Pages needs GitHub Enterprise
+Cloud — so removing it is the only way to make it non-public.

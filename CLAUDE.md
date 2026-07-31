@@ -15,8 +15,8 @@ reason.
 | `src/BoxingSim.Core` | The whole simulation. No UI, no package dependencies. Keep it that way. |
 | `src/BoxingSim.Desktop` | The product: WPF, .NET 10 Windows. Ships as `BoxingSim.exe`, titled "The Final Bell". |
 | `src/BoxingSim.Cli` | A harness for exporting reports and running bulk sims. Not shipped. |
-| `src/BoxingSim.App` | **Deprecated** Blazor build. Kept only because the fighter roster lives at `wwwroot/data/fighters.json` and the desktop app embeds it. Do not develop against it. |
 | `tests/BoxingSim.Tests` | xUnit. The entire safety net. |
+| `data/fighters.json` | The fighter roster, owned by no project. Desktop embeds it *and* copies it beside the exe; the tests copy it too. |
 | `rosters/` | Authoring data and exported reports. Not compiled. |
 
 `Core` depends on nothing — no `PackageReference`, no UI. Its layering runs `Model` ←
