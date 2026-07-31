@@ -11,6 +11,56 @@ public sealed partial class CareerGame
 {
     // ---- matchmaking for the player ----
 
+    /// <summary>A world title shot he has been GRANTED: which belt, and whose it was when it was ordered.
+    ///
+    /// A shot used to be re-decided every time the matchmaker was asked — the gates are deterministic, so the
+    /// same offer came back and it worked, but it meant turning a belt down cost nothing at all. You could
+    /// pass on the champion, wait three weeks, and be offered him again.
+    ///
+    /// Held as a fact about the world instead. A sanctioning body has ordered a fight; if you refuse it, they
+    /// order somebody else, and you go to the back of the queue for a few fights the way you would if you had
+    /// taken it and lost. Persisted, or quitting without saving would put the belt back on the table.</summary>
+    private sealed record TitleShot(string Belt, int ChampionId, int GrantedAtFights);
+    private TitleShot? _shot;
+
+    /// <summary>The granted shot, if it is still a real fight: the man must still be active and still hold the
+    /// belt he was carrying when it was ordered. A champion who has lost it in the meantime takes the
+    /// opportunity down with him rather than handing it on — the shot was at HIM.</summary>
+    private (string Belt, Boxer Champion)? LiveShot()
+    {
+        if (_shot is not { } s) return null;
+        var champ = _roster.FirstOrDefault(b => b.Id == s.ChampionId);
+        if (champ is null || champ.Retired || champ.Id == Player.Id
+            || champ.WeightClass != Player.WeightClass || BeltHolder(s.Belt)?.Id != champ.Id)
+        {
+            _shot = null;
+            return null;
+        }
+        return (s.Belt, champ);
+    }
+
+    private FightOffer Grant(string belt, Boxer champ)
+    {
+        _shot = new TitleShot(belt, champ.Id, ProFights(Player));
+        return new FightOffer { Opponent = champ, Rounds = 12, TitleFight = true, Belt = belt,
+                                Context = $"{belt} title shot" };
+    }
+
+    /// <summary>He turned down a belt. The sanctioning body does not hold it open: the champion is ordered to
+    /// defend against somebody else, and the player waits the same few fights he would have waited had he
+    /// taken the shot and lost it. This is the rule that makes refusing a title fight a decision.</summary>
+    private void ForfeitShot()
+    {
+        if (_shot is not { } s) return;
+        var champ = _roster.FirstOrDefault(b => b.Id == s.ChampionId);
+        _shot = null;
+        _lastTitleShot = ProFights(Player);   // the same rebuild gap as if he had taken it
+        LogEvent(champ is null
+                     ? $"{Player.Name} passes on the {s.Belt} title fight. The shot goes elsewhere."
+                     : $"{Player.Name} passes on {champ.Name}. The {s.Belt} orders him to defend against somebody else.",
+                 playerBout: true, kind: "title");
+    }
+
     private FightOffer BuildOffer()
     {
         int gap = Math.Max(DaysForFights(ProFights(Player)), _layoffDays);   // recovery pushes the next bout out
@@ -107,12 +157,16 @@ public sealed partial class CareerGame
         bool titleCooldownOk = proFights - _lastTitleShot >= 3;
         if (idx >= 0 && idx <= 4 && proFights >= fightsToRank && titleCooldownOk && !RecentlyMovedUp(Player))
         {
-            if (!holdsWba && Champion is not null && Champion.Id != Player.Id)
-                return new FightOffer { Opponent = Champion, Rounds = 12, TitleFight = true, Belt = PrimaryBelt, Context = $"{PrimaryBelt} title shot" };
-            if (!holdsWbc && WbcChampion is not null && WbcChampion.Id != Player.Id)
-                return new FightOffer { Opponent = WbcChampion, Rounds = 12, TitleFight = true, Belt = "WBC", Context = "WBC title shot" };
-            if (IbfActive && !holdsIbf && IbfChampion is not null && IbfChampion.Id != Player.Id)
-                return new FightOffer { Opponent = IbfChampion, Rounds = 12, TitleFight = true, Belt = "IBF", Context = "IBF title shot" };
+            // The opportunity he already has, if it is still real, before any new one is minted. A shot is a
+            // fact about the world — a sanctioning body has ordered a fight — and not a thing re-decided every
+            // time the matchmaker is asked a question. See TitleShot.
+            if (LiveShot() is (string heldBelt, Boxer heldChamp))
+                return new FightOffer { Opponent = heldChamp, Rounds = 12, TitleFight = true, Belt = heldBelt,
+                                        Context = $"{heldBelt} title shot" };
+
+            if (!holdsWba && Champion is not null && Champion.Id != Player.Id) return Grant(PrimaryBelt, Champion);
+            if (!holdsWbc && WbcChampion is not null && WbcChampion.Id != Player.Id) return Grant("WBC", WbcChampion);
+            if (IbfActive && !holdsIbf && IbfChampion is not null && IbfChampion.Id != Player.Id) return Grant("IBF", IbfChampion);
         }
 
         var stage = CareerStages.Of(Player);

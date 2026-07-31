@@ -15,6 +15,14 @@ public sealed class CareerSave
     public Dictionary<string, int> IbfChampions { get; set; } = new();   // division name → IBF holder Id
     public Dictionary<string, int> LinealChampions { get; set; } = new();   // division name → lineal/Ring holder Id
     public int LastTitleShot { get; set; } = -100;
+
+    /// <summary>A world title shot he has been granted and not yet taken, and the men he has turned down.
+    /// Both are saved because both are things REFUSING costs him — leave them out and quitting without saving
+    /// is a way of putting the belt back on the table and forgetting who you passed on.</summary>
+    public string? ShotBelt { get; set; }
+    public int ShotChampionId { get; set; }
+    public int ShotGrantedAtFights { get; set; }
+    public List<int> Declined { get; set; } = new();
     public List<BoxerSave> Roster { get; set; } = new();
     public List<HistoricalSave> Historical { get; set; } = new();
     // The player's own year-by-year arc. Absent on saves written before the card showed one.

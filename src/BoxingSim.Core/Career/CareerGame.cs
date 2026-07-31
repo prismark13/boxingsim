@@ -523,6 +523,8 @@ public sealed partial class CareerGame
         foreach (var kv in s.IbfChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _ibf[wc] = c;
         foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _lineal[wc] = c;
         _lastTitleShot = s.LastTitleShot;
+        if (s.ShotBelt is string sb) _shot = new TitleShot(sb, s.ShotChampionId, s.ShotGrantedAtFights);
+        _declined.AddRange(s.Declined);
         foreach (var h in s.Historical) _historical[h.Id] = (h.Prime.ToRatings(), h.Peak);
         foreach (var a in s.PlayerArc) _playerArc.Add((a.Fights, a.Age, a.R.ToRatings()));
         foreach (var f in s.Future) _future.Add((f.DebutYear, f.Proto.ToBoxer(), f.DebutAge, f.Peak));
@@ -610,7 +612,10 @@ public sealed partial class CareerGame
         var s = new CareerSave
         {
             Division = Division, Date = Date.ToString("yyyy-MM-dd"), OfferDate = OfferDate.ToString("yyyy-MM-dd"),
-            PlayerId = Player.Id, LastTitleShot = _lastTitleShot
+            PlayerId = Player.Id, LastTitleShot = _lastTitleShot,
+            ShotBelt = _shot?.Belt, ShotChampionId = _shot?.ChampionId ?? 0,
+            ShotGrantedAtFights = _shot?.GrantedAtFights ?? 0,
+            Declined = _declined.ToList()
         };
         foreach (var kv in _champions) if (kv.Value is Boxer c) s.Champions[kv.Key.ToString()] = c.Id;
         foreach (var kv in _wbc) if (kv.Value is Boxer c) s.WbcChampions[kv.Key.ToString()] = c.Id;

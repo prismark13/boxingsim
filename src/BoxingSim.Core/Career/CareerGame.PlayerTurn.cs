@@ -502,6 +502,8 @@ public sealed partial class CareerGame
         {
             _declined.Add(turned.Opponent.Id);
             while (_declined.Count > 4) _declined.RemoveAt(0);   // he comes back round eventually
+            // Turning down a world title is not the same as turning down a Tuesday in Bethnal Green.
+            if (turned.TitleFight && turned.Belt is "WBA" or "WBC" or "IBF") ForfeitShot();
         }
         AdvanceTo(Date.AddDays(21 + _rng.Next(21)));
         Offer = Player.Retired ? null : BuildOffer();
