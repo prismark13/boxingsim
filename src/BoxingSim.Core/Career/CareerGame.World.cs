@@ -223,15 +223,19 @@ public sealed partial class CareerGame
         // the day the player is living in. Crowning a vacant belt is settled here and now — the result is
         // applied to records immediately — so dating it months ahead announced a champion the player could not
         // yet have watched being crowned, and put the headline below older news in a feed sorted by date.
-        Date = NoLaterThanAsOf(SpreadDateFrom(Date));
+        var wanted = NoLaterThanAsOf(SpreadDateFrom(Date));
         var res = FastBout(field[0], field[1], 12);
-        ApplyOutcome(res, field[0], field[1], $"{belt} title");
+        // What comes back, not what went in: if either man boxed too recently the bout is pushed to a later
+        // night, and the headline has to follow the fight rather than the intention.
+        var night = ApplyOutcome(res, field[0], field[1], $"{belt} title", on: wanted);
         var winner = res.IsDraw ? field[0] : res.Winner!;   // a draw leaves the belt with the higher-ranked man
-        // Announce it HERE, while the clock still reads fight night. Reporting it after the restore below stamped
-        // the headline with the caller's date — so "wins the vacant title" could appear months before the bout
-        // that decided it, which is the same broken ordering read as a bug in the news feed.
+        // Dated to fight night rather than to whenever the caller happens to be. It used to depend on the
+        // announcement happening BEFORE the clock was put back, which is a rule about statement order that
+        // nothing enforces: move this line down three and the headline reads months before the bout that
+        // decided it. It carries its own date now, so it cannot be moved into the wrong one.
         _everChampion.Add(winner.Id);
-        LogEvent($"{winner.Name} wins the vacant {belt} title.", winner.Id == Player.Id, kind: "title", div: wc);
+        LogEvent($"{winner.Name} wins the vacant {belt} title.", winner.Id == Player.Id, kind: "title", div: wc,
+                 on: night);
         (Date, _cursor) = (savedDate, savedCursor);          // don't disturb the caller's clock/cursor
         return winner;
     }

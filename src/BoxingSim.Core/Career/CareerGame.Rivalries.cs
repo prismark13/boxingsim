@@ -285,9 +285,9 @@ public sealed partial class CareerGame
                      : IbfOf(heavier.WeightClass)?.Id == heavier.Id ? "IBF" : null;
         string note = belt is not null ? $"{belt} title" : "superfight";
 
-        Date = NoLaterThanAsOf(SpreadDate(Date.Year, 1 + _rng.Next(4), 6));
+        var night = NoLaterThanAsOf(SpreadDate(Date.Year, 1 + _rng.Next(4), 6));
         var res = FastBout(a, b, 12);
-        ApplyOutcome(res, a, b, note);
+        ApplyOutcome(res, a, b, note, on: night);
         ReportBout(res);
         // A belt changing hands here has to actually change hands, or the champions board still shows the
         // beaten man holding it.
@@ -329,9 +329,9 @@ public sealed partial class CareerGame
         if (RecentFoes(a, 3).Contains(b.Name)) return;
 
         _cursor = wc;
-        Date = NoLaterThanAsOf(SpreadDate(Date.Year, _rng.Next(6), 6));
+        var night = NoLaterThanAsOf(SpreadDate(Date.Year, _rng.Next(6), 6));
         var res = FastBout(a, b, 12);
-        ApplyOutcome(res, a, b, "eliminator");
+        ApplyOutcome(res, a, b, "eliminator", on: night);
         ReportBout(res);
         if (!res.IsDraw)
         {

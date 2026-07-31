@@ -205,8 +205,8 @@ public sealed partial class CareerGame
                 if (j < 0) continue;   // this man has no valid opponent on this card — skip HIM, don't halt the whole card
                 used[i] = used[j] = true;
                 int rounds = i < 6 ? 10 : 8;
-                Date = SpreadDate(yr, pass, 6);   // ApplyOutcome moves it if either man boxed too recently
-                ApplyOutcome(FastBout(pool[i], pool[j], rounds), pool[i], pool[j]);
+                var night = SpreadDate(yr, pass, 6);   // ApplyOutcome moves it if either man boxed too recently
+                ApplyOutcome(FastBout(pool[i], pool[j], rounds), pool[i], pool[j], on: night);
             }
         }
 
@@ -223,8 +223,8 @@ public sealed partial class CareerGame
                                              && !RecentFoes(pr, 3).Contains(b.Name))
                                     .OrderBy(_ => _rng.Next()).FirstOrDefault();
                 if (foe is null) break;
-                Date = SpreadDate(yr);
-                ApplyOutcome(FastBout(pr, foe, pr.History.Count < 6 ? 6 : 8), pr, foe);
+                var night = SpreadDate(yr);
+                ApplyOutcome(FastBout(pr, foe, pr.History.Count < 6 ? 6 : 8), pr, foe, on: night);
             }
         }
         Date = new DateOnly(yr, 1, 1);   // leave the clock where the warmup loop expects it
@@ -272,9 +272,8 @@ public sealed partial class CareerGame
             var ch = PickChallenger(c, null);
             if (ch is null) return;
             if (NextTitleDate(c, ch, yr, d, titleBouts) is not DateOnly nd) return;
-            Date = nd;
             var res = FastBout(c, ch, 12);
-            ApplyOutcome(res, c, ch, "Undisputed title");
+            ApplyOutcome(res, c, ch, "Undisputed title", on: nd);
             if (!res.IsDraw && res.Winner!.Id == ch.Id)
             {
                 LogTitle($"{ch.Name} beats {c.Name} to take the unified {PrimaryBelt} and WBC titles.");
@@ -311,14 +310,12 @@ public sealed partial class CareerGame
                                                   .OrderByDescending(RankScore).FirstOrDefault();
                 if (busy is null) return;
                 if (NextTitleDate(c, busy, yr, d, titleBouts) is not DateOnly bd) return;
-                Date = bd;
-                ApplyOutcome(FastBout(c, busy, 10), c, busy);
+                ApplyOutcome(FastBout(c, busy, 10), c, busy, on: bd);
                 continue;
             }
             if (NextTitleDate(c, challenger, yr, d, titleBouts) is not DateOnly td) return;
-            Date = td;
             var res = FastBout(c, challenger, 12);
-            ApplyOutcome(res, c, challenger, $"{belt} title");
+            ApplyOutcome(res, c, challenger, $"{belt} title", on: td);
             if (!res.IsDraw && res.Winner!.Id == challenger.Id)
             {
                 LogTitle(dethrone ? $"{challenger.Name} dethrones {c.Name} for the {belt} title."

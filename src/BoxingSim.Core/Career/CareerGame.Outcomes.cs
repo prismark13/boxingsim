@@ -50,8 +50,13 @@ public sealed partial class CareerGame
     /// next bout on the same card, which starts from wherever this one pushed it — depends on that assignment.
     /// Taking the date as an argument and moving the clock are two changes; this is only the first, so that
     /// the fingerprint can prove it changed nothing. The assignment goes when the callers no longer need
-    /// it.</summary>
-    private void ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null, DateOnly? on = null)
+    /// it.
+    ///
+    /// RETURNS the night the bout actually landed on, which is not necessarily the one asked for:
+    /// <see cref="LegalNightFor"/> pushes a fight off a date either man has already boxed on. A caller that
+    /// reports the bout must date the report by what comes back, not by what it passed in — announcing a new
+    /// champion on a night he did not fight is exactly the fault this returns to prevent.</summary>
+    private DateOnly ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null, DateOnly? on = null)
     {
         var night = LegalNightFor(a, b, on ?? Date);
         Date = night;
@@ -155,6 +160,7 @@ public sealed partial class CareerGame
 
         NoteRematchDemand(res, a, b, note);   // did this one leave a question?
         CaptureBout(res, a, b, note);         // a candidate for the year-end awards
+        return night;
     }
 
     private static void ApplyLasting(Ratings r, LastingEffect le)
