@@ -23,19 +23,9 @@ public sealed partial class CareerGame
     private readonly List<Boxer> _roster = new();                 // every fighter ever, across all divisions
     private readonly Dictionary<int, (Ratings Prime, int Peak)> _historical = new();
     private readonly List<(int DebutYear, Boxer Proto, int DebutAge, int Peak)> _future = new();
-    private readonly List<CareerEvent> _log = new();
-
-    /// <summary>Headlines ever written — which is NOT <c>_log.Count</c>.
-    ///
-    /// The log is capped and drops from the front, so once it is full every add is matched by a remove and its
-    /// Count stops moving. A step that asked "how many are there now, minus how many there were before" got
-    /// zero from that moment on, for the rest of the career. Fifteen years of a world is about fifteen hundred
-    /// headlines, so a long career reached the cap and the build-up feed went permanently silent while the
-    /// sport around it carried on making news exactly as loudly as before — a division with three thousand
-    /// active fighters reporting a hundred headlines a year, and not one of them shown.
-    ///
-    /// A position in a stream cannot be the length of a window onto it. Marks are taken against this.</summary>
-    private long _logWrites;
+    /// <summary>What the sport has reported. It owns the cap and the count of headlines ever written, which is
+    /// not the same number as how many are kept — see the type.</summary>
+    private readonly NewsLog _news = new();
     // Hall of Fame + the trackers that decide induction. _everChampion / _peakOverall persist across saves so a
     // fighter who held a belt (or peaked as an elite) in an earlier session still qualifies when he finally retires.
     private readonly List<HallOfFamer> _hof = new();
@@ -165,7 +155,7 @@ public sealed partial class CareerGame
     public string DateLabel => Date.ToString("d MMM yyyy");
     public string OfferDateLabel => OfferDate.ToString("d MMM yyyy");
 
-    public IReadOnlyList<CareerEvent> Log => _log;
+    public IReadOnlyList<CareerEvent> Log => _news.All;
     public IReadOnlyList<TitleReign> Reigns => _titles.Reigns;
     public int TitleDefenses => _titles.TitleDefenses;
     public int DaysAsChampion => _titles.DaysAsChampion;
@@ -353,7 +343,7 @@ public sealed partial class CareerGame
         ActiveIn(wc).Where(b => b.Id != Player.Id && IsProspect(b) && ProFights(b) >= 3)
                     .OrderByDescending(b => b.Potential).ThenByDescending(b => b.Overall)
                     .Take(take).ToList();
-    public IReadOnlyList<CareerEvent> RecentLog(int n) => _log.Skip(Math.Max(0, _log.Count - n)).ToList();
+    public IReadOnlyList<CareerEvent> RecentLog(int n) => _news.Recent(n);
 
     public CareerGame(int startYear, Boxer player, IEnumerable<Boxer> historicalProtos, Random rng,
                       WeightClass division = WeightClass.Heavyweight, int warmupYears = 10, bool seedHistory = false,
@@ -455,8 +445,7 @@ public sealed partial class CareerGame
 
         // The decade of build-up isn't the player's story — start his timeline (and the Hall of Fame) clean, so
         // the Hall fills with fighters who retire during his career rather than a generation he never saw.
-        _log.Clear();
-        _logWrites = 0;
+        _news.Clear();
         _yearBouts.Clear();
         if (!seedHistory) { _hof.Clear(); _awards.Clear(); }   // when seeding history, keep the past greats + their era's awards
         Date = new DateOnly(startYear, 3, 1);
@@ -501,18 +490,17 @@ public sealed partial class CareerGame
         foreach (var h in s.Historical) _historical[h.Id] = (h.Prime.ToRatings(), h.Peak);
         foreach (var a in s.PlayerArc) _playerArc.Add((a.Fights, a.Age, a.R.ToRatings()));
         foreach (var f in s.Future) _future.Add((f.DebutYear, f.Proto.ToBoxer(), f.DebutAge, f.Peak));
-        foreach (var e in s.Log)
+        _news.Restore(s.Log.Select(e =>
         {
             var on = ParseDate(e.On, Date);
-            _log.Add(new CareerEvent
+            return new CareerEvent
             {
                 On = on, Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind,
                 Div = Enum.TryParse<WeightClass>(e.Div, out var ed) ? ed : null,
                 Bout = e.BoutWinner is not null && e.BoutLoser is not null
                        ? new BoutRef(e.BoutWinner, e.BoutLoser, on) : null
-            });
-        }
-        _logWrites = _log.Count;   // a reopened career carries on counting from where the save left off
+            };
+        }));
         // Cards are due a fortnight after the last one, and when the last one was is not saved. Start the
         // clock from today rather than from never: otherwise every division would put a card on the instant a
         // career was opened, and saving and reloading would be a way of buying extra fights.
@@ -624,7 +612,7 @@ public sealed partial class CareerGame
         foreach (var kv in _historical) s.Historical.Add(new HistoricalSave { Id = kv.Key, Peak = kv.Value.Peak, Prime = RatingsSave.From(kv.Value.Prime) });
         foreach (var a in _playerArc) s.PlayerArc.Add(new ArcPointSave { Fights = a.Fights, Age = a.Age, R = RatingsSave.From(a.R) });
         foreach (var f in _future) s.Future.Add(new FutureSave { DebutYear = f.DebutYear, DebutAge = f.DebutAge, Peak = f.Peak, Proto = BoxerSave.From(f.Proto) });
-        foreach (var e in _log) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString(), BoutWinner = e.Bout?.Winner, BoutLoser = e.Bout?.Loser });
+        foreach (var e in _news.All) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString(), BoutWinner = e.Bout?.Winner, BoutLoser = e.Bout?.Loser });
         foreach (var r in _titles.Reigns) s.Reigns.Add(new TitleReignSave { Belt = r.Belt, Won = r.Won.ToString("yyyy-MM-dd"), Lost = r.Lost?.ToString("yyyy-MM-dd"), Defenses = r.Defenses });
         foreach (var (div, region, holder) in _titles.AllRegional) s.Regional[$"{div}|{region}"] = holder.Id;
         foreach (var m in _hof) s.HallOfFame.Add(new HallOfFamerSave

@@ -64,7 +64,7 @@ public sealed partial class CareerGame
     private IReadOnlyList<CareerEvent> AdvanceSome(DateOnly target, int days)
     {
         if (Date >= target) return Array.Empty<CareerEvent>();
-        long mark = _logWrites;   // not _log.Count — see the field. The log is capped; its length is not a position.
+        long mark = _news.Mark;   // a position in the stream, not a length — see NewsLog.
         var next = Date.AddDays(days);
         if (next > target) next = target;
         AdvanceClockTo(next);
@@ -73,13 +73,7 @@ public sealed partial class CareerGame
         return NewsSince(mark);
     }
 
-    /// <summary>The headlines written since a mark. Clamped to what the log still holds, because a single step
-    /// of a busy world can write more than the whole window keeps.</summary>
-    private IReadOnlyList<CareerEvent> NewsSince(long mark)
-    {
-        int added = (int)Math.Min(_logWrites - mark, _log.Count);
-        return added <= 0 ? Array.Empty<CareerEvent>() : _log.Skip(_log.Count - added).ToList();
-    }
+    private IReadOnlyList<CareerEvent> NewsSince(long mark) => _news.Since(mark);
 
     /// <summary>Run the sport forward one week toward fight night and report what happened, so the wait can
     /// be watched rather than skipped. Null once there is nothing left to wait for.</summary>

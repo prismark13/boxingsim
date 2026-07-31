@@ -299,10 +299,8 @@ public sealed partial class CareerGame
         // Say why he should care. A result is a scoreboard until it touches him.
         if (!playerBout && bout is BoutRef br && PlayerAngle(br, div) is string angle)
             text = $"{text} — {angle}";
-        _log.Add(new CareerEvent { On = on ?? Date, Text = text, PlayerBout = playerBout, Kind = kind,
-                                   Div = div ?? Division, Bout = bout, Detail = detail });
-        _logWrites++;
-        if (_log.Count > 1500) _log.RemoveAt(0);   // bounded; eight divisions produce more news
+        _news.Write(new CareerEvent { On = on ?? Date, Text = text, PlayerBout = playerBout, Kind = kind,
+                                      Div = div ?? Division, Bout = bout, Detail = detail });
     }
 
     private static DateOnly ParseDate(string s, DateOnly fallback) => DateOnly.TryParse(s, out var d) ? d : fallback;
