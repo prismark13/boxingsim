@@ -71,7 +71,17 @@ public sealed record NavItem(Page Page, string Label, bool IsHeader = false, str
 
 public sealed record RankRow(string Rank, int Class, string Name, string Detail, string Record,
                              bool IsPlayer, bool IsChampion, Boxer? Fighter, HallOfFamer? Legend = null);
-public sealed record BeltRow(string Belt, string Holder, string Detail, bool Lineal, bool Vacant, Boxer? Fighter);
+public sealed record BeltRow(string Belt, string Holder, string Detail, bool Lineal, bool Vacant, Boxer? Fighter,
+                             WeightClass Division = default)
+{
+    /// <summary>The key the line of succession is filed under. The primary belt is called "World" before 1962
+    /// and the lineal one "Lineal" before 1922, but both are recorded under one name for their whole history —
+    /// a belt does not become a different belt because the era renamed it.</summary>
+    public string LineageKey => Belt is "Ring" or "Lineal" ? "Ring" : Belt is "WBC" or "IBF" ? Belt : "WBA";
+}
+
+/// <summary>One man's reign, as the succession panel reads it.</summary>
+public sealed record ReignRow(string Holder, string Where, string Span, string How, bool IsCurrent, bool IsPlayer);
 public sealed record DivisionRow(string Division, string Undisputed, IReadOnlyList<BeltRow> Belts, bool IsPlayerDivision);
 /// <summary>One option in the news feed's division filter. Null means every division; its string form is the
 /// label, because a ComboBox's closed state falls back to ToString() and would otherwise show the type name.</summary>
