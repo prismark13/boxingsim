@@ -16,6 +16,7 @@
     <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -36,7 +37,12 @@
                  past. "Run the rest" hands the pacing back to the clock for this one run. -->
             <!-- The margins and MaxWidth are the scrolling body's own (28 + an inner 24, capped at
                  1000) worked out one level up, so the row sits over the column rather than beside it. -->
-            <Grid Margin="52,22,52,0" MaxWidth="952" HorizontalAlignment="Stretch"
+            <!-- TEMPORARY: the same values read OUTSIDE the row, for comparison with the line inside it. -->
+            <TextBlock Grid.Row="0" Text="{Binding GateReadout}" FontSize="10" FontFamily="Consolas"
+                       Foreground="#FF7070" Margin="52,4,52,0" TextWrapping="Wrap" />
+
+            <Grid Grid.Row="1" Margin="52,22,52,0" MaxWidth="952" HorizontalAlignment="Stretch"
+                  Background="#FF00A0" MinHeight="39"
                   Visibility="{Binding ShowCampActions, Converter={StaticResource BoolVis}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -45,6 +51,18 @@
                     <ColumnDefinition Width="9" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+
+                <!-- TEMPORARY DIAGNOSTIC. The same three flags the buttons key off, read INSIDE the row and
+                     on the same DataContext they use. If this prints stillOffer=True beside no buttons, then
+                     the values are right and the fault is in those Visibility bindings specifically — which
+                     is the last thing left, the band having already proved the row itself lays out. -->
+                <TextBlock Grid.ColumnSpan="5" VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
+                           Foreground="Black" TextWrapping="Wrap">
+                    <Run Text="INSIDE THE ROW —  stillOffer=" /><Run Text="{Binding FightIsStillAnOffer, Mode=OneWay}" />
+                    <Run Text="   carryOn=" /><Run Text="{Binding CanCarryOn, Mode=OneWay}" />
+                    <Run Text="   ready=" /><Run Text="{Binding ReadyToFight, Mode=OneWay}" />
+                    <Run Text="   (buttons should be drawn over this)" />
+                </TextBlock>
                 <!-- Accepting, here as well as on Home. This page shows a countdown whether or not
                      the fight has been taken, and a countdown with no button under it is a dead
                      end — which is what it was. -->
@@ -73,7 +91,7 @@
 
             </Grid>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="28,26,28,28" MaxWidth="1000" HorizontalAlignment="Stretch">
 
                 <!-- The fights on the table. See Pages/OfferSlateView.xaml. -->

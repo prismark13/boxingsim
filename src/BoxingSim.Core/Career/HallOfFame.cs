@@ -58,7 +58,12 @@ internal sealed class HallOfFame
     /// he made, whether he is holding a belt as he walks away, and the prime of a real fighter who was injected
     /// into the world mid-career rather than growing up in it (zero for anyone else — it is only ever a floor).
     /// The snapshot it keeps is self-contained, so it survives the roster being pruned on save.</summary>
-    public bool Induct(Boxer b, int proFights, int defenses, bool holdsBeltNow, int primeOverall, int primeClass, int year)
+    /// <param name="division">The weight he is REMEMBERED at, decided by the caller, which is not necessarily
+    /// the one he happened to be in when he stopped. Pascual Perez went into the Hall as a bantamweight: he
+    /// moved up late, so the last weight on his licence was the one recorded, and thirteen world flyweight
+    /// title fights counted for nothing against three years of winding down.</param>
+    public bool Induct(Boxer b, int proFights, int defenses, bool holdsBeltNow, int primeOverall, int primeClass,
+                       int year, WeightClass division)
     {
         if (_hof.Any(x => x.Id == b.Id)) return false;
         int peak = Math.Max(_peakOverall.GetValueOrDefault(b.Id, b.Overall), primeOverall);
@@ -75,13 +80,16 @@ internal sealed class HallOfFame
 
         _hof.Add(new HallOfFamer
         {
-            Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, Division = b.WeightClass,
+            Id = b.Id, Name = b.Name, Nickname = b.Nickname, Country = b.Country, Division = division,
             Record = b.Record.ToString(), PeakOverall = peak, PeakClass = peakClass, Defenses = defenses, WasChampion = wasChamp,
             WeightTitles = weightTitles, TitleDivisions = tds?.OrderBy(d => (int)d).ToList() ?? new(), Age = b.Age, Year = year,
             // Snapshot the ledger (drop the heavy per-round grid/commentary) so the Hall keeps his fight history.
             History = b.History.Select(h => new BoutLine
             {
-                Date = h.Date, Opponent = h.Opponent, Result = h.Result, Method = h.Method,
+                // Division travels with the bout. Leaving it off did not leave it blank — WeightClass's
+                // default is Flyweight — so every fight in every Hall of Famer's stored record read as a
+                // flyweight bout, which only ever looked right for the flyweights.
+                Date = h.Date, Opponent = h.Opponent, Result = h.Result, Method = h.Method, Division = h.Division,
                 Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
             }).ToList()
         });

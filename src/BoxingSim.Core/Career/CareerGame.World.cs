@@ -237,10 +237,36 @@ public sealed partial class CareerGame
     private bool MaybeInductHoF(Boxer b)
     {
         var prime = _historical.TryGetValue(b.Id, out var h) ? (h.Prime.Overall, h.Prime.Class) : (0, 0);
+        var remembered = RememberedAt(b);
         if (!_hall.Induct(b, ProFights(b), _titles.CareerDefenses(b.Id), IsWorldChampion(b),
-                          prime.Item1, prime.Item2, Date.Year)) return false;
-        LogEvent($"{b.Name} ({b.Record}) retires and enters the Hall of Fame.", b.Id == Player.Id, kind: "hof", div: b.WeightClass);
+                          prime.Item1, prime.Item2, Date.Year, remembered)) return false;
+        LogEvent($"{b.Name} ({b.Record}) retires and enters the Hall of Fame.", b.Id == Player.Id, kind: "hof", div: remembered);
         return true;
+    }
+
+    /// <summary>The weight a man is REMEMBERED at: the one he won most of his world title fights at.
+    ///
+    /// Not the one he was in when he stopped, which is what the Hall used to record. Pascual Perez was
+    /// enshrined as a bantamweight — he moved up for the last three years of a fourteen-year career, so the
+    /// weight on his licence at the end outvoted thirteen world flyweight title fights. Nobody remembers him
+    /// as a bantamweight.
+    ///
+    /// Falling back through the weight he BOXED most at before his current one, because a man with no title
+    /// fights at all still has a home: the division he spent his career in, not wherever he drifted to.</summary>
+    private WeightClass RememberedAt(Boxer b)
+    {
+        var titleWins = b.History
+            .Where(x => x.Result == 'W' && IsWorldTitleNote(x.Note))
+            .GroupBy(x => x.Division)
+            .OrderByDescending(g => g.Count()).ThenByDescending(g => (int)g.Key)
+            .FirstOrDefault();
+        if (titleWins is not null) return titleWins.Key;
+
+        var boxedMost = b.History
+            .GroupBy(x => x.Division)
+            .OrderByDescending(g => g.Count()).ThenByDescending(g => (int)g.Key)
+            .FirstOrDefault();
+        return boxedMost?.Key ?? b.WeightClass;
     }
 
     /// <summary>Log a completed bout as a candidate for the year-end awards — only fights worth honouring
