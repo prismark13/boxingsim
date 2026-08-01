@@ -438,6 +438,7 @@ public sealed class CareerViewModel : Observable
         ToggleNews = new Cmd(() => NewsOpen = !NewsOpen);
         // Held between weeks: let the next one land. Stopped altogether: pick the walk up where it left off.
         PlayBout = new Cmd(DoPlayBout);
+        ResolveCard = new Cmd(DoResolveCard, () => CanResolveCard);
         SkipBout = new Cmd(DoSkipBout);
         LeaveArena = new Cmd(DoLeaveArena);
         StepForward = new Cmd(() =>
@@ -1052,6 +1053,9 @@ public sealed class CareerViewModel : Observable
     public string PlayLabel => Current?.IsPlayer == true ? "Walk out" : "Play";
 
     public Cmd PlayBout { get; private set; } = null!;
+
+    /// <summary>Settle the rest of the undercard in one press, stopping at the player's own fight.</summary>
+    public Cmd ResolveCard { get; private set; } = null!;
     public Cmd SkipBout { get; private set; } = null!;
     public Cmd LeaveArena { get; private set; } = null!;
 
@@ -1060,6 +1064,8 @@ public sealed class CareerViewModel : Observable
         foreach (var n in new[] { nameof(Current), nameof(CardFinished), nameof(PlayLabel), nameof(CardOnScreen),
                                   nameof(CardTitle), nameof(CardTonightNote) })
             Raise(n);
+        Raise(nameof(CanResolveCard));
+        ResolveCard?.Refresh();
     }
 
     /// <summary>Build the night as a POSTER, and box it from the foot upward.
@@ -1126,6 +1132,28 @@ public sealed class CareerViewModel : Observable
         await Task.Delay((int)(700 / Math.Max(0.25, Speed)));
         AdvanceCard();
     }
+
+    /// <summary>Settle every supporting bout still to come, and stop at the player's own.
+    ///
+    /// A club show is four or five fights and pressing through each of them one at a time is not a decision,
+    /// it is a queue. His OWN fight is never auto-resolved: the card runs on until it reaches him and then
+    /// hands back, because that is the one night he came for.</summary>
+    private void DoResolveCard()
+    {
+        // Guarded rather than looped on Current alone: if anything ever failed to advance, an unguarded
+        // while would spin the UI thread for ever with no way out.
+        for (int guard = 0; guard < 64; guard++)
+        {
+            if (Current is not { } b || b.IsPlayer) break;
+            AdvanceCard();
+        }
+        RaiseCard();
+    }
+
+    /// <summary>True while there is somebody else's fight still to settle — the only time the button means
+    /// anything. On the player's own bout it goes, because "resolve the rest" must never resolve his.</summary>
+    public bool CanResolveCard => IsCardRunning && Current is { IsPlayer: false }
+                                  && CardNight.Count(b => b.IsPending && !b.IsPlayer) > 0;
 
     private void DoSkipBout()
     {
@@ -1502,10 +1530,19 @@ public sealed class CareerViewModel : Observable
 
         while (_waiting)
         {
+            // A week of the whole sport can take a moment, and pressing Continue used to give nothing back
+            // but a cursor — which on a busy world reads as a click that did not register. Say what is
+            // happening, in the banner the rest of the app already uses for work that takes time.
             IReadOnlyList<CareerEvent>? week;
+            BusyMessage = "Simulating the week…";
+            Busy = true;
             System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
             try { week = await Task.Run(() => Game?.WaitAWeek()); }
-            finally { System.Windows.Input.Mouse.OverrideCursor = null; }
+            finally
+            {
+                System.Windows.Input.Mouse.OverrideCursor = null;
+                Busy = false;
+            }
             if (week is null) break;
 
             // Something in his own weight worth watching stops the clock and asks. Decided BEFORE the rows are

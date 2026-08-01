@@ -727,6 +727,15 @@
                                                     <Button Content="Skip" Padding="14,7" FontSize="12" Margin="8,0,0,0"
                                                             Command="{Binding DataContext.SkipBout, RelativeSource={RelativeSource AncestorType=Window}}"
                                                             ToolTip="Straight to the result" />
+                                                    <!-- The whole undercard at once. Four or five supporting
+                                                         bouts pressed through one at a time is a queue, not a
+                                                         decision. It stops at the player's own fight, which is
+                                                         the one he came for and the one thing this must never
+                                                         resolve for him. -->
+                                                    <Button Content="Resolve the rest" Padding="14,7" FontSize="12" Margin="8,0,0,0"
+                                                            Command="{Binding DataContext.ResolveCard, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            ToolTip="Settle every remaining supporting bout, and stop at your fight"
+                                                            Visibility="{Binding DataContext.CanResolveCard, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolVis}}" />
                                                 </StackPanel>
                                             </StackPanel>
                                         </Grid>
