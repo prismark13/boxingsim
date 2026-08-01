@@ -63,6 +63,44 @@ public sealed class TitleReign
     public int Defenses { get; set; }
 }
 
+/// <summary>One man's reign with one belt, in one division — a line in the succession.
+///
+/// The world already knew who held every belt TODAY and nothing about who had held them before. A division's
+/// history is most of what makes a belt worth winning: the man you beat for it, and the fourteen men before
+/// him. Kept by name and country rather than by reference, because a save prunes retired fighters and a
+/// lineage has to outlive the men in it — a champion from 1958 is long gone from the roster by 1980, and his
+/// reign is still part of the line.</summary>
+public sealed class BeltReign
+{
+    public WeightClass Division { get; set; }
+
+    /// <summary>"WBA" (or "World" before 1962), "WBC", "IBF", or "Ring" for the lineal championship.</summary>
+    public string Belt { get; set; } = "";
+
+    public int HolderId { get; set; }
+    public string Holder { get; set; } = "";
+    public string? Country { get; set; }
+
+    public DateOnly Won { get; set; }
+
+    /// <summary>Null while he still holds it — the reign that is running now.</summary>
+    public DateOnly? Lost { get; set; }
+
+    /// <summary>Who he took it from, or null if it was vacant when he won it.</summary>
+    public string? TookFrom { get; set; }
+
+    /// <summary>Who took it off him, or null if he gave it up, was stripped, or still holds it.</summary>
+    public string? LostTo { get; set; }
+
+    /// <summary>Successful defences he made with it, filled in when the reign ends.</summary>
+    public int Defences { get; set; }
+
+    public bool IsCurrent => Lost is null;
+
+    /// <summary>How long he held it, to today if he still does.</summary>
+    public int DaysHeld(DateOnly today) => Math.Max(0, (Lost ?? today).DayNumber - Won.DayNumber);
+}
+
 /// <summary>One line in the career timeline (debuts, title changes, retirements, the player's own bouts).</summary>
 public sealed class CareerEvent
 {

@@ -41,14 +41,84 @@ internal sealed class TitleRegistry
     public bool WbcActive => Year >= 1963;
     public bool IbfActive => Year >= 1983;   // the IBF is the third sanctioning body; no WBO or minor belts
 
+    // ---- the line of succession ----
+
+    private readonly List<BeltReign> _lineage = new();
+
+    /// <summary>Every reign of every world belt, oldest first. The line of succession a division actually has:
+    /// who held it, from when, until whom.</summary>
+    public IReadOnlyList<BeltReign> Lineage => _lineage;
+
+    /// <summary>The holders of one belt in one division, oldest first.</summary>
+    public IReadOnlyList<BeltReign> LineageOf(WeightClass wc, string belt) =>
+        _lineage.Where(r => r.Division == wc && r.Belt == belt).ToList();
+
+    /// <summary>Record a belt changing hands, from inside the four setters every world belt moves through.
+    ///
+    /// Here rather than at the callers deliberately. A belt changes hands in a title bout, on a relinquishment,
+    /// when a champion retires or moves up, when a vacant belt is contested, and when a man is stripped — and
+    /// that list is one somebody adds to and forgets. The setter cannot be gone round: if the belt moved, this
+    /// saw it.
+    ///
+    /// A reign is CLOSED by writing the date onto the outgoing man's open record rather than by looking his
+    /// reign up, because the same man can hold the same belt twice and the second reign must not overwrite the
+    /// first. Vacating writes no new reign — a vacant belt is the absence of one, not a holder called nobody.</summary>
+    private void RecordBeltChange(WeightClass wc, string belt, Boxer? outgoing, Boxer? incoming)
+    {
+        if (ReferenceEquals(outgoing, incoming)) return;                       // not a change
+        if (outgoing is not null && incoming is not null && outgoing.Id == incoming.Id) return;
+
+        var now = _today();
+        if (outgoing is not null)
+        {
+            var open = _lineage.LastOrDefault(r => r.Division == wc && r.Belt == belt
+                                                   && r.HolderId == outgoing.Id && r.Lost is null);
+            if (open is not null)
+            {
+                open.Lost = now;
+                open.LostTo = incoming?.Name;
+                open.Defences = _beltDefenses.GetValueOrDefault((wc, Slot(belt), outgoing.Id));
+            }
+        }
+        if (incoming is not null)
+            _lineage.Add(new BeltReign
+            {
+                Division = wc, Belt = belt, HolderId = incoming.Id, Holder = incoming.Name,
+                Country = incoming.Country, Won = now, TookFrom = outgoing?.Name,
+            });
+    }
+
+    /// <summary>The defence-count key a belt is filed under. "Ring" keeps its own, the rest are their own name.</summary>
+    private static string Slot(string belt) => belt switch { "WBC" => "WBC", "IBF" => "IBF", "Ring" => "Ring", _ => "WBA" };
+
+    /// <summary>Load a reign back from a save, in the order it was written.</summary>
+    public void LoadLineage(BeltReign r) => _lineage.Add(r);
+
+    /// <summary>Put a belt back on a man while REHYDRATING a save, writing no reign.
+    ///
+    /// The line of succession is restored from the save in one piece, so going through the ordinary setters
+    /// here would record every belt that happened to be occupied at the moment of saving as a brand new reign
+    /// on top of the one already loaded — a champion would gain a second, identical reign every time the game
+    /// was opened.</summary>
+    public void LoadBelt(WeightClass wc, string belt, Boxer b)
+    {
+        switch (belt)
+        {
+            case "WBC": _wbc[wc] = b; break;
+            case "IBF": _ibf[wc] = b; break;
+            case "Ring": _lineal[wc] = b; break;
+            default: _champions[wc] = b; break;
+        }
+    }
+
     // ---- world belts ----
 
     public Boxer? Champ(WeightClass wc) => _champions.GetValueOrDefault(wc);
     public Boxer? Wbc(WeightClass wc) => _wbc.GetValueOrDefault(wc);
     public Boxer? Ibf(WeightClass wc) => _ibf.GetValueOrDefault(wc);
 
-    public void SetWbc(WeightClass wc, Boxer? b) => _wbc[wc] = b;
-    public void SetIbf(WeightClass wc, Boxer? b) => _ibf[wc] = b;
+    public void SetWbc(WeightClass wc, Boxer? b) { RecordBeltChange(wc, "WBC", _wbc.GetValueOrDefault(wc), b); _wbc[wc] = b; }
+    public void SetIbf(WeightClass wc, Boxer? b) { RecordBeltChange(wc, "IBF", _ibf.GetValueOrDefault(wc), b); _ibf[wc] = b; }
 
     /// <summary>The three sanctioned world belts of a division and who holds each, for callers that have
     /// business with all of them rather than one — so a rule about champions is written once instead of three
@@ -71,14 +141,18 @@ internal sealed class TitleRegistry
     /// <summary>Put the primary belt on a man, or vacate it with null. Setting it plainly — nobody's
     /// <see cref="Boxer.IsChampion"/> flag is touched here, because two callers deliberately crown a man and
     /// raise the flag themselves and a third wants the belt moved without it.</summary>
-    public void SetChamp(WeightClass wc, Boxer? b) => _champions[wc] = b;
+    public void SetChamp(WeightClass wc, Boxer? b)
+    {
+        RecordBeltChange(wc, "WBA", _champions.GetValueOrDefault(wc), b);
+        _champions[wc] = b;
+    }
 
     /// <summary>Crown a new primary champion: the belt moves AND the man he took it from stops being one.</summary>
     public void CrownChampion(Boxer b)
     {
         var wc = b.WeightClass;
         if (Champ(wc) is Boxer old) old.IsChampion = false;
-        _champions[wc] = b;
+        SetChamp(wc, b);      // through the setter, so the line of succession sees it
         b.IsChampion = true;
     }
 
@@ -90,7 +164,11 @@ internal sealed class TitleRegistry
     /// <summary>The name against the line whether or not it still stands — for the sweep that CLEARS a stale
     /// one, which cannot use the guarded reader without deciding there is nothing there to clear.</summary>
     public Boxer? LinealOnRecord(WeightClass wc) => _lineal.GetValueOrDefault(wc);
-    public void SetLineal(WeightClass wc, Boxer? b) => _lineal[wc] = b;
+    public void SetLineal(WeightClass wc, Boxer? b)
+    {
+        RecordBeltChange(wc, "Ring", _lineal.GetValueOrDefault(wc), b);
+        _lineal[wc] = b;
+    }
 
     /// <summary>True if the fighter currently holds any world belt (WBA/WBC/IBF) in his division.</summary>
     public bool HoldsAnyWorldBelt(Boxer b) =>
@@ -112,9 +190,12 @@ internal sealed class TitleRegistry
     /// <summary>Strip a man of every world belt he holds in a division — he has retired, or moved out of it.</summary>
     public void VacateWorldBelts(WeightClass wc, Boxer b)
     {
-        if (Champ(wc)?.Id == b.Id) _champions[wc] = null;
-        if (Wbc(wc)?.Id == b.Id) _wbc[wc] = null;
-        if (Ibf(wc)?.Id == b.Id) _ibf[wc] = null;
+        // Through the setters, all three. Assigning the dictionaries here left a retiring champion's reign
+        // hanging open for ever, so the next man's reign began while the previous one had never ended and the
+        // line said two men held one belt at once.
+        if (Champ(wc)?.Id == b.Id) SetChamp(wc, null);
+        if (Wbc(wc)?.Id == b.Id) SetWbc(wc, null);
+        if (Ibf(wc)?.Id == b.Id) SetIbf(wc, null);
     }
 
     // ---- defence counts ----

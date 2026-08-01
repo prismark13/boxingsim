@@ -30,6 +30,10 @@ public sealed class CareerSave
     public List<FutureSave> Future { get; set; } = new();
     public List<CareerEventSave> Log { get; set; } = new();
     public List<TitleReignSave> Reigns { get; set; } = new();
+
+    /// <summary>Every belt's line of succession. Written whole rather than diffed — a century of boxing is a
+    /// few thousand short records, which is nothing beside the roster it sits next to.</summary>
+    public List<BeltReignSave> Lineage { get; set; } = new();
     public Dictionary<string, int> Regional { get; set; } = new();   // "Division|Region" → holder Id
     public List<HallOfFamerSave> HallOfFame { get; set; } = new();
     public List<AwardsYearSave> Awards { get; set; } = new();
@@ -79,6 +83,22 @@ public sealed class HallOfFamerSave
     public int Age { get; set; }
     public int Year { get; set; }
     public List<BoutLineSave> History { get; set; } = new();
+}
+
+/// <summary>One reign in a belt's line of succession, flattened for the save. Names and countries rather than
+/// ids into the roster: the roster is pruned of retired men, and a lineage has to outlive the men in it.</summary>
+public sealed class BeltReignSave
+{
+    public string Div { get; set; } = "";
+    public string Belt { get; set; } = "";
+    public int HolderId { get; set; }
+    public string Holder { get; set; } = "";
+    public string? Country { get; set; }
+    public string Won { get; set; } = "";
+    public string? Lost { get; set; }
+    public string? TookFrom { get; set; }
+    public string? LostTo { get; set; }
+    public int Defences { get; set; }
 }
 
 public sealed class TitleReignSave

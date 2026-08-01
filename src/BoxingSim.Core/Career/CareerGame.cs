@@ -207,6 +207,19 @@ public sealed partial class CareerGame
     public Boxer? LinealChampionOf(WeightClass wc) => LinealOf(wc);
 
     /// <summary>Every division's championship picture in one pass — for the champions list. Heaviest first.</summary>
+    /// <summary>The line of succession for one belt in one division, oldest first — every man who has held it
+    /// since the world began, who he took it from, and who took it off him.</summary>
+    public IReadOnlyList<BeltReign> LineageOf(WeightClass wc, string belt) => _titles.LineageOf(wc, belt);
+
+    /// <summary>The belts a division has had a line for, in the order they are always listed.</summary>
+    public IReadOnlyList<string> BeltsOf(WeightClass wc) =>
+        new[] { PrimaryBelt, "WBC", "IBF", LinealBelt }
+            .Where(b => _titles.LineageOf(wc, b == LinealBelt ? "Ring" : b).Count > 0)
+            .ToList();
+
+    /// <summary>Every reign the world has recorded, for the save.</summary>
+    internal IReadOnlyList<BeltReign> AllReigns => _titles.Lineage;
+
     public IReadOnlyList<DivisionChampions> ChampionsBoard() =>
         LiveDivisions.Select(wc => new DivisionChampions(
             wc,
@@ -469,10 +482,10 @@ public sealed partial class CareerGame
         _factory.Reserve(reserved);
         _oppNames.Reserve(reserved);
         _factory.StartIdsAt(_roster.Select(b => b.Id).Append(Player.Id).DefaultIfEmpty(0).Max() + 1);
-        foreach (var kv in s.Champions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.SetChamp(wc, c);
-        foreach (var kv in s.WbcChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.SetWbc(wc, c);
-        foreach (var kv in s.IbfChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.SetIbf(wc, c);
-        foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.SetLineal(wc, c);
+        foreach (var kv in s.Champions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.LoadBelt(wc, "WBA", c);
+        foreach (var kv in s.WbcChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.LoadBelt(wc, "WBC", c);
+        foreach (var kv in s.IbfChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.LoadBelt(wc, "IBF", c);
+        foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.LoadBelt(wc, "Ring", c);
         _lastTitleShot = s.LastTitleShot;
         if (s.ShotBelt is string sb) _shot = new TitleShot(sb, s.ShotChampionId, s.ShotGrantedAtFights);
         _declined.AddRange(s.Declined);
@@ -494,6 +507,15 @@ public sealed partial class CareerGame
         // clock from today rather than from never: otherwise every division would put a card on the instant a
         // career was opened, and saving and reloading would be a way of buying extra fights.
         foreach (var wc in AllDivisions) _lastCard[wc] = Date;
+        foreach (var r in s.Lineage)
+            _titles.LoadLineage(new BeltReign
+            {
+                Division = Enum.TryParse<WeightClass>(r.Div, out var lw) ? lw : WeightClass.Heavyweight,
+                Belt = r.Belt, HolderId = r.HolderId, Holder = r.Holder, Country = r.Country,
+                Won = ParseDate(r.Won, Date),
+                Lost = string.IsNullOrEmpty(r.Lost) ? null : ParseDate(r.Lost, Date),
+                TookFrom = r.TookFrom, LostTo = r.LostTo, Defences = r.Defences,
+            });
         foreach (var r in s.Reigns) _titles.LoadReign(new TitleReign { Belt = r.Belt, Won = ParseDate(r.Won, Date), Lost = string.IsNullOrEmpty(r.Lost) ? null : ParseDate(r.Lost, Date), Defenses = r.Defenses });
         foreach (var kv in s.Regional)
         {
@@ -602,6 +624,12 @@ public sealed partial class CareerGame
         foreach (var a in _playerArc) s.PlayerArc.Add(new ArcPointSave { Fights = a.Fights, Age = a.Age, R = RatingsSave.From(a.R) });
         foreach (var f in _future) s.Future.Add(new FutureSave { DebutYear = f.DebutYear, DebutAge = f.DebutAge, Peak = f.Peak, Proto = BoxerSave.From(f.Proto) });
         foreach (var e in _news.All) s.Log.Add(new CareerEventSave { On = e.On.ToString("yyyy-MM-dd"), Text = e.Text, PlayerBout = e.PlayerBout, Kind = e.Kind, Div = e.Div?.ToString(), BoutWinner = e.Bout?.Winner, BoutLoser = e.Bout?.Loser });
+        foreach (var r in AllReigns) s.Lineage.Add(new BeltReignSave
+        {
+            Div = r.Division.ToString(), Belt = r.Belt, HolderId = r.HolderId, Holder = r.Holder,
+            Country = r.Country, Won = r.Won.ToString("yyyy-MM-dd"), Lost = r.Lost?.ToString("yyyy-MM-dd"),
+            TookFrom = r.TookFrom, LostTo = r.LostTo, Defences = r.Defences,
+        });
         foreach (var r in _titles.Reigns) s.Reigns.Add(new TitleReignSave { Belt = r.Belt, Won = r.Won.ToString("yyyy-MM-dd"), Lost = r.Lost?.ToString("yyyy-MM-dd"), Defenses = r.Defenses });
         foreach (var (div, region, holder) in _titles.AllRegional) s.Regional[$"{div}|{region}"] = holder.Id;
         foreach (var m in _hall.All) s.HallOfFame.Add(new HallOfFamerSave
