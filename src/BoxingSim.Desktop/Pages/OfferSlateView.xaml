@@ -26,15 +26,21 @@
                                     <Setter Property="Background" Value="{StaticResource Panel}" />
                                     <Setter Property="BorderBrush" Value="{StaticResource Line}" />
                                     <Style.Triggers>
-                                        <!-- The belt, and the biggest ordinary night, are
-                                             drawn like it. -->
-                                        <DataTrigger Binding="{Binding IsBiggest}" Value="True">
-                                            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
-                                        </DataTrigger>
+                                        <!-- A belt is drawn like one, always. -->
                                         <DataTrigger Binding="{Binding IsTitle}" Value="True">
                                             <Setter Property="Background" Value="{StaticResource GoldSoft}" />
                                             <Setter Property="BorderBrush" Value="{StaticResource GoldLine}" />
                                         </DataTrigger>
+                                        <!-- The accent border follows the fight you are LOOKING AT, and is
+                                             last so it wins over the belt's gold while you are on it.
+                                             It used to be pinned to IsBiggest, so the highlight sat on the
+                                             first card and never moved — which reads as the choice already
+                                             having been made for you, on the one screen whose whole purpose
+                                             is that it has not been. -->
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+                                            <Setter Property="Background" Value="{StaticResource AccentSoft}" />
+                                        </Trigger>
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>

@@ -23,7 +23,10 @@ public partial class MainWindow : Window
     {
         Loaded -= OnLoaded;
         await _vm.WarmupAsync();
-        if (DesktopCareerService.HasSave) _vm.ContinueCareer.Execute(null);
+
+        // No auto-continue any more. With one save it was a kindness — the game opened on the career you were
+        // playing. With three it is a guess, and the wrong guess loads somebody else's career over the top of
+        // the screen you came to choose from. The title screen now shows all three and waits.
     }
 
     // The call auto-scrolls to the newest line, but yields the moment you scroll back — otherwise pausing to
