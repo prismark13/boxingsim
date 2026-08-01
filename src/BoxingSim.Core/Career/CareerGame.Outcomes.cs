@@ -123,6 +123,10 @@ public sealed partial class CareerGame
         Record(a, b.Name, ra, res.Method, res.EndRound, res.KnockdownsB, res.KnockdownsA, note, cardsA, keepRounds ? roundsA : null, commentary, at, night);
         Record(b, a.Name, rb, res.Method, res.EndRound, res.KnockdownsA, res.KnockdownsB, note, cardsB, keepRounds ? roundsB : null, commentary, at, night);
 
+        // Where the two men stood BEFORE this result moved them — the year-end awards judge an upset on what
+        // was expected going in, and everything below rewrites it.
+        double aPtsBefore = a.RankPoints, bPtsBefore = b.RankPoints;
+
         double scoreA = res.IsDraw ? 0.5 : res.Winner!.Id == a.Id ? 1.0 : 0.0;
         const double k = 32.0;
         double ea = 1.0 / (1.0 + Math.Pow(10, (b.RankPoints - a.RankPoints) / 400.0));
@@ -156,7 +160,7 @@ public sealed partial class CareerGame
         ConsiderStepUp(b);
 
         NoteRematchDemand(res, a, b, note);   // did this one leave a question?
-        CaptureBout(res, a, b, note, night);  // a candidate for the year-end awards
+        CaptureBout(res, a, b, note, night, aPtsBefore, bPtsBefore);  // a candidate for the year-end awards
         return night;
     }
 

@@ -245,18 +245,30 @@ public sealed partial class CareerGame
 
     /// <summary>Log a completed bout as a candidate for the year-end awards — only fights worth honouring
     /// (a world title bout, two decent men, or a knockout of a decent fighter).</summary>
-    private void CaptureBout(FightResult res, Boxer a, Boxer b, string? note, DateOnly on)
+    /// <param name="aPts">Both men's ranking points as they stood BEFORE this result moved them. An upset is
+    /// judged on what the sport expected going in, and by the time this is called the Elo update has already
+    /// closed the gap by up to sixty points in each direction — enough to flatter or bury the very result
+    /// being weighed.</param>
+    private void CaptureBout(FightResult res, Boxer a, Boxer b, string? note, DateOnly on, double aPts, double bPts)
     {
         bool title = IsWorldTitleNote(note);
         bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
+        // EVERY bout is captured now, because Fighter of the Year is judged on a man's whole year. What this
+        // gate used to do — throw the ordinary ones away — meant a lean year reached December with almost
+        // nothing on the list, and the award went to whoever had won the one title fight in it, on a 1-0
+        // record. It survives as a FLAG: the bout awards still read only the notable ones, since Fight and
+        // Knockout of the Year are about a night and have no business trawling four-rounders.
         int lo = Math.Min(a.Overall, b.Overall);
-        if (!title && lo < 66 && !(ko && (res.Loser?.Overall ?? 0) >= 66)) return;
+        bool notable = title || lo >= 66 || (ko && (res.Loser?.Overall ?? 0) >= 66);
         var w = res.Winner; var l = res.Loser;
         bool close = res.IsDraw || res.Method is "SD" or "MD"
                      || (res.Scorecards.Count > 0 && res.Scorecards.All(c => Math.Abs(c.A - c.B) <= 4));
         _awards.Capture(new YearBout(on.Year, on, w?.Name ?? a.Name, l?.Name ?? b.Name, w?.Id ?? a.Id, l?.Id ?? b.Id,
             res.Method, res.EndRound, title, w?.Overall ?? a.Overall, l?.Overall ?? b.Overall,
-            res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass, l is not null ? Standing(l) : ""));
+            res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass, l is not null ? Standing(l) : "",
+            WinnerPts: w is null || w.Id == a.Id ? aPts : bPts,
+            LoserPts: l is null || l.Id == a.Id ? aPts : bPts,
+            Notable: notable, Note: note));
     }
 
     /// <summary>A short description of where a fighter stands — a reigning champion (with defences), a ranked
