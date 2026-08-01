@@ -105,7 +105,7 @@ public sealed partial class CareerGame
     /// player to compare two records of men he has never heard of.</summary>
     public double ValueOf(FightOffer o) =>
         BoutValue.Of(Player, o.Opponent, StakesOf(o), Player.WeightClass,
-                     BoardPlace(Player), BoardPlace(o.Opponent));
+                     ValuePlace(Player), ValuePlace(o.Opponent));
 
     /// <summary>Where a man stands on his division's board, or 0. For the UI, which cannot see the ranking
     /// internals but has to say "#4" beside a name for it to mean anything.</summary>

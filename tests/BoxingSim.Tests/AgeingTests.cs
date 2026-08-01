@@ -181,24 +181,30 @@ public class AgeingTests
     [Fact]
     public void AnOldWorldStillMakesNews()
     {
-        var g = Worlds.Fresh(potential: 88, seed: 11);
-
-        // On until the log is full and dropping from the front. Fifteen years was how this used to get here;
-        // the cap is what it was after.
-        int guard = 0;
-        while (g.Log.Count < 1500 && !g.Player.Retired && guard++ < 6000)
+        // What this needs is a world whose log has FILLED with a fighter still active in it. Whether any one
+        // seed gets there depends on how long that particular man lasts, and a career is shortened or extended
+        // by any change to the order random numbers are drawn — so pinning it to one seed means an unrelated
+        // change elsewhere silently turns this into a test of nothing. It tries a few and uses the first that
+        // qualifies, and only fails if none of them can get there at all.
+        CareerGame? g = null;
+        var tried = new List<string>();
+        foreach (var (potential, seed) in new[] { (88, 11), (94, 3), (90, 7), (86, 21), (92, 5) })
         {
-            if (g.Offer is null) { if (g.WaitAWeek() is null) break; continue; }
-            g.TakeOffer();
+            var w = Worlds.Fresh(potential: potential, seed: seed);
+            int guard = 0;
+            while (w.Log.Count < 1500 && !w.Player.Retired && guard++ < 6000)
+            {
+                if (w.Offer is null) { if (w.WaitAWeek() is null) break; continue; }
+                w.TakeOffer();
+            }
+            if (w.Log.Count >= 1500 && !w.Player.Retired) { g = w; break; }
+            tried.Add($"pot{potential}/seed{seed}: {w.Log.Count} headlines by {w.Date:yyyy}"
+                      + (w.Player.Retired ? ", retired" : ""));
         }
 
-        int capped = g.Log.Count;
-        Assert.True(capped >= 1500,
-                    $"this never reached the capped log ({capped} headlines by {g.Date:yyyy}), so it is not "
-                    + "testing what it says");
-        Assert.False(g.Player.Retired,
-                     $"the player retired ({g.Date:yyyy}) before the log capped; a retired man cannot walk a "
-                     + "build-up, so nothing below would have been exercised");
+        Assert.True(g is not null,
+                    "no world reached a capped log with the player still active, so there is nothing here to "
+                    + "test: " + string.Join("; ", tried));
 
         int fed = 0;
         for (int w = 0; w < 14; w++) { var news = g.WaitAWeek(); if (news is null) break; fed += news.Count; }

@@ -198,12 +198,34 @@ public sealed partial class CareerGame
     /// <summary>Where a man stands in his division on the board the player reads, or 0 if he is not on it.
     /// Champions come first, so "C" is 1 and the leading contender is 2 — which is why the caller says
     /// "champion" rather than "#1" when it lands on a title holder.</summary>
+    /// <summary>Where a man sits in his division's NUMBERING, which is not the same as his index on the board.
+    ///
+    /// RankingBoard lists the champions first and the contenders behind them, and the rankings page numbers
+    /// them the way a sanctioning body does: the champions sit above the list and take no number, so the best
+    /// contender is #1. This counted raw indexes instead, so every champion above a man pushed his number out
+    /// by one — with two champions in the division, the #3 on the rankings page was labelled #5 on the fight
+    /// he was offered, on the bill, and everywhere else a place is printed. Two screens disagreeing about
+    /// where a man stands makes both of them untrustworthy.
+    ///
+    /// A champion has no number. He is the champion, and every caller that prints a place already says so.</summary>
     private int BoardPlace(Boxer b)
     {
-        var board = RankingBoard(b.WeightClass, 15);
-        for (int i = 0; i < board.Count; i++) if (board[i].Id == b.Id) return i + 1;
+        if (IsWorldChampion(b)) return 0;
+        int place = 0;
+        foreach (var man in RankingBoard(b.WeightClass, 15))
+        {
+            if (IsWorldChampion(man)) continue;   // above the numbering, not part of it
+            place++;
+            if (man.Id == b.Id) return place;
+        }
         return 0;
     }
+
+    /// <summary>How highly a man is rated for the purpose of what a fight is WORTH, where a champion is the
+    /// top of the division rather than an absence. BoardPlace answers a different question — what number to
+    /// print — and returns nothing for a champion, which as a value would read as "unranked" and quietly
+    /// price a title fight like a club show.</summary>
+    private int ValuePlace(Boxer b) => IsWorldChampion(b) ? 1 : BoardPlace(b);
 
     /// <summary>Who these two men are, in one quiet line under the headline.
     ///

@@ -140,7 +140,11 @@ public sealed partial class CareerGame
         foreach (var (div, region, holder) in _titles.AllRegional)
         {
             if (holder.Retired) { _titles.ClearRegional(div, region); continue; }
-            int place = BoardPlace(holder);
+            // ValuePlace, not BoardPlace: a champion has no NUMBER to print, but he has unquestionably
+            // outgrown a national strap, and reading his absence of a number as "unranked" would let him keep
+            // one for ever. The numbering also matters here — with champions no longer eating places, "inside
+            // the top five" now means the five best contenders, which is what this always meant to say.
+            int place = ValuePlace(holder);
             if (place is <= 0 or > 5) continue;
 
             _titles.ClearRegional(div, region);

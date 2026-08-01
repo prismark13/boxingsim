@@ -134,7 +134,7 @@ public sealed partial class CareerGame
         foreach (var m in made) _billed.Add((m.A, m.B, m.Rounds));
 
         double mine = BoutValue.Of(Player, Offer.Opponent, StakesOf(Offer), Player.WeightClass,
-                                   BoardPlace(Player), BoardPlace(Offer.Opponent));
+                                   ValuePlace(Player), ValuePlace(Offer.Opponent));
         _playerSlot = made.Count(m => m.Value > mine);
         Billing = _playerSlot switch
         {
@@ -188,7 +188,7 @@ public sealed partial class CareerGame
             int rounds = top20.Contains(a.Id) && top20.Contains(b.Id) ? 10
                        : ProFights(a) < 8 || ProFights(b) < 8 ? 6 : 8;
             return (a, b, rounds,
-                    BoutValue.Of(a, b, BoutStakes.None, wc, BoardPlace(a), BoardPlace(b)));
+                    BoutValue.Of(a, b, BoutStakes.None, wc, ValuePlace(a), ValuePlace(b)));
         }
         return null;
     }
@@ -221,38 +221,133 @@ public sealed partial class CareerGame
             var (a, b, rounds) = _billed[i];
             if (a.Retired || b.Retired || !_medical.Available(a) || !_medical.Available(b)) continue;
             var res = FastBout(a, b, rounds);
-            ApplyOutcome(res, a, b);
+            var night = ApplyOutcome(res, a, b);
             _undercard.Add(new UndercardBout(
                 a.Name, b.Name,
                 res.IsDraw ? null : res.Winner!.Name,
                 res.Method, res.EndRound, rounds,
-                UndercardNote(res, a, b)));
+                UndercardNote(res, a, b, night)));
         }
     }
 
     /// <summary>A line about a supporting bout. Not commentary in the fight-night sense — the sentence a
     /// report gives a bout it has one line for, which is what these actually get.</summary>
-    private string UndercardNote(FightResult res, Boxer a, Boxer b)
+    /// <summary>A line about a supporting bout — the sentence a report gives a fight it has one line for.
+    ///
+    /// It reads the BOUT rather than its result. The fast resolver already keeps a score for every round and
+    /// three judges' cards, so whether a night was a shutout, a robbery, a war, or a man climbing off the
+    /// floor to win is all sitting there in numbers nobody was reading. "Workmanlike from Fields" was true of
+    /// every decision on every card.
+    ///
+    /// The variety is drawn from a random seeded on the BOUT — the two names and the night — rather than from
+    /// the world's rng, for the same reason the venue pick is: a cosmetic sentence must not consume the
+    /// simulation's randomness, or writing a better one shifts every result that comes after it.</summary>
+    private string UndercardNote(FightResult res, Boxer a, Boxer b, DateOnly on)
     {
-        if (res.IsDraw) return _rng.Next(2) == 0 ? "Nothing between them." : "A draw, and few argued.";
+        var pick = new Random(NoteSeed(a.Name, b.Name, on));
+
+        if (res.IsDraw)
+            return Spread(res) >= 4 ? "A draw that one judge did not see at all."
+                 : pick.Next(2) == 0 ? "Nothing between them."
+                 : "A draw, and few argued.";
+
         var w = res.Winner!; var l = res.Loser!;
         bool inside = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
-        bool early = res.EndRound <= 2;
         bool upset = l.Overall > w.Overall + 6;
-        int streak = WinStreak(w);
+
+        bool winnerIsA = w.Id == a.Id;
+        int downsAgainstWinner = winnerIsA ? res.KnockdownsA : res.KnockdownsB;
+        int downsByWinner = winnerIsA ? res.KnockdownsB : res.KnockdownsA;
 
         if (upset && inside) return $"{Surname(l)} was not expected to lose, and not like that.";
         if (upset) return $"An upset on the undercard — {Surname(l)} had been the favourite.";
-        if (inside && early) return $"{Surname(w)} did not need long.";
-        if (inside) return $"{Surname(w)} got him out of there in {res.EndRound}.";
+
+        if (inside)
+        {
+            if (downsAgainstWinner > 0) return $"{Surname(w)} was down himself before he stopped {Surname(l)} in {res.EndRound}.";
+            if (res.EndRound <= 2) return $"{Surname(w)} did not need long.";
+            if (TrailedAtTheHalf(res, winnerIsA)) return $"{Surname(w)} was behind before he took him out in {res.EndRound}.";
+            return downsByWinner >= 3
+                 ? $"{Surname(w)} put him down {downsByWinner} times before it was waved off."
+                 : $"{Surname(w)} got him out of there in {res.EndRound}.";
+        }
+
+        // It went the distance, so the cards can speak.
+        int margin = Margin(res);
+        bool split = res.Method is "SD" or "MD";
+        bool cameBack = TrailedAtTheHalf(res, winnerIsA);
+
+        if (split && cameBack) return $"{Surname(w)} came from behind and just got it.";
+        if (split) return "Close, and the hall did not agree with it.";
+        if (cameBack) return $"{Surname(l)} led at halfway. {Surname(w)} took it away from him.";
+        if (Shutout(res, winnerIsA)) return $"Every round to {Surname(w)}. {Surname(l)} never got into it.";
+        if (downsAgainstWinner > 0) return $"{Surname(w)} climbed off the floor to win it.";
+        if (downsByWinner > 0) return $"{Surname(w)} had him down and boxed the rest.";
+        if (margin >= 8) return $"One-sided. {Surname(w)} won it as he liked.";
+        if (margin <= 2) return "A point in it, and it could have gone either way.";
+
+        int streak = WinStreak(w);
         if (streak >= 8) return $"{Surname(w)} keeps rolling — {streak} without defeat now.";
-        if (res.Method is "SD" or "MD") return "Close, and the hall did not agree with it.";
-        return _rng.Next(3) switch
+
+        return pick.Next(3) switch
         {
             0 => $"{Surname(w)} boxed his way through it.",
             1 => $"Workmanlike from {Surname(w)}.",
             _ => $"{Surname(w)} took the decision without much fuss.",
         };
+    }
+
+    /// <summary>The winning margin on the middle card, in points. Zero if it never reached the cards.</summary>
+    private static int Margin(FightResult res)
+    {
+        if (res.Scorecards.Count == 0) return 0;
+        var gaps = res.Scorecards.Select(c => Math.Abs(c.A - c.B)).OrderBy(x => x).ToList();
+        return gaps[gaps.Count / 2];
+    }
+
+    /// <summary>How far apart the widest and narrowest judges were — a wide spread is a card nobody agreed on.</summary>
+    private static int Spread(FightResult res)
+    {
+        if (res.Scorecards.Count == 0) return 0;
+        var diffs = res.Scorecards.Select(c => c.A - c.B).ToList();
+        return diffs.Max() - diffs.Min();
+    }
+
+    /// <summary>Was the eventual winner behind at halfway? The round-by-round is kept even by the fast
+    /// resolver, so a fight that turned is knowable rather than guessed at.</summary>
+    private static bool TrailedAtTheHalf(FightResult res, bool winnerIsA)
+    {
+        if (res.Rounds.Count < 4) return false;
+        int half = res.Rounds.Count / 2, mine = 0, his = 0;
+        for (int i = 0; i < half; i++)
+        {
+            var r = res.Rounds[i];
+            mine += winnerIsA ? r.ScoreA : r.ScoreB;
+            his += winnerIsA ? r.ScoreB : r.ScoreA;
+        }
+        return his > mine;
+    }
+
+    /// <summary>Every round to the winner.</summary>
+    private static bool Shutout(FightResult res, bool winnerIsA)
+    {
+        if (res.Rounds.Count < 4) return false;
+        foreach (var r in res.Rounds)
+            if ((winnerIsA ? r.ScoreA : r.ScoreB) <= (winnerIsA ? r.ScoreB : r.ScoreA)) return false;
+        return true;
+    }
+
+    /// <summary>A seed belonging to this bout and no other, so the same night always reads the same way and
+    /// the world's rng is never touched to say it.</summary>
+    private static int NoteSeed(string x, string y, DateOnly on)
+    {
+        unchecked
+        {
+            int h = 17;
+            foreach (char c in x) h = h * 31 + c;
+            foreach (char c in y) h = h * 31 + c;
+            return (h * 31 + on.DayNumber) & 0x7FFFFFFF;
+        }
     }
 
     private static string Surname(Boxer b)
