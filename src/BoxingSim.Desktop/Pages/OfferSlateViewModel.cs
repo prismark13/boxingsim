@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using BoxingSim.Core;
 using BoxingSim.Core.Career;
+using BoxingSim.Core.Analysis;
 using BoxingSim.Core.Model;
 
 namespace BoxingSim.Desktop.Pages;
@@ -18,6 +19,21 @@ public sealed class OfferChoice
     public bool IsTitle { get; init; }
     public bool IsBiggest { get; init; }
     public required Cmd Pick { get; init; }
+
+    /// <summary>Who the ratings favour, in the world's own terms. Not a new opinion invented for this screen:
+    /// it is the Elo expectation the ranking update itself runs on, so the number that decides what a result
+    /// is WORTH is the number quoted before the fight.</summary>
+    public string Odds { get; init; } = "";
+
+    /// <summary>Whether the styles make it awkward. The engine has always fought the matchup — it drives the
+    /// exchanges — and the tale of the tape has always described it. It was only ever said AFTER you had
+    /// picked, which is the wrong side of the decision.</summary>
+    public string Styles { get; init; } = "";
+    public bool HasStyles => Styles.Length > 0;
+
+    /// <summary>True when the ratings make him the favourite — for drawing the odds line as a warning rather
+    /// than as reassurance.</summary>
+    public bool Underdog { get; init; }
 }
 
 /// <summary>The fights on the table.
@@ -59,7 +75,7 @@ public sealed class OfferSlateViewModel : Observable
         Choices.Clear();
         if (game is not null && !game.Player.Retired && game.Slate.Count > 0)
         {
-            // Hardest first, which is how a matchmaker lays a choice out and how it reads.
+            // Biggest first, by what the night is worth — which is how a matchmaker lays a choice out.
             var scored = game.Slate.Select(o => (Offer: o, Value: game.ValueOf(o)))
                                    .OrderByDescending(x => x.Value).ToList();
             for (int rank = 0; rank < scored.Count; rank++)
@@ -77,6 +93,9 @@ public sealed class OfferSlateViewModel : Observable
                     IsTitle = o.TitleFight,
                     IsBiggest = rank == 0 && scored.Count > 1,
                     Why = WhyTakeIt(o, rank, scored.Count),
+                    Odds = OddsOn(game.Player, o.Opponent),
+                    Underdog = o.Opponent.RankPoints > game.Player.RankPoints,
+                    Styles = StyleRead(game.Player, o.Opponent),
                     // Picking is the ONLY thing that assigns Offer, and it assigns it once. Offer's setter
                     // runs SetTheCard and AnnounceUndercard, both of which draw from the world's rng — so
                     // anything that assigned it to preview a choice would silently reshuffle the world every
@@ -91,6 +110,38 @@ public sealed class OfferSlateViewModel : Observable
     /// <summary>The slate hides the moment the fight is taken, and that depends on a fact the shell owns
     /// (whether he has committed) rather than on anything here — so the shell says when it has changed.</summary>
     public void RaiseVisible() => Raise(nameof(ShowChoices));
+
+    /// <summary>What the ratings give you, as a percentage.
+    ///
+    /// The same expectation term the ranking update uses — 1 / (1 + 10^((them - me) / 400)) — so the screen
+    /// and the world agree about who is supposed to win. Ranking points are the right scale for this and the
+    /// rating is not: Overall is what a man CAN do, while his standing is what the sport has come to expect of
+    /// him, and being the underdog is a fact about expectation.</summary>
+    private static string OddsOn(Boxer me, Boxer them)
+    {
+        int pct = (int)Math.Round(100.0 / (1.0 + Math.Pow(10, (them.RankPoints - me.RankPoints) / 400.0)));
+        return pct >= 80 ? $"You are a heavy favourite — the ratings give you {pct}%."
+             : pct >= 60 ? $"The ratings favour you, {pct}%."
+             : pct >= 45 ? $"Close to even: {pct}% your way."
+             : pct >= 25 ? $"He is favoured. The ratings give you {pct}%."
+             : $"You would be the underdog — {pct}%.";
+    }
+
+    /// <summary>Whether the styles make it awkward, in one clause. Deliberately shorter than the tale of the
+    /// tape's version: this is three cards side by side, not a screen of its own.</summary>
+    private static string StyleRead(Boxer me, Boxer them)
+    {
+        var a = StyleClassifier.Of(me);
+        var b = StyleClassifier.Of(them);
+        double edge = FightingStyles.Advantage(a, b);
+        string his = b.DisplayName().ToLowerInvariant();
+        return a == b ? $"Two {his}s — nothing in the styles."
+             : edge >= 0.45 ? $"The styles are yours — a {his} is exactly who you want in front of you."
+             : edge >= 0.15 ? $"The styles lean your way against a {his}."
+             : edge > -0.15 ? $"Nothing in the styles against a {his}."
+             : edge > -0.45 ? $"Awkward: a {his} knows what to do with your style."
+             : $"A bad style night — a {his} is exactly the wrong man for you.";
+    }
 
     /// <summary>One line on what taking this night would mean. Said in terms of the CAREER rather than the
     /// numbers — the ratings are on the tale of the tape for anyone who wants them.</summary>
@@ -111,9 +162,13 @@ public sealed class OfferSlateViewModel : Observable
         // Otherwise say where it sits AMONG THE OTHERS, which is the actual decision. Comparing each one to
         // an absolute scale gave three fights of similar size the same sentence — "the biggest night on the
         // table", three times, which is no help to anybody.
+        // Phrased as what the night is WORTH, not how hard it is. The order comes from BoutValue — a
+        // promoter's measure: the stakes, the names, how competitive it looks. That is not the same as
+        // difficulty, and calling the top one "the hardest" put it directly above an odds line saying the
+        // ratings made you a 66% favourite. The odds speak to how hard it is; this speaks to what it is for.
         if (of <= 1) return "The only fight on offer.";
-        if (rank == 0) return "The hardest of them, and the one that moves you.";
-        if (rank == of - 1) return "The safest of them. Keeps you winning, and teaches you nothing.";
-        return "Middle ground — a test, without the risk of the big one.";
+        if (rank == 0) return "The biggest night of the three — the one that moves you.";
+        if (rank == of - 1) return "The smallest of them. Keeps you busy, and teaches you nothing.";
+        return "Middle ground — worth having, without the weight of the big one.";
     }
 }

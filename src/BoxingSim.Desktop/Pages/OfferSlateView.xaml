@@ -70,6 +70,26 @@
                                     <TextBlock Text="{Binding Why}" FontSize="12"
                                                Foreground="{StaticResource Faint}" Margin="0,6,0,0"
                                                TextWrapping="Wrap" FontStyle="Italic" />
+                                    <!-- Who the ratings favour, and whether the styles make it awkward. Both
+                                         numbers the sim has always kept and never said out loud before the
+                                         decision — the odds are the same Elo term the ranking runs on, and the
+                                         style matchup is the one the engine actually fights. -->
+                                    <TextBlock Text="{Binding Odds}" FontSize="12" Margin="0,6,0,0"
+                                               TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource Muted}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Underdog}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource Loss}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Styles}" FontSize="12" Margin="0,3,0,0"
+                                               Foreground="{StaticResource Quiet}" TextWrapping="Wrap"
+                                               Visibility="{Binding HasStyles, Converter={StaticResource BoolVis}}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Margin="16,0,0,0"
                                             VerticalAlignment="Center">

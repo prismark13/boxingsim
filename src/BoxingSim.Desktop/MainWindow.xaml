@@ -656,7 +656,7 @@
                                                      because seven unfamiliar names going past in order tell
                                                      you nothing about who is worth watching. Same BillLine
                                                      either way; only this template was ignoring the halves. -->
-                                                <Grid>
+                                                <Grid Visibility="{Binding HasCorners, Converter={StaticResource BoolVis}}">
                                                     <Grid.Resources>
                                                         <Style x:Key="Corner" TargetType="TextBlock">
                                                             <Setter Property="FontSize" Value="13" />
@@ -698,6 +698,11 @@
                                                         </TextBlock>
                                                     </StackPanel>
                                                 </Grid>
+                                                <!-- No corner data on this bout: the flat line, rather than
+                                                     two empty columns and a stray separator. -->
+                                                <TextBlock Text="{Binding Fight}" FontSize="13" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource Muted}"
+                                                           Visibility="{Binding HasCorners, Converter={StaticResource BoolVis}, ConverterParameter=invert}" />
                                                 <TextBlock Text="{Binding Billing}" FontSize="11" Margin="0,3,0,0"
                                                            Foreground="{StaticResource Quiet}" TextWrapping="Wrap"
                                                            Visibility="{Binding HasBilling, Converter={StaticResource BoolVis}}" />

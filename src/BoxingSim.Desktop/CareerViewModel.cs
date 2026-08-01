@@ -82,6 +82,24 @@ public sealed class CardBout : Observable
     public required string Fight { get; init; }
     public required string Distance { get; init; }
     public required string What { get; init; }
+
+    /// <summary>Each corner separately, carried over from the BillLine this was made from — the night you sit
+    /// through should read like the poster you read beforehand, not like a queue of unfamiliar pairs.
+    ///
+    /// Defaulted to empty and paired with HasCorners because a bout without them must fall back to the flat
+    /// "A vs B" line rather than draw two blank columns. That is not hypothetical: binding the card straight
+    /// to these before they existed rendered every fight on the bill as " · vs · ", and WPF said nothing.</summary>
+    public string AName { get; init; } = "";
+    public string ACountry { get; init; } = "";
+    public string ARecord { get; init; } = "";
+    public string BName { get; init; } = "";
+    public string BCountry { get; init; } = "";
+    public string BRecord { get; init; } = "";
+    public bool HasCorners => AName.Length > 0 && BName.Length > 0;
+    public string AUnder => Join(ACountry, ARecord);
+    public string BUnder => Join(BCountry, BRecord);
+    private static string Join(string a, string b) =>
+        a.Length > 0 && b.Length > 0 ? $"{a}  ·  {b}" : a.Length > 0 ? a : b;
     public string Verdict { get; init; } = "";
     public string Note { get; init; } = "";
     public bool IsPlayer { get; init; }
@@ -1023,6 +1041,8 @@ public sealed class CareerViewModel : Observable
                 Fight = l.Fight, Distance = l.Distance, What = l.What,
                 Verdict = l.Verdict, Note = l.Note, IsPlayer = l.IsPlayer,
                 Billing = BillingLine(l), Slot = l.Slot,
+                AName = l.AName, ACountry = l.ACountry, ARecord = l.ARecord,
+                BName = l.BName, BCountry = l.BCountry, BRecord = l.BRecord,
             });
         }
         if (CardNight.Count > 0) CardNight[^1].State = "current";   // the opener boxes first
