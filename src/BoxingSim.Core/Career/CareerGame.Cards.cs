@@ -45,6 +45,32 @@ public sealed partial class CareerGame
     }
 
     /// <summary>One division's fortnightly card: an occasional title defence plus showcase undercards.</summary>
+
+    /// <summary>Whether a champion puts his belt up on this card.
+    ///
+    /// A world champion cannot box on an ordinary card — when he fights, it is a defence — so this alone
+    /// decides how often he is seen at all, and it used to leave him idle for a year. The gate was a
+    /// sixteen-week rest and then a 5.5% roll per fortnightly card: sixteen weeks plus a mean wait of
+    /// eighteen cards is a gap of about twelve months, so a reigning champion averaged ONE defence a year and
+    /// a bad run of rolls buried him. Joe Frazier held the WBC and the Ring belt and did not box for the nine
+    /// months after January 1975, which is not a champion, it is a man with a belt in a drawer.
+    ///
+    /// A real champion defends between one and four times a year, five months apart on average. That is the
+    /// rest floor plus roughly three cards of waiting, so the roll is a third rather than a twentieth:
+    ///
+    ///   112 days rest  +  14 / 0.33 ≈ 42 days waiting  ≈  154 days  ≈  five months
+    ///
+    /// The floor caps him at under four a year and the backstop stops the tail: ten months idle and he is
+    /// matched, roll or no roll. Activity scales both ends, so a busy champion of a busy era fights more.</summary>
+    private bool DefendsOnThisCard(Boxer champ)
+    {
+        double activity = CareerMileage.Activity(champ);
+        int idle = DaysSinceLastBout(champ);
+        if (idle < (int)(112 / activity)) return false;   // a title camp is a real camp
+        if (idle >= 300) return true;                     // nobody sits on a belt for ten months
+        return _rng.NextDouble() < 0.33 * activity;
+    }
+
     private void RunEventCard(WeightClass wc)
     {
         // Champions don't fight on undercards — when they fight, it's a title defence (handled below).
@@ -69,7 +95,7 @@ public sealed partial class CareerGame
         else if (UnifiedIn(wc))
         {
             var c = ChampOf(wc)!;
-            if (c.Id != Player.Id && DaysSinceLastBout(c) >= (int)(112 / CareerMileage.Activity(c)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(c))   // ~2 defences a year, min 14 weeks apart
+            if (c.Id != Player.Id && DefendsOnThisCard(c))   // ~2 defences a year, min 14 weeks apart
             {
                 if (_rng.NextDouble() < 0.10) RelinquishBelt(c);   // ~1 in 10: ducks a mandatory and gives up a belt
                 else UnifiedDefence(c);
@@ -77,7 +103,7 @@ public sealed partial class CareerGame
         }
         else
         {
-            if (ChampOf(wc) is Boxer champ && champ.Id != Player.Id && DaysSinceLastBout(champ) >= (int)(112 / CareerMileage.Activity(champ)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(champ))   // ~2 defences a year, min 14 weeks apart
+            if (ChampOf(wc) is Boxer champ && champ.Id != Player.Id && DefendsOnThisCard(champ))   // ~2 defences a year, min 14 weeks apart
             {
                 var ch = PickChallenger(champ, WbcOf(wc));
                 if (ch is not null)
@@ -88,7 +114,7 @@ public sealed partial class CareerGame
                     else { Defended(wc, "WBA", champ.Id); LogTitle($"{champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(champ); }
                 }
             }
-            if (WbcOf(wc) is Boxer wbcC && wbcC.Id != Player.Id && DaysSinceLastBout(wbcC) >= (int)(112 / CareerMileage.Activity(wbcC)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(wbcC))   // ~2 defences a year, min 14 weeks apart
+            if (WbcOf(wc) is Boxer wbcC && wbcC.Id != Player.Id && DefendsOnThisCard(wbcC))   // ~2 defences a year, min 14 weeks apart
             {
                 var ch = PickChallenger(wbcC, ChampOf(wc));
                 if (ch is not null)
@@ -102,7 +128,7 @@ public sealed partial class CareerGame
         }
 
         // IBF title defence — the third belt, contested independently from 1983.
-        if (IbfActive && IbfOf(wc) is Boxer ibf && ibf.Id != Player.Id && DaysSinceLastBout(ibf) >= (int)(112 / CareerMileage.Activity(ibf)) && _rng.NextDouble() < 0.055 * CareerMileage.Activity(ibf))
+        if (IbfActive && IbfOf(wc) is Boxer ibf && ibf.Id != Player.Id && DefendsOnThisCard(ibf))
         {
             var ch = PickChallenger(ibf, null);
             if (ch is not null)

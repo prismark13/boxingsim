@@ -50,6 +50,24 @@ internal sealed class TitleRegistry
     public void SetWbc(WeightClass wc, Boxer? b) => _wbc[wc] = b;
     public void SetIbf(WeightClass wc, Boxer? b) => _ibf[wc] = b;
 
+    /// <summary>The three sanctioned world belts of a division and who holds each, for callers that have
+    /// business with all of them rather than one — so a rule about champions is written once instead of three
+    /// times, which is how the third belt gets forgotten.</summary>
+    public IEnumerable<(string Belt, Boxer? Holder)> WorldHolders(WeightClass wc)
+    {
+        yield return (PrimaryBelt, Champ(wc));
+        if (WbcActive) yield return ("WBC", Wbc(wc));
+        if (IbfActive) yield return ("IBF", Ibf(wc));
+    }
+
+    /// <summary>Put a world belt on a man, or vacate it, by the name the belt goes under.</summary>
+    public void SetWorld(WeightClass wc, string belt, Boxer? b)
+    {
+        if (belt == "WBC") SetWbc(wc, b);
+        else if (belt == "IBF") SetIbf(wc, b);
+        else SetChamp(wc, b);
+    }
+
     /// <summary>Put the primary belt on a man, or vacate it with null. Setting it plainly — nobody's
     /// <see cref="Boxer.IsChampion"/> flag is touched here, because two callers deliberately crown a man and
     /// raise the flag themselves and a third wants the belt moved without it.</summary>

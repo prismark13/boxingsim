@@ -203,7 +203,34 @@ public sealed partial class CareerGame
     /// that no longer needs arranging here either.</summary>
     private void YearlyPass()
     {
-        InjectDebuts(); AgeRetireCrown(); PruneRematches(); RetireOutgrownRegionals(); StageSuperfights();
+        InjectDebuts(); AgeRetireCrown(); PruneRematches(); RetireOutgrownRegionals(); StripIdleChampions(); StageSuperfights();
+    }
+
+    /// <summary>A champion who has not defended in a year loses the belt.
+    ///
+    /// It stays unusual, which is how it should be — stripping is unusual in the sport. DefendsOnThisCard
+    /// already forces a defence at ten months, so reaching twelve means the sanctioning body could find him
+    /// nobody at all to fight: a thin division, or a champion with no credible challenger left standing. A belt that cannot be defended goes back into circulation rather than sitting
+    /// on a man who has stopped boxing for it.
+    ///
+    /// The lineal title is deliberately untouched. It is not a sanctioning body's to take away — you lose that
+    /// one in the ring, or by retiring, and nowhere else.</summary>
+    private void StripIdleChampions()
+    {
+        foreach (var wc in AllDivisions)
+        {
+            if (!DivisionActive(wc)) continue;
+            foreach (var (belt, holder) in _titles.WorldHolders(wc).ToList())
+            {
+                if (holder is null || holder.Id == Player.Id || holder.Retired) continue;
+                if (DaysSinceLastBout(holder) < 365) continue;   // a year
+
+                _titles.SetWorld(wc, belt, null);
+                if (!HoldsAnyWorldBelt(holder)) holder.IsChampion = false;
+                LogEvent($"{holder.Name} is stripped of the {belt} title — a year without a defence.",
+                         holder.Id == Player.Id, kind: "title", div: wc);
+            }
+        }
     }
 
     /// <summary>True only while the decade of history before the player's debut is being WRITTEN: the clock
