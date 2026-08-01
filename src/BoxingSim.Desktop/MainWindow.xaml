@@ -648,9 +648,19 @@
                                                 <TextBlock Text="{Binding Slot}" FontSize="10" FontWeight="Bold"
                                                            Margin="0,0,0,3" Foreground="{StaticResource Faint}"
                                                            Visibility="{Binding HasSlot, Converter={StaticResource BoolVis}}" />
-                                                <TextBlock Text="{Binding Fight}" FontSize="13" TextWrapping="Wrap">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
+                                                <!-- Each corner, the way the poster reads it: who, where he is
+                                                     from, and what he has done. This used to be the flat
+                                                     "A vs B" string while the poster two screens away gave
+                                                     both men their country and their record — and the night
+                                                     you actually SIT THROUGH is the one that needs it most,
+                                                     because seven unfamiliar names going past in order tell
+                                                     you nothing about who is worth watching. Same BillLine
+                                                     either way; only this template was ignoring the halves. -->
+                                                <Grid>
+                                                    <Grid.Resources>
+                                                        <Style x:Key="Corner" TargetType="TextBlock">
+                                                            <Setter Property="FontSize" Value="13" />
+                                                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
                                                             <Setter Property="Foreground" Value="{StaticResource Muted}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsPlayer}" Value="True">
@@ -662,8 +672,32 @@
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
+                                                    </Grid.Resources>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding AName}" Style="{StaticResource Corner}" />
+                                                        <TextBlock FontSize="11" Margin="0,2,0,0"
+                                                                   Foreground="{StaticResource Faint}">
+                                                            <Run Text="{Binding ACountry, Mode=OneWay}" />
+                                                            <Run Text=" · " /><Run Text="{Binding ARecord, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="vs" FontSize="11" Margin="12,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{StaticResource Quiet}" />
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="{Binding BName}" Style="{StaticResource Corner}" />
+                                                        <TextBlock FontSize="11" Margin="0,2,0,0"
+                                                                   Foreground="{StaticResource Faint}">
+                                                            <Run Text="{Binding BCountry, Mode=OneWay}" />
+                                                            <Run Text=" · " /><Run Text="{Binding BRecord, Mode=OneWay}" />
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Grid>
                                                 <TextBlock Text="{Binding Billing}" FontSize="11" Margin="0,3,0,0"
                                                            Foreground="{StaticResource Quiet}" TextWrapping="Wrap"
                                                            Visibility="{Binding HasBilling, Converter={StaticResource BoolVis}}" />

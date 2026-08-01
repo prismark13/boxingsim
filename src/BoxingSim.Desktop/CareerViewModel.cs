@@ -1369,9 +1369,12 @@ public sealed class CareerViewModel : Observable
     /// <summary>Turn a logged event into a line of the build-up feed, working out how much it matters here
     /// rather than in the view. A title changing hands, an upset, and anything in the player's own division
     /// are the three things worth raising your eyes for.</summary>
+    /// <summary>A feed line. The one bout the player is being INVITED to watch has its result withheld —
+    /// offering "watch it" above a line that already says who won makes the invitation pointless, and it is
+    /// the only line on the page whose outcome he has asked not to be told yet.</summary>
     private CampRow ToCamp(CareerEvent e) => new(
         e.On.ToString("d MMM yyyy"),
-        e.Text,
+        Spoils(e) ? $"{Unordered(e.Bout!)} — in your division tonight. Watch it to find out." : e.Text,
         Mine: Game is not null && e.Div == Game.Player.WeightClass,
         IsTitle: e.Kind == "title",
         IsUpset: e.Kind == "upset" || e.Text.StartsWith("UPSET", StringComparison.Ordinal)
@@ -1396,6 +1399,16 @@ public sealed class CareerViewModel : Observable
         ? d >= 14 ? $"{d / 7} weeks to fight night" : d == 1 ? "Tomorrow" : $"{d} days to fight night"
         : "Fight night";
     public string CampDate => Game?.Date.ToString("d MMMM yyyy") ?? "";
+
+    /// <summary>Whether this event would give away the fight currently on offer to watch.</summary>
+    private bool Spoils(CareerEvent e) =>
+        _theOne is BoutRef one && e.Bout is BoutRef b
+        && b.Winner == one.Winner && b.Loser == one.Loser && b.Date == one.Date;
+
+    /// <summary>Both men, in an order that does not itself say who won. A BoutRef is (Winner, Loser), so
+    /// printing it as it stands hands over the result in the act of hiding it.</summary>
+    private static string Unordered(BoutRef b) =>
+        string.CompareOrdinal(b.Winner, b.Loser) <= 0 ? $"{b.Winner} vs {b.Loser}" : $"{b.Loser} vs {b.Winner}";
 
     private BoutRef? _theOne;
     /// <summary>A fight in his own division that came up while he waited, and is worth stopping for.</summary>
@@ -1431,6 +1444,17 @@ public sealed class CareerViewModel : Observable
             finally { System.Windows.Input.Mouse.OverrideCursor = null; }
             if (week is null) break;
 
+            // Something in his own weight worth watching stops the clock and asks. Decided BEFORE the rows are
+            // built, because ToCamp withholds the result of whichever bout is being offered — settle it after
+            // the lines exist and the one line that must not give the game away already has.
+            if (_theOne is null && Game.WorthWatching(week) is BoutRef b)
+            {
+                _theOne = b;
+                TheOne = Unordered(b);
+                _waiting = false;
+                foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+            }
+
             foreach (var e in week)
             {
                 var row = ToCamp(e);
@@ -1438,14 +1462,6 @@ public sealed class CareerViewModel : Observable
                 if (Shows(row)) Camp.Insert(0, row);
             }
             Raise(nameof(CampCountLabel));
-            // Something in his own weight worth watching stops the clock and asks.
-            if (_theOne is null && Game.WorthWatching(week) is BoutRef b)
-            {
-                _theOne = b;
-                TheOne = $"{b.Winner} vs {b.Loser}";
-                _waiting = false;
-                foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
-            }
             foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
             CheckForAwards();
             if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
