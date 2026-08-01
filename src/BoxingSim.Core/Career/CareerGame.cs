@@ -487,6 +487,7 @@ public sealed partial class CareerGame
         foreach (var kv in s.IbfChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.LoadBelt(wc, "IBF", c);
         foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.LoadBelt(wc, "Ring", c);
         _lastTitleShot = s.LastTitleShot;
+        if (s.WarmupUntilFights > 0) _warmupUntil[s.PlayerId] = s.WarmupUntilFights;
         if (s.ShotBelt is string sb) _shot = new TitleShot(sb, s.ShotChampionId, s.ShotGrantedAtFights);
         _declined.AddRange(s.Declined);
         foreach (var h in s.Historical) _historical[h.Id] = (h.Prime.ToRatings(), h.Peak);
@@ -597,6 +598,7 @@ public sealed partial class CareerGame
             PlayerId = Player.Id, LastTitleShot = _lastTitleShot,
             ShotBelt = _shot?.Belt, ShotChampionId = _shot?.ChampionId ?? 0,
             ShotGrantedAtFights = _shot?.GrantedAtFights ?? 0,
+            WarmupUntilFights = _warmupUntil.GetValueOrDefault(Player.Id),
             Declined = _declined.ToList()
         };
         foreach (var kv in _titles.AllChampions) if (kv.Value is Boxer c) s.Champions[kv.Key.ToString()] = c.Id;

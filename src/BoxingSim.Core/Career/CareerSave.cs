@@ -16,6 +16,14 @@ public sealed class CareerSave
     public Dictionary<string, int> LinealChampions { get; set; } = new();   // division name → lineal/Ring holder Id
     public int LastTitleShot { get; set; } = -100;
 
+    /// <summary>The fight count at which the player's tune-ups after moving up are served. His own only — the
+    /// world re-derives its side from the roster, and it is not worth a per-fighter table in the file.
+    ///
+    /// Saved because leaving it out let you change the game by quitting: the count vanished on reload, so
+    /// closing the app the night you moved up was a way of skipping the tune-ups entirely. Zero means none is
+    /// running, which is what every save written before this reads as.</summary>
+    public int WarmupUntilFights { get; set; }
+
     /// <summary>A world title shot he has been granted and not yet taken, and the men he has turned down.
     /// Both are saved because both are things REFUSING costs him — leave them out and quitting without saving
     /// is a way of putting the belt back on the table and forgetting who you passed on.</summary>

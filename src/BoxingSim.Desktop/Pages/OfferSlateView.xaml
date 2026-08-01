@@ -16,6 +16,10 @@
             <TextBlock Text="WHAT THEY ARE OFFERING" Style="{StaticResource PanelHeader}" />
             <TextBlock Text="Take one. The others were never made."
                        FontSize="12" Foreground="{StaticResource Faint}" Margin="0,0,0,10" />
+            <!-- Only after a move up, and only until the count runs out. -->
+            <TextBlock Text="{Binding TuneUpNote}" FontSize="12" Foreground="{StaticResource Gold}"
+                       Margin="0,-4,0,10" TextWrapping="Wrap"
+                       Visibility="{Binding HasTuneUpNote, Converter={StaticResource BoolVis}}" />
             <ItemsControl ItemsSource="{Binding Choices}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>

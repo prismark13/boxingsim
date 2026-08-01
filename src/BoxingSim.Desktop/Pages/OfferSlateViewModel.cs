@@ -67,6 +67,22 @@ public sealed class OfferSlateViewModel : Observable
     /// a fight nobody agreed to, which is what this whole screen exists to stop.</summary>
     public bool ShowChoices => Choices.Count > 0 && _stillAnOffer();
 
+    /// <summary>Why there is no belt among these, when he has just moved up. A man who has crossed a division
+    /// is shown a slate of tune-ups and told nothing — he cannot tell a deliberate stretch of gatekeepers from
+    /// the matchmaker having forgotten him, and a world champion looking at three club fights assumes the
+    /// latter. Saying how many are left turns a silence into a countdown.</summary>
+    public string TuneUpNote
+    {
+        get
+        {
+            int left = _game()?.TuneUpsLeft ?? 0;
+            return left <= 0 ? ""
+                 : left == 1 ? "One more tune-up at this weight, then a world title is open to you."
+                 : $"{left} more tune-ups at this weight, then a world title is open to you.";
+        }
+    }
+    public bool HasTuneUpNote => TuneUpNote.Length > 0;
+
     /// <summary>Re-read the slate from the world. Ends in RaiseAll rather than a list of property names —
     /// the shell's own RaiseAll cannot reach this object's bindings now that it is a separate one.</summary>
     public void Rebuild()

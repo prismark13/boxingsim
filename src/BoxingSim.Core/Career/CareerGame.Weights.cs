@@ -35,6 +35,40 @@ public sealed partial class CareerGame
     /// <summary>A fighter who just moved up needs a few tune-ups before he can contest a title in the new class.</summary>
     private bool RecentlyMovedUp(Boxer b) => _warmupUntil.TryGetValue(b.Id, out var t) && ProFights(b) < t;
 
+
+    /// <summary>What a man carries up with him.
+    ///
+    /// He carried nothing. His ranking points came up with him and that was all, so a world champion arrived in
+    /// the division above as an anonymous body with a good Elo, behind five men who had spent years getting
+    /// where they were — and had to climb the whole board again against opposition he was plainly better than,
+    /// with his power and chin freshly docked for the weight. That is not what happens. A sanctioning body
+    /// ranks a champion who moves up the week he arrives, usually in the top few, and it is common to see him
+    /// challenging for the belt inside a year: Leonard, Duran, Hearns and Pacquiao all did it, none of them
+    /// spent four fights proving they belonged.
+    ///
+    /// Written as a FLOOR on his standing rather than as a bonus to it, which matters for two reasons. It is
+    /// self-calibrating — the credit is worth whatever the new division is worth, so moving into a strong one
+    /// gives more ground than moving into a weak one, and no number here needs retuning when the world changes.
+    /// And it cannot inflate anybody: a man already above the floor keeps his own points and gains nothing, so
+    /// this can only ever rescue a standing that understates him.
+    ///
+    /// A world champion is floored at third. Not first — he has to beat somebody up here before he is the best
+    /// man in the division — but high enough that a couple of tune-ups and a year of the ability anchor pulling
+    /// on him still leave him inside the top five the title-shot gate asks for. Floored at fifth he is exactly
+    /// eligible and one ordinary night from not being, which makes the promise conditional on nothing moving.
+    /// A ranked contender is floored at fifteenth: on the board, in the mix, with work to do.</summary>
+    private void CarryStandingUp(Boxer b, WeightClass to, int floorPlace)
+    {
+        if (floorPlace <= 0) return;
+        // The same list, in the same order, that the matchmaker reads to decide whether he is top five — see
+        // Active in BuildOffer. Ranked against the contender-filtered board instead, he could clear the floor
+        // here and still be sixth where it counts.
+        var others = ActiveIn(to).Where(x => x.Id != b.Id).OrderByDescending(RankScore).ToList();
+        if (others.Count < floorPlace) return;   // too thin a division to have an Nth place is no floor at all
+        double owed = RankScore(others[floorPlace - 1]) + 1 - RankScore(b);   // +1 so he is past that man, not level with him
+        if (owed > 0) b.RankPoints += owed;
+    }
+
     /// <summary>Send a fighter up to the next division: he relinquishes any belts he held, is rebalanced, keeps
     /// his record, and (unless he's seeding a brand-new division) needs 1–4 warm-up fights before a title shot.</summary>
     private void MoveUpTo(Boxer b, WeightClass to, bool warmup = true)
@@ -42,6 +76,10 @@ public sealed partial class CareerGame
         var from = b.WeightClass;
         b.DebutWeight ??= from;   // captured on the first move up — the floor the two-division climb cap measures from
         var vacated = BeltsHeld(b).Select(x => x.Belt).ToList();
+        // Read before anything is taken off him: in a moment he holds no belts and stands nowhere, and what he
+        // was on the way out is the whole basis of what he is worth on the way in.
+        bool wasChampion = IsWorldChampion(b);
+        int placeBefore = BoardPlace(b);
         if (b.IsChampion) b.IsChampion = false;
         _titles.VacateWorldBelts(from, b);
         VacateLineal(from, b, $"moves up to {to.DisplayName()}");
@@ -58,11 +96,27 @@ public sealed partial class CareerGame
         RebalanceRatings(b.Ratings);
         b.Potential = b.Overall;
         if (_historical.TryGetValue(b.Id, out var h)) { var prime = h.Prime.Clone(); RebalanceRatings(prime); _historical[b.Id] = (prime, h.Peak); }
-        if (warmup) { _warmupUntil[b.Id] = ProFights(b) + 1 + _rng.Next(4); StepUpsPerformed++; }
+        // After the rebalance, so the credit is not handed out and then docked back off again.
+        CarryStandingUp(b, to, wasChampion ? 3 : placeBefore is > 0 and <= 10 ? 15 : 0);
+        if (warmup)
+        {
+            // A champion does not serve the same apprenticeship as a man nobody has heard of. One or two
+            // tune-ups to find out what he feels like at the weight, and then the fight everyone wants —
+            // rather than the one-to-four a stranger gets, which at the top of its range meant a champion
+            // could move up and spend two years being matched with gatekeepers.
+            _warmupUntil[b.Id] = ProFights(b) + 1 + (wasChampion ? _rng.Next(2) : _rng.Next(4));
+            StepUpsPerformed++;
+        }
     }
 
     /// <summary>Count of organic career move-ups performed (excludes new-division seeding). Diagnostics/tests.</summary>
     public int StepUpsPerformed { get; private set; }
+
+    /// <summary>How many more fights the player has to take before a world title in his new division is open
+    /// to him, or 0 if it already is. A man who has just moved up is told nothing about why the belt has gone
+    /// quiet, and "one more and you can challenge" is the single most useful thing the camp could tell him.</summary>
+    public int TuneUpsLeft =>
+        _warmupUntil.TryGetValue(Player.Id, out var t) ? Math.Max(0, t - ProFights(Player)) : 0;
 
     /// <summary>The escalating champion step-up hazard, exposed for verification/tuning.</summary>
     public static double DefenceStepUpHazardAt(int defenceNumber) => DefenceStepUpHazard(defenceNumber);

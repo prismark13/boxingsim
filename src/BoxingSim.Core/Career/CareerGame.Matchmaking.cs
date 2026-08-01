@@ -243,9 +243,16 @@ public sealed partial class CareerGame
         // an exceptional talent breaks in after 20 fights, an ordinary fighter needs 24. (Champions are
         // 80+, so this never lets a novice near the belt inside his first 20 bouts.)
         int fightsToRank = ContenderApprenticeship(Player) switch { 12 => 14, 15 => 17, _ => Player.Potential >= 85 ? 20 : 24 };
+        // A man who has held a world belt has served it. The count is here to keep a green fighter out of a
+        // championship ring and nothing else, and he has already been in one — which mattered most to the very
+        // fighter it was never meant to catch: moving up rebalances a man for the heavier weight and then resets
+        // his potential to the reduced figure, so a champion could cross a division and land UNDER the 85 that
+        // buys the shorter apprenticeship. He then owed twenty-four fights to challenge for a belt he had been
+        // wearing a month earlier, and the tune-up count everyone was looking at had nothing to do with it.
+        bool servedHisApprenticeship = proFights >= fightsToRank || _hall.WasEverChampion(Player.Id);
         // After a title bout, rebuild with a few wins before the next shot — no back-to-back challenges.
         bool titleCooldownOk = proFights - _lastTitleShot >= 3;
-        if (idx >= 0 && idx <= 4 && proFights >= fightsToRank && titleCooldownOk && !RecentlyMovedUp(Player))
+        if (idx >= 0 && idx <= 4 && servedHisApprenticeship && titleCooldownOk && !RecentlyMovedUp(Player))
         {
             // The opportunity he already has, if it is still real, before any new one is minted. A shot is a
             // fact about the world — a sanctioning body has ordered a fight — and not a thing re-decided every
