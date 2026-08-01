@@ -110,7 +110,7 @@ public sealed partial class CareerGame
                 {
                     var res = FastBout(champ, ch, 12);
                     var on = ApplyOutcome(res, champ, ch, $"{PrimaryBelt} title");
-                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {champ.Name} for the {PrimaryBelt} title!", wc, RefOf(res, on), on); CrownChampion(ch); }
+                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {champ.Name} for the {PrimaryBelt} title!", wc, RefOf(res, on), on); CrownChampion(ch, on); }
                     else { Defended(wc, "WBA", champ.Id); LogTitle($"{champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(champ); }
                 }
             }
@@ -121,7 +121,7 @@ public sealed partial class CareerGame
                 {
                     var res = FastBout(wbcC, ch, 12);
                     var on = ApplyOutcome(res, wbcC, ch, "WBC title");
-                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {wbcC.Name}!", wc, RefOf(res, on), on); CrownWbc(ch); }
+                    if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {wbcC.Name}!", wc, RefOf(res, on), on); CrownWbc(ch, on); }
                     else { Defended(wc, "WBC", wbcC.Id); LogTitle($"{wbcC.Name} retains the WBC title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(wbcC); }
                 }
             }
@@ -135,7 +135,7 @@ public sealed partial class CareerGame
             {
                 var res = FastBout(ibf, ch, 12);
                 var on = ApplyOutcome(res, ibf, ch, "IBF title");
-                if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {ibf.Name}!", wc, RefOf(res, on), on); CrownIbf(ch); }
+                if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {ibf.Name}!", wc, RefOf(res, on), on); CrownIbf(ch, on); }
                 else { Defended(wc, "IBF", ibf.Id); LogTitle($"{ibf.Name} retains the IBF title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(ibf); }
             }
         }
@@ -229,10 +229,10 @@ public sealed partial class CareerGame
         }
         else
         {
-            DefendBeltSeason(wc, () => ChampOf(wc), CrownChampion, () => WbcOf(wc), PrimaryBelt, yr, dethrone: true);
-            if (WbcActive) DefendBeltSeason(wc, () => WbcOf(wc), CrownWbc, () => ChampOf(wc), "WBC", yr, dethrone: false);
+            DefendBeltSeason(wc, () => ChampOf(wc), (b, on) => CrownChampion(b, on), () => WbcOf(wc), PrimaryBelt, yr, dethrone: true);
+            if (WbcActive) DefendBeltSeason(wc, () => WbcOf(wc), (b, on) => CrownWbc(b, on), () => ChampOf(wc), "WBC", yr, dethrone: false);
         }
-        if (IbfActive) DefendBeltSeason(wc, () => IbfOf(wc), CrownIbf, null, "IBF", yr, dethrone: false);
+        if (IbfActive) DefendBeltSeason(wc, () => IbfOf(wc), (b, on) => CrownIbf(b, on), null, "IBF", yr, dethrone: false);
 
         // Two undercards. Matchmaking is by ability with the better man favoured: each fighter generally
         // meets someone a notch below him (a showcase). Champions sit these out — they only defend.
@@ -299,8 +299,8 @@ public sealed partial class CareerGame
         {
             var w = res.Winner!;
             LogTitle($"{w.Name} UNIFIES the {PrimaryBelt} and WBC titles!", wc, RefOf(res, on), on);
-            CrownChampion(w); CrownWbc(w);
-            ClaimLinealByUnification(w.WeightClass);
+            CrownChampion(w, on); CrownWbc(w, on);
+            ClaimLinealByUnification(w.WeightClass, on);
         }
     }
 
@@ -314,7 +314,7 @@ public sealed partial class CareerGame
         if (!res.IsDraw && res.Winner!.Id == ch.Id)
         {
             LogTitle($"{ch.Name} DETHRONES {champ.Name} to take the unified {PrimaryBelt} and WBC titles!", champ.WeightClass, RefOf(res, on), on);
-            CrownChampion(ch); CrownWbc(ch);
+            CrownChampion(ch, on); CrownWbc(ch, on);
         }
         else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}.", champ.WeightClass, RefOf(res, on), on); ConsiderTitleStepUp(champ); }
     }
@@ -336,7 +336,7 @@ public sealed partial class CareerGame
             if (!res.IsDraw && res.Winner!.Id == ch.Id)
             {
                 LogTitle($"{ch.Name} beats {c.Name} to take the unified {PrimaryBelt} and WBC titles.", wc, on: on);
-                CrownChampion(ch); CrownWbc(ch);
+                CrownChampion(ch, on); CrownWbc(ch, on);
             }
         }
     }
@@ -353,7 +353,7 @@ public sealed partial class CareerGame
     }
 
     /// <summary>Run one belt through a season of 2–3 defences, each dated across the year.</summary>
-    private void DefendBeltSeason(WeightClass wc, Func<Boxer?> champ, Action<Boxer> crown, Func<Boxer?>? other, string belt, int yr, bool dethrone)
+    private void DefendBeltSeason(WeightClass wc, Func<Boxer?> champ, Action<Boxer, DateOnly> crown, Func<Boxer?>? other, string belt, int yr, bool dethrone)
     {
         int titleBouts = 2 + _rng.Next(2);
         for (int d = 0; d < titleBouts; d++)
@@ -380,7 +380,7 @@ public sealed partial class CareerGame
             {
                 LogTitle(dethrone ? $"{challenger.Name} dethrones {c.Name} for the {belt} title."
                                   : $"{challenger.Name} takes the {belt} title from {c.Name}.", wc, on: on);
-                crown(challenger);
+                crown(challenger, on);   // the night, so the reign is dated by the fight that won it
             }
             else { Defended(c.WeightClass, belt, c.Id); ConsiderTitleStepUp(c); }
         }

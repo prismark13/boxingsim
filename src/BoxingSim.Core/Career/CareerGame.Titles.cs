@@ -24,7 +24,7 @@ public sealed partial class CareerGame
         {
             if (res.Loser.Id == champ.Id)
             {
-                _titles.SetLineal(wc, res.Winner);
+                _titles.SetLineal(wc, res.Winner, on);
                 _hall.MarkChampion(res.Winner.Id);
                 LogEvent($"{res.Winner.Name} beats the man who beat the man — {res.Loser.Name}'s {LinealBelt} championship changes hands.",
                          res.Winner.Id == Player.Id, kind: "title", div: wc, on: on);
@@ -38,19 +38,19 @@ public sealed partial class CareerGame
         if (!IsWorldTitleNote(note)) return;
         var top2 = ActiveIn(wc).Where(RankedContender).OrderByDescending(RankScore).Take(2).Select(x => x.Id).ToHashSet();
         if (!(top2.Contains(a.Id) && top2.Contains(b.Id))) return;
-        _titles.SetLineal(wc, res.Winner);
+        _titles.SetLineal(wc, res.Winner, on);
         _hall.MarkChampion(res.Winner.Id);
         LogEvent($"{res.Winner.Name} beats {res.Loser.Name} to establish himself as the {LinealBelt} champion at {wc.DisplayName()}.",
                  res.Winner.Id == Player.Id, kind: "title", div: wc, on: on);
     }
 
     /// <summary>A unified champion holds every belt going, so he IS the man — he takes a vacant lineal title.</summary>
-    private void ClaimLinealByUnification(WeightClass wc)
+    private void ClaimLinealByUnification(WeightClass wc, DateOnly? on = null)
     {
         if (LinealOf(wc) is not null || UndisputedOf(wc) is not Boxer u) return;
-        _titles.SetLineal(wc, u);
+        _titles.SetLineal(wc, u, on);
         LogEvent($"{u.Name} holds every belt at {wc.DisplayName()} and is recognised as {LinealBelt} champion.",
-                 u.Id == Player.Id, kind: "title", div: wc);
+                 u.Id == Player.Id, kind: "title", div: wc, on: on);
     }
 
     /// <summary>The lineal title can't be inherited: when the champion retires or leaves the division the line
@@ -180,15 +180,15 @@ public sealed partial class CareerGame
         if (WbcOf(wc) is Boxer w && w.Retired) _titles.SetWbc(wc, null);
         if (WbcActive && WbcOf(wc) is null)
         {
-            var winner = ContestVacantTitle(wc, "WBC", ChampOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
-            if (winner is not null) _titles.SetWbc(wc, winner);   // announced by ContestVacantTitle, dated to fight night
+            if (ContestVacantTitle(wc, "WBC", ChampOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0) is { } won)
+                _titles.SetWbc(wc, won.Winner, won.Night);   // announced by ContestVacantTitle, dated to fight night
         }
         // The IBF is established in 1983; fill it from the leading contender who isn't already a world champ.
         if (IbfOf(wc) is Boxer iw && iw.Retired) _titles.SetIbf(wc, null);
         if (IbfActive && IbfOf(wc) is null)
         {
-            var winner = ContestVacantTitle(wc, "IBF", ChampOf(wc)?.Id ?? 0, WbcOf(wc)?.Id ?? 0);
-            if (winner is not null) _titles.SetIbf(wc, winner);   // announced by ContestVacantTitle, dated to fight night
+            if (ContestVacantTitle(wc, "IBF", ChampOf(wc)?.Id ?? 0, WbcOf(wc)?.Id ?? 0) is { } won)
+                _titles.SetIbf(wc, won.Winner, won.Night);   // announced by ContestVacantTitle, dated to fight night
         }
 
         // A line that has ended (its holder retired or moved) is cleared, and a man who now holds every belt

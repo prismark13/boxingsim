@@ -63,12 +63,29 @@ internal sealed class TitleRegistry
     /// A reign is CLOSED by writing the date onto the outgoing man's open record rather than by looking his
     /// reign up, because the same man can hold the same belt twice and the second reign must not overwrite the
     /// first. Vacating writes no new reign — a vacant belt is the absence of one, not a holder called nobody.</summary>
-    private void RecordBeltChange(WeightClass wc, string belt, Boxer? outgoing, Boxer? incoming)
+    private void RecordBeltChange(WeightClass wc, string belt, Boxer? outgoing, Boxer? incoming, DateOnly? on)
     {
         if (ReferenceEquals(outgoing, incoming)) return;                       // not a change
         if (outgoing is not null && incoming is not null && outgoing.Id == incoming.Id) return;
 
-        var now = _today();
+        // The NIGHT it happened, not the day the world is standing on. A belt changes hands in a fight, and
+        // that fight has its own date: during the warm-up a whole year is laid out while the clock sits on
+        // 1 January, so reading the clock dated every reign of the sport's history to January — Eddie Machen
+        // held the heavyweight title from "Jan 1966" to "Jan 1966". The same conflation ApplyOutcome was rid
+        // of; a caller that knows the night passes it.
+        var now = on ?? _today();
+
+        // A LINE MOVES FORWARD. The warm-up lays a whole year of boxing out across its months while the yearly
+        // pass that retires and re-crowns runs on 1 January, so the two orderings cross: a man could win a belt
+        // in a bout dated July and have the reign closed by a January event, ending it six months before it
+        // began. Clamped to the last thing that happened to this belt, because a succession in which the dates
+        // run backwards is not a succession — it is two clocks written into one list.
+        var last = _lineage.LastOrDefault(r => r.Division == wc && r.Belt == belt);
+        if (last is not null)
+        {
+            var floor = last.Lost ?? last.Won;
+            if (now < floor) now = floor;
+        }
         if (outgoing is not null)
         {
             var open = _lineage.LastOrDefault(r => r.Division == wc && r.Belt == belt
@@ -117,8 +134,8 @@ internal sealed class TitleRegistry
     public Boxer? Wbc(WeightClass wc) => _wbc.GetValueOrDefault(wc);
     public Boxer? Ibf(WeightClass wc) => _ibf.GetValueOrDefault(wc);
 
-    public void SetWbc(WeightClass wc, Boxer? b) { RecordBeltChange(wc, "WBC", _wbc.GetValueOrDefault(wc), b); _wbc[wc] = b; }
-    public void SetIbf(WeightClass wc, Boxer? b) { RecordBeltChange(wc, "IBF", _ibf.GetValueOrDefault(wc), b); _ibf[wc] = b; }
+    public void SetWbc(WeightClass wc, Boxer? b, DateOnly? on = null) { RecordBeltChange(wc, "WBC", _wbc.GetValueOrDefault(wc), b, on); _wbc[wc] = b; }
+    public void SetIbf(WeightClass wc, Boxer? b, DateOnly? on = null) { RecordBeltChange(wc, "IBF", _ibf.GetValueOrDefault(wc), b, on); _ibf[wc] = b; }
 
     /// <summary>The three sanctioned world belts of a division and who holds each, for callers that have
     /// business with all of them rather than one — so a rule about champions is written once instead of three
@@ -131,28 +148,28 @@ internal sealed class TitleRegistry
     }
 
     /// <summary>Put a world belt on a man, or vacate it, by the name the belt goes under.</summary>
-    public void SetWorld(WeightClass wc, string belt, Boxer? b)
+    public void SetWorld(WeightClass wc, string belt, Boxer? b, DateOnly? on = null)
     {
-        if (belt == "WBC") SetWbc(wc, b);
-        else if (belt == "IBF") SetIbf(wc, b);
-        else SetChamp(wc, b);
+        if (belt == "WBC") SetWbc(wc, b, on);
+        else if (belt == "IBF") SetIbf(wc, b, on);
+        else SetChamp(wc, b, on);
     }
 
     /// <summary>Put the primary belt on a man, or vacate it with null. Setting it plainly — nobody's
     /// <see cref="Boxer.IsChampion"/> flag is touched here, because two callers deliberately crown a man and
     /// raise the flag themselves and a third wants the belt moved without it.</summary>
-    public void SetChamp(WeightClass wc, Boxer? b)
+    public void SetChamp(WeightClass wc, Boxer? b, DateOnly? on = null)
     {
-        RecordBeltChange(wc, "WBA", _champions.GetValueOrDefault(wc), b);
+        RecordBeltChange(wc, "WBA", _champions.GetValueOrDefault(wc), b, on);
         _champions[wc] = b;
     }
 
     /// <summary>Crown a new primary champion: the belt moves AND the man he took it from stops being one.</summary>
-    public void CrownChampion(Boxer b)
+    public void CrownChampion(Boxer b, DateOnly? on = null)
     {
         var wc = b.WeightClass;
         if (Champ(wc) is Boxer old) old.IsChampion = false;
-        SetChamp(wc, b);      // through the setter, so the line of succession sees it
+        SetChamp(wc, b, on);      // through the setter, so the line of succession sees it
         b.IsChampion = true;
     }
 
@@ -164,9 +181,9 @@ internal sealed class TitleRegistry
     /// <summary>The name against the line whether or not it still stands — for the sweep that CLEARS a stale
     /// one, which cannot use the guarded reader without deciding there is nothing there to clear.</summary>
     public Boxer? LinealOnRecord(WeightClass wc) => _lineal.GetValueOrDefault(wc);
-    public void SetLineal(WeightClass wc, Boxer? b)
+    public void SetLineal(WeightClass wc, Boxer? b, DateOnly? on = null)
     {
-        RecordBeltChange(wc, "Ring", _lineal.GetValueOrDefault(wc), b);
+        RecordBeltChange(wc, "Ring", _lineal.GetValueOrDefault(wc), b, on);
         _lineal[wc] = b;
     }
 
@@ -188,14 +205,14 @@ internal sealed class TitleRegistry
     public bool Unified(WeightClass wc) => Champ(wc) is Boxer a && Wbc(wc) is Boxer b && a.Id == b.Id;
 
     /// <summary>Strip a man of every world belt he holds in a division — he has retired, or moved out of it.</summary>
-    public void VacateWorldBelts(WeightClass wc, Boxer b)
+    public void VacateWorldBelts(WeightClass wc, Boxer b, DateOnly? on = null)
     {
         // Through the setters, all three. Assigning the dictionaries here left a retiring champion's reign
         // hanging open for ever, so the next man's reign began while the previous one had never ended and the
         // line said two men held one belt at once.
-        if (Champ(wc)?.Id == b.Id) SetChamp(wc, null);
-        if (Wbc(wc)?.Id == b.Id) SetWbc(wc, null);
-        if (Ibf(wc)?.Id == b.Id) SetIbf(wc, null);
+        if (Champ(wc)?.Id == b.Id) SetChamp(wc, null, on);
+        if (Wbc(wc)?.Id == b.Id) SetWbc(wc, null, on);
+        if (Ibf(wc)?.Id == b.Id) SetIbf(wc, null, on);
     }
 
     // ---- defence counts ----

@@ -176,10 +176,10 @@ public sealed partial class CareerGame
             if (champ is null || champ.Retired)
             {
                 _titles.SetChamp(wc, null);
-                var winner = ContestVacantTitle(wc, PrimaryBelt, WbcOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
-                if (winner is not null)   // announced by ContestVacantTitle, dated to fight night
+                var won = ContestVacantTitle(wc, PrimaryBelt, WbcOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
+                if (won is { } v)   // announced by ContestVacantTitle, dated to fight night
                 {
-                    _titles.SetChamp(wc, winner); winner.IsChampion = true;
+                    _titles.SetChamp(wc, v.Winner, v.Night); v.Winner.IsChampion = true;
                 }
             }
         }
@@ -191,7 +191,10 @@ public sealed partial class CareerGame
     /// <summary>Fill a vacant belt by matching the two leading eligible contenders in a real title bout, so the new
     /// champion actually WON it (the fight lands in his ledger) instead of being handed the strap. Returns the new
     /// champion — the lone credible contender unopposed if there's only one — or null if the division is bare.</summary>
-    private Boxer? ContestVacantTitle(WeightClass wc, string belt, params int[] excludeIds)
+    /// <returns>The new champion AND the night he won it, because the caller is the one who puts the belt on
+    /// him and a reign dated by the caller's clock rather than by the fight is how a division's whole history
+    /// came to be dated 1 January.</returns>
+    private (Boxer Winner, DateOnly Night)? ContestVacantTitle(WeightClass wc, string belt, params int[] excludeIds)
     {
         var exclude = excludeIds.Where(id => id != 0).ToHashSet();
         bool Eligible(Boxer b) => (b.Id != Player.Id || Player.IsChampion) && !exclude.Contains(b.Id)
@@ -203,7 +206,7 @@ public sealed partial class CareerGame
             // Only one ranked contender — bring in the best available challenger so the belt is still fought for,
             // never simply handed over (a great shouldn't become champion without a title-winning bout).
             var next = ActiveIn(wc).Where(b => Eligible(b) && b.Id != field[0].Id).OrderByDescending(RankScore).FirstOrDefault();
-            if (next is null) return field[0];   // a truly bare division — he takes it unopposed
+            if (next is null) return (field[0], Date);   // a truly bare division — he takes it unopposed
             field.Add(next);
         }
 
@@ -225,7 +228,7 @@ public sealed partial class CareerGame
         _hall.MarkChampion(winner.Id);
         LogEvent($"{winner.Name} wins the vacant {belt} title.", winner.Id == Player.Id, kind: "title", div: wc,
                  on: night);
-        return winner;
+        return (winner, night);
     }
 
     /// <summary>Put a retiring great to the Hall, and announce it if he got in.

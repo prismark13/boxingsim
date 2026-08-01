@@ -176,8 +176,11 @@ public sealed partial class CareerGame
 
     // Kept as methods rather than inlined at the call sites: three of them are handed to DefendBeltSeason as
     // the "and this is how that belt changes hands" argument, so they have to be method groups.
-    private void CrownChampion(Boxer b) => _titles.CrownChampion(b);
-    private void CrownWbc(Boxer b) => _titles.SetWbc(b.WeightClass, b);
-    private void CrownIbf(Boxer b) => _titles.SetIbf(b.WeightClass, b);
+    // The night is passed wherever the caller knows it — a belt changes hands IN A FIGHT, and that fight has
+    // its own date. Callers with no night (a yearly stripping, a relinquishment between cards) fall back to
+    // the clock, which for them is the right answer.
+    private void CrownChampion(Boxer b, DateOnly? on = null) => _titles.CrownChampion(b, on);
+    private void CrownWbc(Boxer b, DateOnly? on = null) => _titles.SetWbc(b.WeightClass, b, on);
+    private void CrownIbf(Boxer b, DateOnly? on = null) => _titles.SetIbf(b.WeightClass, b, on);
 
 }
