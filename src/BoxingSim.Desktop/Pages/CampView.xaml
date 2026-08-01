@@ -111,12 +111,21 @@
                                                Foreground="{StaticResource Text}" Margin="0,3,0,0"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
+                                <!-- Two answers, because there are two. Offering only "Watch it" left no way
+                                     to decline it: the result was being held back from the feed for a fight
+                                     the player might never open, so saying no had to be sayable. Either
+                                     answer settles it and the feed gives up the result. -->
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="Watch it" Command="{Binding WatchTheOne}"
-                                            Style="{StaticResource PrimaryButton}" Padding="14,7" />
-                                    <!-- Without this, being stopped by a fight in your own
-                                         division meant pressing "take the fight" a second
-                                         time, which reads as the first press having failed. -->
+                                    <Button Command="{Binding WatchTheOne}" Style="{StaticResource PrimaryButton}"
+                                            Padding="14,7" AutomationProperties.Name="Watch it"
+                                            ToolTip="Watch the fight, round by round">
+                                        <TextBlock><Run Text="✓" FontSize="14" /><Run Text="  Watch it" /></TextBlock>
+                                    </Button>
+                                    <Button Command="{Binding SkipTheOne}" Padding="14,7" Margin="8,0,0,0"
+                                            AutomationProperties.Name="Don't watch it"
+                                            ToolTip="Skip it — the result goes into the feed">
+                                        <TextBlock><Run Text="✗" FontSize="14" /><Run Text="  Not tonight" /></TextBlock>
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                         </Border>

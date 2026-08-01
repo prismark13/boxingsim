@@ -139,9 +139,48 @@ public sealed record DetailChoice(CareerViewModel.CampDetail Level, string Label
 
 /// <summary>One line of the build-up feed, with how much it matters already worked out. The view should not be
 /// comparing weight classes to decide how brightly to draw a row.</summary>
-public sealed record CampRow(string Date, string Text, bool Mine, bool IsTitle, bool IsUpset,
-                             bool PlayerBout, BoutRef? Bout, string Detail)
+/// <summary>One line of the build-up feed.
+///
+/// A class rather than a record because one line in the feed can CHANGE: the bout the player is being offered
+/// to watch has its result withheld, and has to be able to give it up once he has watched it or waved it away.
+/// As an immutable record the withheld version was baked in at creation, so a fight he chose not to watch kept
+/// its secret for the rest of the career.</summary>
+public sealed class CampRow : Observable
 {
+    private readonly string _full;
+    private readonly string _withheld;
+    private bool _revealed;
+
+    public CampRow(string date, string text, bool mine, bool isTitle, bool isUpset,
+                   bool playerBout, BoutRef? bout, string detail, string? withheld = null)
+    {
+        Date = date; _full = text; _withheld = withheld ?? text; _revealed = withheld is null;
+        Mine = mine; IsTitle = isTitle; IsUpset = isUpset; PlayerBout = playerBout; Bout = bout; Detail = detail;
+    }
+
+    public string Date { get; }
+    public bool Mine { get; }
+    public bool IsTitle { get; }
+    public bool IsUpset { get; }
+    public bool PlayerBout { get; }
+    public BoutRef? Bout { get; }
+    public string Detail { get; }
+
+    /// <summary>What the line says — the result, or the matchup with the result held back.</summary>
+    public string Text => _revealed ? _full : _withheld;
+
+    /// <summary>True while this line is deliberately keeping its result back.</summary>
+    public bool Withholding => !_revealed;
+
+    /// <summary>Give up the result: he has watched it, or said he would rather not.</summary>
+    public void Reveal()
+    {
+        if (_revealed) return;
+        _revealed = true;
+        Raise(nameof(Text));
+        Raise(nameof(Withholding));
+    }
+
     /// <summary>A belt changing hands, a boilover, or anything in his own division. Everything else is weather.</summary>
     public bool Major => IsTitle || IsUpset || Mine || PlayerBout;
     public string Tag => IsTitle ? "TITLE" : IsUpset ? "UPSET" : Mine ? "YOUR DIVISION" : "";
@@ -419,6 +458,7 @@ public sealed class CareerViewModel : Observable
         StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn));
             Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); Raise(nameof(NothingAgreedYet)); Raise(nameof(ReadyToFight)); Raise(nameof(ShowCampActions)); Raise(nameof(ShowResultBanner)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
+        SkipTheOne = new Cmd(DoSkipTheOne);
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
         ShowMyCard = new Cmd(() => { if (Game is not null) SelectedCard = BuildCard(Game.Player); });
@@ -805,6 +845,9 @@ public sealed class CareerViewModel : Observable
     public Cmd StopWaiting { get; }
     /// <summary>Watch the fight that came up while you were waiting.</summary>
     public Cmd WatchTheOne { get; }
+
+    /// <summary>Turn the offer down. The result is revealed rather than lost.</summary>
+    public Cmd SkipTheOne { get; }
 
     public Cmd ShowFighter { get; }
 
@@ -1394,14 +1437,15 @@ public sealed class CareerViewModel : Observable
     /// the only line on the page whose outcome he has asked not to be told yet.</summary>
     private CampRow ToCamp(CareerEvent e) => new(
         e.On.ToString("d MMM yyyy"),
-        Spoils(e) ? $"{Unordered(e.Bout!)} — in your division tonight. Watch it to find out." : e.Text,
-        Mine: Game is not null && e.Div == Game.Player.WeightClass,
-        IsTitle: e.Kind == "title",
-        IsUpset: e.Kind == "upset" || e.Text.StartsWith("UPSET", StringComparison.Ordinal)
+        e.Text,
+        mine: Game is not null && e.Div == Game.Player.WeightClass,
+        isTitle: e.Kind == "title",
+        isUpset: e.Kind == "upset" || e.Text.StartsWith("UPSET", StringComparison.Ordinal)
                  || e.Text.Contains("major upset", StringComparison.OrdinalIgnoreCase),
-        PlayerBout: e.PlayerBout,
-        Bout: e.Bout,
-        Detail: e.Detail ?? "");
+        playerBout: e.PlayerBout,
+        bout: e.Bout,
+        detail: e.Detail ?? "",
+        withheld: Spoils(e) ? $"{Unordered(e.Bout!)} — in your division tonight." : null);
 
     private bool _waiting;
     public bool IsWaiting => _waiting;
@@ -1453,7 +1497,7 @@ public sealed class CareerViewModel : Observable
         _autoRest = _autoRestPending;
         _autoRestPending = false;
         if (!resuming) { Camp.Clear(); _campAll.Clear(); }
-        _theOne = null; TheOne = "";
+        SettleTheOne();
         foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
         while (_waiting)
@@ -1495,11 +1539,23 @@ public sealed class CareerViewModel : Observable
         CheckForAwards();
     }
 
+    /// <summary>Let the line that was holding its result back say what happened. Called however the offer is
+    /// settled — watched or waved away — because a result withheld for a fight nobody is going to watch is
+    /// just a hole in the feed.</summary>
+    private void SettleTheOne()
+    {
+        _theOne = null; TheOne = "";
+        foreach (var r in _campAll) r.Reveal();
+        Raise(nameof(HasTheOne)); Raise(nameof(TheOne));
+    }
+
+    /// <summary>No thanks. The result goes into the feed and the build-up carries on.</summary>
+    private void DoSkipTheOne() => SettleTheOne();
+
     private void DoWatchTheOne()
     {
         if (_theOne is not BoutRef b) return;
-        _theOne = null; TheOne = "";
-        Raise(nameof(HasTheOne)); Raise(nameof(TheOne));
+        SettleTheOne();
         if (Game?.FindBout(b) is not (Boxer owner, Boxer foe, BoutLine line))
         {
             WatchUnavailable = "That fight is no longer on the record.";
