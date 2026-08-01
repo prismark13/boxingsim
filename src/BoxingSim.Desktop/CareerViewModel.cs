@@ -1233,13 +1233,6 @@ public sealed class CareerViewModel : Observable
     /// AFTER accepting. A screen that counts down to a fight has to let you have the fight.</summary>
     public bool ShowCampActions => CanCarryOn || ReadyToFight || FightIsStillAnOffer;
 
-    /// <summary>TEMPORARY DIAGNOSTIC — remove once the missing action row is understood.</summary>
-    public string GateReadout =>
-        $"row={ShowCampActions}  carryOn={CanCarryOn}  ready={ReadyToFight}  stillOffer={FightIsStillAnOffer}  " +
-        $"| inCamp={InCamp}  committed={_committed}  picked={_picked}  " +
-        $"offer={(Game?.Offer is null ? "null" : Game.Offer.Opponent.Name)}  days={Game?.DaysToFight}  " +
-        $"retired={Game?.Player.Retired}  slate={Game?.Slate.Count}";
-
     /// <summary>Whether the fight has been taken and the run-up is under way.
     ///
     /// The page went on offering "go to fight night" and "turn it down" all the way through the build-up, as
