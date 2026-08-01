@@ -46,8 +46,10 @@ public sealed class OfferSlateViewModel : Observable
 
     public ObservableCollection<OfferChoice> Choices { get; } = new();
 
-    /// <summary>Only worth showing when there is something to choose BETWEEN, and only before he commits.</summary>
-    public bool ShowChoices => Choices.Count > 1 && _stillAnOffer();
+    /// <summary>Shown whenever there is a fight on the table that he has not picked yet — including when the
+    /// slate came back with only one name on it. A single option still has to be ACCEPTED; the alternative is
+    /// a fight nobody agreed to, which is what this whole screen exists to stop.</summary>
+    public bool ShowChoices => Choices.Count > 0 && _stillAnOffer();
 
     /// <summary>Re-read the slate from the world. Ends in RaiseAll rather than a list of property names —
     /// the shell's own RaiseAll cannot reach this object's bindings now that it is a separate one.</summary>
@@ -55,7 +57,7 @@ public sealed class OfferSlateViewModel : Observable
     {
         var game = _game();
         Choices.Clear();
-        if (game is not null && !game.Player.Retired && game.Slate.Count > 1)
+        if (game is not null && !game.Player.Retired && game.Slate.Count > 0)
         {
             // Hardest first, which is how a matchmaker lays a choice out and how it reads.
             var scored = game.Slate.Select(o => (Offer: o, Value: game.ValueOf(o)))

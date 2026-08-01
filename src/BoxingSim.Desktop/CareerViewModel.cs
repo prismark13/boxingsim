@@ -338,7 +338,7 @@ public sealed class CareerViewModel : Observable
         // The slate reaches the world through delegates rather than holding this object, so the dependency
         // runs one way. Game is fetched rather than passed because it is replaced wholesale when a career is
         // started, loaded or abandoned.
-        OfferSlate = new OfferSlateViewModel(() => Game, () => FightIsStillAnOffer, RefreshAll);
+        OfferSlate = new OfferSlateViewModel(() => Game, () => NothingAgreedYet, OnPicked);
         RankingsPage = new RankingsViewModel(() => Game);
         PoundForPoundPage = new PoundForPoundViewModel(() => Game);
         HallOfFamePage = new HallOfFameViewModel(() => Game);
@@ -396,7 +396,7 @@ public sealed class CareerViewModel : Observable
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
         StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn));
-            Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); Raise(nameof(ReadyToFight)); Raise(nameof(ShowCampActions)); Raise(nameof(ShowResultBanner)); });
+            Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); Raise(nameof(NothingAgreedYet)); Raise(nameof(ReadyToFight)); Raise(nameof(ShowCampActions)); Raise(nameof(ShowResultBanner)); });
         WatchTheOne = new Cmd(DoWatchTheOne);
         ShowFighter = new Cmd(OnShowFighter);
         // Your own card, from the sidebar. Same card every other fighter gets.
@@ -830,7 +830,7 @@ public sealed class CareerViewModel : Observable
     {
         bool ok = false;
         await BusyAsync("Loading your career…", () => ok = _svc.Load());
-        if (ok) { SetCommitted(false); RankingsPage.Restore(_svc.Game!.Player.WeightClass); SelectedNav = Nav[0]; RefreshAll(); }
+        if (ok) { SetCommitted(false); _pickedOffer = _svc.Game?.Offer; RankingsPage.Restore(_svc.Game!.Player.WeightClass); SelectedNav = Nav[0]; RefreshAll(); }
         else { ContinueCareer.Refresh(); Raise(nameof(HasSave)); }
     }
 
@@ -1091,11 +1091,41 @@ public sealed class CareerViewModel : Observable
     public bool FightIsStillAnOffer =>
         Game?.Offer is not null && Game?.Player.Retired == false && !_committed;
 
+    /// <summary>Whether he has picked a fight off this slate yet.
+    ///
+    /// The world has always put slate[0] on the table so that the sim has something to work with — TakeOffer,
+    /// WaitAWeek, the card and the countdown all rest on an offer existing, and eighty tests say so. But a
+    /// fight the MATCHMAKER picked is not a fight the PLAYER agreed to, and the dashboard was announcing
+    /// "your next fight" against a man he had never chosen, with the alternatives on another page.
+    ///
+    /// So the third state lives here, where it belongs: the world keeps a working offer, and the screen does
+    /// not call it his until he says so.</summary>
+    /// The offer he picked, held BY IDENTITY rather than as a bool. Every new slate builds new FightOffer
+    /// objects, so the moment the matchmaker draws again this stops matching and the choice is open once more —
+    /// without every path that redraws a slate having to remember to clear a flag. Forgetting one of those is
+    /// how the screen would come to show a fight nobody chose again.
+    private FightOffer? _pickedOffer;
+    private bool _picked => _pickedOffer is not null && ReferenceEquals(_pickedOffer, Game?.Offer);
+
+    /// <summary>Record the pick, then redraw everything that keys off it.</summary>
+    private void OnPicked()
+    {
+        _pickedOffer = Game?.Offer;
+        RefreshAll();
+    }
+
+    /// <summary>There are fights on the table and he has picked none of them.</summary>
+    public bool NothingAgreedYet =>
+        Game is not null && !_picked && !Game.Player.Retired && Game.Slate.Count > 0;
+
+    /// <summary>He has a fight, because he chose it. What the dashboard's "your next fight" card waits for.</summary>
+    public bool HasChosenFight => Game?.Offer is not null && _picked && Game?.Player.Retired == false;
+
     private void SetCommitted(bool v)
     {
         if (_committed == v) return;
         _committed = v;
-        foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight),
+        foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight),
                                   nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
         // The slate is a separate object now, so this object's Raise cannot reach it — and whether it shows
         // hangs off the flag that just moved.
@@ -1330,7 +1360,7 @@ public sealed class CareerViewModel : Observable
         _autoRestPending = false;
         if (!resuming) { Camp.Clear(); _campAll.Clear(); }
         _theOne = null; TheOne = "";
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
 
         while (_waiting)
         {
@@ -1355,7 +1385,7 @@ public sealed class CareerViewModel : Observable
                 _waiting = false;
                 foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
             }
-            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
+            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
             CheckForAwards();
             if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
 
@@ -1363,7 +1393,7 @@ public sealed class CareerViewModel : Observable
             if (_waiting) await Gate(550);
         }
         _waiting = false;
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
         RefreshAll();
         CheckForAwards();
     }
