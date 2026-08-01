@@ -1103,11 +1103,20 @@ public sealed class CareerViewModel : Observable
     {
         var bits = new List<string> { l.Div.DisplayName() };
         if (l.What.Length > 0) bits.Add(l.What);
+        // Say WHOSE the standing is when only one man has one. A bare "#5" on a line that sits under the
+        // left-hand name reads as the left-hand man's — so a #5 opponent made the player look ranked, on his
+        // own bill, in the one place the two men are being compared. With both ranked the positional form is
+        // unambiguous, because it lines up with the two corners above it.
+        static string Who(string full)
+        {
+            int sp = full.LastIndexOf(' ');
+            return sp > 0 ? full[(sp + 1)..] : full;
+        }
         string ranks = (l.ARank, l.BRank) switch
         {
             ("", "") => "",
-            (var a, "") => a,
-            ("", var b) => b,
+            (var a, "") => $"{Who(l.AName)} {a}",
+            ("", var b) => $"{Who(l.BName)} {b}",
             var (a, b) => $"{a} vs {b}",
         };
         if (ranks.Length > 0) bits.Add(ranks);

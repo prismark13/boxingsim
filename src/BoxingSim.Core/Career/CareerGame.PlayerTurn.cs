@@ -410,16 +410,31 @@ public sealed partial class CareerGame
     {
         get
         {
-            if (Offer is null || Hall is null) return "";
+            if (Offer is not { } o || Hall is null) return "";
+
+            // WHAT HIS OWN FIGHT IS FOR comes first, because that is what the line is about.
+            //
+            // This used to read the card's TIER alone, and a tier is not a belt: a prospect gets lifted onto a
+            // championship-sized bill precisely so somebody sees him, so a six-round "building a record" fight
+            // on a big show was announced as "A world title. This is the night everything was for." It also had
+            // nothing to say about a regional belt, which is a real title and the step before world level —
+            // an NABF night read as though it were for everything.
+            bool world = o.TitleFight && !RegionalBelts.Contains(o.Belt ?? "");
+            bool regional = o.TitleFight && RegionalBelts.Contains(o.Belt ?? "");
+            if (world) return "A world title. This is the night everything was for.";
+            if (regional)
+                return $"The {o.Belt} title on the line — a real belt, and the last step before world level.";
+
             return (Tier, Billing) switch
             {
+                // A championship-sized bill that his own fight is not the championship of.
                 (CardTier.Championship, Billing.MainEvent) =>
-                    "A world title. This is the night everything was for.",
+                    "The biggest bill you have been on, and your name is at the top of it.",
                 (CardTier.Championship, Billing.Opener) =>
-                    "You open a world championship bill, boxing while the hall fills up. Nobody remembers the "
+                    "You open a championship bill, boxing while the hall fills up. Nobody remembers the "
                     + "opener. They do remember who was on the card.",
                 (CardTier.Championship, _) =>
-                    "A world title on top, and you are on the undercard of it — the biggest night of your life so far.",
+                    "A championship bill, and you are on the undercard of it — the biggest night of your life so far.",
                 (CardTier.National, Billing.MainEvent) =>
                     "You headline. The country is watching this one.",
                 (CardTier.National, _) =>
