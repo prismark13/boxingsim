@@ -50,10 +50,27 @@ public sealed class NewsViewModel : Observable
     public ObservableCollection<NewsDivChoice> NewsDivisions { get; } = new();
 
     private NewsDivChoice? _newsDiv;
+    /// <summary>True while <see cref="Rebuild"/> is replacing the choices, so the ComboBox's answer to that is
+    /// not mistaken for the player picking something.</summary>
+    private bool _rebuilding;
+
+    /// <summary>Which division the feed is narrowed to.
+    ///
+    /// The two guards below are not defensive tidying — without them this crashes the process. Rebuilding
+    /// clears and refills NewsDivisions, and a ComboBox whose ItemsSource is emptied answers by writing its
+    /// selection back through this setter. That started another rebuild, which emptied the list again, which
+    /// wrote back again: BuildDivisionChoices → OnCollectionChanged → BindingExpression.UpdateSource →
+    /// set_NewsDivision → BuildDivisionChoices, round and round until the stack ran out. A
+    /// StackOverflowException cannot be caught, so the window simply vanished with nothing in any log.</summary>
     public NewsDivChoice? NewsDivision
     {
         get => _newsDiv ??= NewsDivisions.FirstOrDefault();
-        set { _newsDiv = value; Rebuild(); }
+        set
+        {
+            if (_rebuilding || ReferenceEquals(_newsDiv, value)) return;
+            _newsDiv = value;
+            Rebuild();
+        }
     }
 
     public bool NewsIsFiltered => _newsTitlesOnly || NewsDivision?.Div is not null;
@@ -65,8 +82,13 @@ public sealed class NewsViewModel : Observable
     /// division choice survives the rebuild.</summary>
     public void Rebuild()
     {
-        BuildDivisionChoices();
-        BuildNews();
+        _rebuilding = true;
+        try
+        {
+            BuildDivisionChoices();
+            BuildNews();
+        }
+        finally { _rebuilding = false; }
         RaiseAll();
     }
 
