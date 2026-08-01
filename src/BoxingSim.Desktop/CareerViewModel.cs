@@ -466,8 +466,7 @@ public sealed class CareerViewModel : Observable
         // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
-        StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); Raise(nameof(CanWait)); Raise(nameof(CanCarryOn));
-            Raise(nameof(InCamp)); Raise(nameof(FightIsStillAnOffer)); Raise(nameof(NothingAgreedYet)); Raise(nameof(ReadyToFight)); Raise(nameof(ShowCampActions)); Raise(nameof(ShowResultBanner)); });
+        StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); RaiseCampGates(); });
         WatchTheOne = new Cmd(DoWatchTheOne);
         SkipTheOne = new Cmd(DoSkipTheOne);
         ShowFighter = new Cmd(OnShowFighter);
@@ -1212,11 +1211,22 @@ public sealed class CareerViewModel : Observable
     /// division made it vanish and left "On to fight night" as the only way onward: a different control, in a
     /// different place, labelled as though it skipped to the end when it actually resumed week by week. One
     /// control, one place, whatever the reason for the pause.</summary>
-    /// <summary>There is a run-up to carry on with — which means one has been STARTED. Without the committed
-    /// part this was true of any fight with days left, so a fresh offer showed "go to fight night" and
-    /// "continue" and "run the rest" all at once: three buttons, two of them offering to resume something that
-    /// had not begun. It is the same condition as being in camp, so it says so.</summary>
-    public bool CanCarryOn => InCamp;
+    // There was a CanCarryOn here — "there is a run-up to carry on with" — defined as `=> InCamp` and nothing
+    // else, and the two Continue buttons bound to it. It is the reason the camp action row kept coming up
+    // empty, on and off, for weeks.
+    //
+    // A binding listens for a property NAME. SetCommitted raised InCamp and not CanCarryOn, so the row's own
+    // visibility (which keys off ShowCampActions, and was raised) turned on while the buttons inside it never
+    // heard that their gate had changed and stayed collapsed — a row that laid out, was measured, and drew
+    // nothing. With no content it has no height, so most of the time it looked like the row was missing
+    // rather than empty. That is why the magenta band "proved" the row existed and got us no further.
+    //
+    // Intermittent because Take() calls SetCommitted(true) and then RunToFightNight, which raises the full
+    // list — but RunToFightNight returns immediately if a run is already going, and on that path nothing ever
+    // raised it. Same click, same screen, different answer depending on state you cannot see.
+    //
+    // One condition should have one name. The buttons bind to InCamp directly now, and there is no second
+    // name left to forget. See RaiseCampGates for the other half of the fix.
 
     /// <summary>The date has come. Deliberately NOT dependent on being in camp: InCamp requires days still to
     /// run, so at zero it goes false and takes Continue with it — and the camp page had nothing left, because
@@ -1231,7 +1241,26 @@ public sealed class CareerViewModel : Observable
     /// The page could sit there reading "4 weeks to fight night" with no button on it, because accepting a
     /// fight had moved to Home when the pages were split and this page only ever offered the things that come
     /// AFTER accepting. A screen that counts down to a fight has to let you have the fight.</summary>
-    public bool ShowCampActions => CanCarryOn || ReadyToFight || FightIsStillAnOffer;
+    public bool ShowCampActions => InCamp || ReadyToFight || FightIsStillAnOffer;
+
+    /// <summary>Every gate the camp action row keys off, raised together.
+    ///
+    /// These were five hand-written lists of property names at five call sites, and they did not agree — one
+    /// was missing a name, which is the whole story of the disappearing buttons. A row whose visibility and
+    /// whose contents are decided by different properties has to raise ALL of them or it renders a state that
+    /// never existed: visible and empty, or hidden with a live fight behind it.
+    ///
+    /// So there is one list. Callers that need more (the countdown, the waiting flag) raise those on top; what
+    /// they cannot do any more is raise some of these and not the others.</summary>
+    private void RaiseCampGates()
+    {
+        foreach (var n in new[] { nameof(InCamp), nameof(ReadyToFight), nameof(FightIsStillAnOffer),
+                                  nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ShowCampActions),
+                                  nameof(ShowResultBanner), nameof(CanWait) }) Raise(n);
+        // The slate is its own object, so this one's Raise cannot reach it — and whether it shows hangs off
+        // the same flags.
+        OfferSlate.RaiseVisible();
+    }
 
     /// <summary>Whether the fight has been taken and the run-up is under way.
     ///
@@ -1296,11 +1325,7 @@ public sealed class CareerViewModel : Observable
     {
         if (_committed == v) return;
         _committed = v;
-        foreach (var n in new[] { nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight),
-                                  nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
-        // The slate is a separate object now, so this object's Raise cannot reach it — and whether it shows
-        // hangs off the flag that just moved.
-        OfferSlate.RaiseVisible();
+        RaiseCampGates();
     }
 
     /// <summary>True while the run is holding, waiting to be told to go on. What the Continue button hangs off.</summary>
@@ -1545,7 +1570,8 @@ public sealed class CareerViewModel : Observable
         _autoRestPending = false;
         if (!resuming) { Camp.Clear(); _campAll.Clear(); }
         SettleTheOne();
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
+        RaiseCampGates();
 
         while (_waiting)
         {
@@ -1582,7 +1608,8 @@ public sealed class CareerViewModel : Observable
                 if (Shows(row)) Camp.Insert(0, row);
             }
             Raise(nameof(CampCountLabel));
-            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner) }) Raise(n);
+            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+            RaiseCampGates();
             CheckForAwards();
             if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
 
@@ -1590,7 +1617,8 @@ public sealed class CareerViewModel : Observable
             if (_waiting) await Gate(550);
         }
         _waiting = false;
-        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CanWait), nameof(CanCarryOn), nameof(InCamp), nameof(FightIsStillAnOffer), nameof(NothingAgreedYet), nameof(HasChosenFight), nameof(ReadyToFight), nameof(ShowCampActions), nameof(ShowResultBanner), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
+        RaiseCampGates();
         RefreshAll();
         CheckForAwards();
     }

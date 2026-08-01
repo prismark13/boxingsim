@@ -62,11 +62,11 @@
                 <Button Content="Continue" Command="{Binding StepForward}"
                         Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
                         ToolTip="One more week"
-                        Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
+                        Visibility="{Binding InCamp, Converter={StaticResource BoolVis}}" />
                 <Button Grid.Column="2" Content="Go to fight night" Command="{Binding RunTheRest}"
                         Padding="14,10" FontSize="13"
                         ToolTip="Run the remaining weeks straight through to the first bell"
-                        Visibility="{Binding CanCarryOn, Converter={StaticResource BoolVis}}" />
+                        Visibility="{Binding InCamp, Converter={StaticResource BoolVis}}" />
                 <Button Grid.Column="2" Content="Turn it down" Command="{Binding HoldOut}"
                         Padding="14,10" FontSize="13"
                         ToolTip="Refuse this fight and wait for another offer"
