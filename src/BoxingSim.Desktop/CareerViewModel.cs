@@ -353,7 +353,10 @@ public sealed class CareerViewModel : Observable
         HoldOut = new Cmd(Decline, () => Game?.Offer is not null && Game?.Player.Retired == false);
         MoveUp = new Cmd(DoMoveUp, () => Game?.CanMoveUp == true);
         StartCareer = new Cmd(Start, () => !Busy && Ready);
-        ContinueCareer = new Cmd(Continue, () => Ready && DesktopCareerService.HasSave);
+        ContinueCareer = new Cmd(Continue, () => Ready && DesktopCareerService.HasSaveIn(SetupSlot));
+        PickSlot = new Cmd(p => { if (p is int n) SetupSlot = n; else if (p is string t && int.TryParse(t, out var m)) SetupSlot = m; });
+        DeleteSlot = new Cmd(() => { _svc.AbandonSlot(SetupSlot); RefreshSlots(); },
+                             () => DesktopCareerService.HasSaveIn(SetupSlot));
         AbandonCareer = new Cmd(Abandon);
         RollName = new Cmd(() => PlayerName = NameGen.Generate(Country, _rng));
         StartUniverse = new Cmd(DoStartUniverse);
@@ -446,6 +449,12 @@ public sealed class CareerViewModel : Observable
     {
         var divisions = await Task.Run(() => _svc.AvailableDivisions());
         foreach (var d in divisions) Divisions.Add(d);
+        // Read the slots off disk once the roster is in — the title screen needs them before it can offer
+        // anything, and Peek is the only thing that knows whether "Continue" means anything.
+        var slots = await Task.Run(ReadSlots);
+        ApplySlots(slots);
+        // Open on a career if there is one, rather than on slot 1 whether it holds anybody or not.
+        SetupSlot = Slots.FirstOrDefault(x => x.Occupied && !x.Damaged)?.Slot ?? 1;
         SetupDivision = Divisions.FirstOrDefault(WeightClass.Middleweight);
         UniDivisions.Clear();
         foreach (var d in Divisions)
@@ -699,6 +708,58 @@ public sealed class CareerViewModel : Observable
     private string _talent = "random915";   // New Star leads the list, so it is what the screen opens on
     public string Talent { get => _talent; set { _talent = value; Raise(); } }
 
+    /// <summary>The three careers that can be kept at once, and which one the title screen is pointed at.
+    ///
+    /// Rebuilt rather than cached, because the disk is the truth: a career abandoned, started or saved changes
+    /// what the slots say, and a stale row would offer to continue a save that is no longer there.</summary>
+    public ObservableCollection<SlotInfo> Slots { get; } = new();
+
+    private int _setupSlot = 1;
+    public int SetupSlot
+    {
+        get => _setupSlot;
+        set { _setupSlot = Math.Clamp(value, 1, DesktopCareerService.Slots); Raise(); MarkSelected(); }
+    }
+
+    public SlotInfo SelectedSlot => Slots.FirstOrDefault(s => s.Slot == _setupSlot)
+                                    ?? new SlotInfo(_setupSlot, false, "Empty", "", "", false);
+
+    /// <summary>Move the highlight without touching the disk. Reading three saves to answer "which one is
+    /// ticked" would put a two-megabyte parse behind every click on the title screen.</summary>
+    private void MarkSelected()
+    {
+        foreach (var s in Slots) s.IsSelected = s.Slot == _setupSlot;
+        foreach (var n in new[] { nameof(Slots), nameof(SelectedSlot) }) Raise(n);
+        RefreshCommands();
+    }
+
+    public Cmd PickSlot { get; private set; } = null!;
+
+    /// <summary>Read the three saves off disk. Safe on any thread — it touches no bound collection, which is
+    /// the whole reason it is separate from applying them.</summary>
+    private static List<SlotInfo> ReadSlots() =>
+        Enumerable.Range(1, DesktopCareerService.Slots).Select(DesktopCareerService.Peek).ToList();
+
+    /// <summary>Put what was read into the bound collection. MUST be on the dispatcher thread: WPF's
+    /// CollectionView refuses changes to its source from anywhere else, and it does not refuse quietly — it
+    /// throws, and the first version of this did exactly that during warm-up because the disk read and the
+    /// collection update were the same method behind one Task.Run.</summary>
+    private void ApplySlots(List<SlotInfo> read)
+    {
+        Slots.Clear();
+        foreach (var s in read) Slots.Add(s);
+        foreach (var s in Slots) s.IsSelected = s.Slot == _setupSlot;
+        foreach (var n in new[] { nameof(Slots), nameof(SelectedSlot), nameof(SetupSlot), nameof(HasSave) }) Raise(n);
+        RefreshCommands();
+    }
+
+    /// <summary>Re-read the slots and show them. Dispatcher thread only — see ApplySlots.</summary>
+    public void RefreshSlots() => ApplySlots(ReadSlots());
+
+    /// <summary>Throw away the career in the slot the title screen is pointed at. Guarded in the view by a
+    /// confirmation, because there is no undo and no second copy.</summary>
+    public Cmd DeleteSlot { get; private set; } = null!;
+
     private bool _fullHistory;
     public bool FullHistory { get => _fullHistory; set { _fullHistory = value; Raise(); } }
 
@@ -817,7 +878,7 @@ public sealed class CareerViewModel : Observable
                            .OrderByDescending(d => (int)d)
                            .DefaultIfEmpty(WeightClass.Heavyweight).First();
             await BusyAsync(FullHistory ? "Simulating a full history — this takes a moment…" : "Building the world…",
-                            () => _svc.Start(name, Country, SetupYear, potential, div, FullHistory));
+                            () => _svc.Start(name, Country, SetupYear, potential, div, FullHistory, SetupSlot));
             RankingsPage.Restore(div);
         }
         catch (Exception ex) { BusyMessage = ex.Message; return; }
@@ -829,7 +890,7 @@ public sealed class CareerViewModel : Observable
     private async void Continue()
     {
         bool ok = false;
-        await BusyAsync("Loading your career…", () => ok = _svc.Load());
+        await BusyAsync("Loading your career…", () => ok = _svc.Load(SetupSlot));
         if (ok) { SetCommitted(false); _pickedOffer = _svc.Game?.Offer; RankingsPage.Restore(_svc.Game!.Player.WeightClass); SelectedNav = Nav[0]; RefreshAll(); }
         else { ContinueCareer.Refresh(); Raise(nameof(HasSave)); }
     }
@@ -2437,7 +2498,7 @@ public sealed class CareerViewModel : Observable
     private void RefreshCommands()
     {
         TakeFight.Refresh(); HoldOut.Refresh(); MoveUp.Refresh();
-        StartCareer.Refresh(); ContinueCareer.Refresh();
+        StartCareer.Refresh(); ContinueCareer.Refresh(); DeleteSlot?.Refresh();
     }
 
     // ---- an award opened out ----

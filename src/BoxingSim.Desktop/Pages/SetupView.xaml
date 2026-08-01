@@ -102,9 +102,51 @@
                 <CheckBox Content="Simulate full history (seeds the Hall of Fame with past greats)"
                           IsChecked="{Binding FullHistory}" Margin="0,20,0,0" />
 
+                <!-- Three careers can be kept at once. A row of numbered buttons would say nothing about
+                     which is which, so each slot names its fighter, his record and where he had got to —
+                     enough to recognise a career you put down a month ago without loading it to find out. -->
+                <TextBlock Text="SAVED CAREERS" Style="{StaticResource Label}" Margin="0,26,0,8" />
+                <ItemsControl ItemsSource="{Binding Slots}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <RadioButton GroupName="Slots" Margin="0,0,8,0"
+                                         IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                         Command="{Binding DataContext.PickSlot, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                         CommandParameter="{Binding Slot}"
+                                         AutomationProperties.Name="{Binding Title}">
+                                <RadioButton.Template>
+                                    <ControlTemplate TargetType="RadioButton">
+                                        <Border x:Name="Chip" Background="{StaticResource Panel}" CornerRadius="10"
+                                                BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14,12">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Title}" Style="{StaticResource Label}" />
+                                                <TextBlock Text="{Binding Fighter}" FontSize="15" Margin="0,6,0,0"
+                                                           Foreground="{StaticResource Text}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Detail}" FontSize="11" Margin="0,4,0,0"
+                                                           Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource AccentSoft}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </RadioButton.Template>
+                            </RadioButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
                 <Button Content="Start career" Command="{Binding StartCareer}"
-                        Style="{StaticResource PrimaryButton}" Margin="0,26,0,0" />
+                        Style="{StaticResource PrimaryButton}" Margin="0,18,0,0" />
                 <Button Content="Continue saved career" Command="{Binding ContinueCareer}" Margin="0,10,0,0" />
+                <Button Content="Delete the career in this slot" Command="{Binding DeleteSlot}"
+                        Margin="0,10,0,0" FontSize="12" />
                 </StackPanel>
 
                 <!-- ============ UNIVERSE SETUP ============ -->

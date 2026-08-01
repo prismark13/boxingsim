@@ -47,7 +47,19 @@ public sealed class DesktopCareerService
         return home;
     }
 
-    public static string SavePath { get; } = Path.Combine(SaveDirectory, "career.json");
+    /// <summary>How many careers can be kept at once.</summary>
+    public const int Slots = 3;
+
+    /// <summary>Where a slot lives. Slot 1 is career.json — the name it has always had — so an existing
+    /// career becomes slot 1 on first run rather than disappearing behind a numbering scheme invented after
+    /// it was saved. Someone with a career in progress should not be able to tell this feature arrived.</summary>
+    public static string PathOf(int slot) =>
+        Path.Combine(SaveDirectory, slot <= 1 ? "career.json" : $"career-{slot}.json");
+
+    /// <summary>The slot being played, and therefore the one every auto-save after a turn writes to.</summary>
+    public int ActiveSlot { get; private set; } = 1;
+
+    public static string SavePath => PathOf(1);
 
     private IReadOnlyList<Boxer>? _roster;
 
@@ -76,7 +88,34 @@ public sealed class DesktopCareerService
         Universe = null;
         BoxingSim.Core.Career.Universe.Release();
     }
-    public static bool HasSave => File.Exists(SavePath);
+    public static bool HasSave => Enumerable.Range(1, Slots).Any(HasSaveIn);
+    public static bool HasSaveIn(int slot) => File.Exists(PathOf(slot));
+
+    /// <summary>What is in a slot, without loading it into play: the fighter, his record, and where he had got
+    /// to. Three files of two megabytes each are read to build the menu, which is slower than a flag would be
+    /// and worth it — a row of numbered slots tells you nothing, and picking the wrong one costs a career.
+    ///
+    /// Everything is read defensively. A slot that cannot be understood is reported as occupied-but-unreadable
+    /// rather than thrown away or shown as empty: an empty slot invites starting a new career on top of a save
+    /// that might only need a fix.</summary>
+    public static SlotInfo Peek(int slot)
+    {
+        var path = PathOf(slot);
+        if (!File.Exists(path)) return new SlotInfo(slot, false, "Empty", "", "", false);
+        try
+        {
+            var save = JsonSerializer.Deserialize<CareerSave>(File.ReadAllText(path), Opts);
+            var me = save?.Roster.FirstOrDefault(b => b.Id == save.PlayerId);
+            if (save is null || me is null) return new SlotInfo(slot, true, "Damaged save", "", "", true);
+            string when = DateOnly.TryParse(save.Date, out var d) ? d.ToString("MMMM yyyy") : "";
+            string record = $"{me.Wins}-{me.Losses}-{me.Draws}";
+            return new SlotInfo(slot, true, me.Name, record, $"{save.Division}  ·  {when}", false);
+        }
+        catch
+        {
+            return new SlotInfo(slot, true, "Damaged save", "", "", true);
+        }
+    }
 
     /// <summary>The real roster, read from the file shipped beside the executable.</summary>
     public IReadOnlyList<Boxer> Roster => _roster ??= LoadRoster();
@@ -112,8 +151,9 @@ public sealed class DesktopCareerService
               .OrderByDescending(wc => (int)wc)
               .ToList();
 
-    public void Start(string name, string country, int startYear, int potential, WeightClass division, bool fullHistory)
+    public void Start(string name, string country, int startYear, int potential, WeightClass division, bool fullHistory, int slot = 1)
     {
+        ActiveSlot = Math.Clamp(slot, 1, Slots);
         // A career never inherits a universe's dials.
         EndUniverse();
         var rng = new Random();
@@ -129,11 +169,20 @@ public sealed class DesktopCareerService
     public void MoveUp() { Game?.MoveUp(); LastResult = null; Save(); }
     public void RelinquishWbc() { Game?.RelinquishWbc(); LastResult = null; Save(); }
 
+    /// <summary>Throw away the career in a slot. Deliberately takes the slot rather than assuming the active
+    /// one: the setup screen deletes a save it is not playing.</summary>
+    public void AbandonSlot(int slot)
+    {
+        if (slot == ActiveSlot) { Game = null; LastResult = null; }
+        var p = PathOf(slot);
+        if (File.Exists(p)) File.Delete(p);
+    }
+
     public void Abandon()
     {
         Game = null;
         LastResult = null;
-        if (File.Exists(SavePath)) File.Delete(SavePath);
+        if (File.Exists(PathOf(ActiveSlot))) File.Delete(PathOf(ActiveSlot));
     }
 
     /// <summary>Auto-save after every turn. A failure here must never lose the turn — the fight has happened
@@ -148,9 +197,10 @@ public sealed class DesktopCareerService
             Directory.CreateDirectory(SaveDirectory);
             // Write to a temporary file and swap it in, so a crash mid-write can't leave a half-written save
             // where a whole career used to be.
-            var tmp = SavePath + ".tmp";
+            var path = PathOf(ActiveSlot);
+            var tmp = path + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(Game.ToSave(), Opts));
-            File.Move(tmp, SavePath, overwrite: true);
+            File.Move(tmp, path, overwrite: true);
             LastSaveError = null;
         }
         catch (Exception ex)
@@ -159,12 +209,14 @@ public sealed class DesktopCareerService
         }
     }
 
-    public bool Load()
+    public bool Load(int slot = 1)
     {
-        if (!File.Exists(SavePath)) return false;
+        ActiveSlot = Math.Clamp(slot, 1, Slots);
+        var loadPath = PathOf(ActiveSlot);
+        if (!File.Exists(loadPath)) return false;
         try
         {
-            var save = JsonSerializer.Deserialize<CareerSave>(File.ReadAllText(SavePath), Opts);
+            var save = JsonSerializer.Deserialize<CareerSave>(File.ReadAllText(loadPath), Opts);
             if (save is null) return false;
             Game = CareerGame.Load(save, new Random());
             LastResult = null;
@@ -174,7 +226,7 @@ public sealed class DesktopCareerService
         {
             // An incompatible or corrupt save shouldn't jam the app on "Continue". Keep the file — renamed, so
             // it isn't silently destroyed — and fall back to the create screen.
-            try { File.Move(SavePath, SavePath + ".broken", overwrite: true); } catch { /* nothing more to do */ }
+            try { File.Move(loadPath, loadPath + ".broken", overwrite: true); } catch { /* nothing more to do */ }
             Game = null;
             return false;
         }
