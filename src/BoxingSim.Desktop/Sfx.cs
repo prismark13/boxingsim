@@ -139,7 +139,22 @@ public static class Sfx
 
     public static void Bell() => Fire("bell", () => BellTone(0.9, 1), 0.55);
     public static void FinalBell() => Fire("bell3", () => BellTone(1.9, 3), 0.6, swell: 0.8);
-    public static void Thud(double force = 1.0) => Fire("thud", Punch, 0.30 + 0.25 * force, swell: 0.10 * force);
+    /// <summary>A punch landing. Never twice the same one running.
+    ///
+    /// Every hard shot in a fight played one identical file at a slightly different volume, and the ear picks
+    /// that up long before it works out what is wrong with the sample itself — a repeated transient stops
+    /// reading as an event and starts reading as a click track. Four takes, cycled, is what a sports title does
+    /// with an impact library and it is most of the difference on its own.
+    ///
+    /// A knockdown gets its own, deeper and slower, rather than the same hit turned up: a shot that lands flush
+    /// is felt more than it is heard, and volume alone cannot say that.</summary>
+    public static void Thud(double force = 1.0)
+    {
+        if (force >= 1.5) { Fire("thud-big", Punch, 0.62, swell: 0.10 * force); return; }
+        _punch = (_punch + 1) % 4;
+        Fire(_punch == 0 ? "thud" : $"thud{_punch + 1}", Punch, 0.30 + 0.25 * force, swell: 0.10 * force);
+    }
+    private static int _punch;
     public static void Ooh() => Fire("ooh", CrowdOoh, 0.6, swell: 0.40);
     public static void Roar() => Fire("roar", CrowdRoar, 0.75, swell: 1.0);
 
