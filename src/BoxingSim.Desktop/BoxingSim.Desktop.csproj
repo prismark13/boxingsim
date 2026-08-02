@@ -14,7 +14,7 @@
     <Product>The Final Bell</Product>
     <AssemblyTitle>The Final Bell</AssemblyTitle>
     <Company>Prismark</Company>
-    <Version>0.9.3</Version>
+    <Version>0.9.4</Version>
     <!-- Shipping: one file, no debug symbols beside it, and everything it needs inside. -->
     <DebugType Condition="'$(Configuration)'=='Release'">none</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
