@@ -906,7 +906,7 @@ public sealed class CareerViewModel : Observable
 
     private static (int Lo, int Hi) TalentRange(string t) => t switch
     {
-        "elite" => (85, 100),
+        "elite" => (90, 100),   // class 10-13 — a genuine prospect, not merely a good one
         "journeyman" => (50, 69),
         "club" => (38, 49),
         "random915" => (80, 100),
@@ -996,11 +996,16 @@ public sealed class CareerViewModel : Observable
             // honours being RAISED during a fight — it never considered them already being on screen when one
             // started. Instead of making the player work out what to press afterwards, dismissing the panel
             // walks him out: see CloseYearAwards.
-            if (Game is null || Game.DaysToFight > 0 || ShowYearAwards)
-            {
-                _resumeAfterAwards = ShowYearAwards && Game?.DaysToFight == 0;
-                return;
-            }
+            // AND STOP THERE. The run-up used to fall straight through into the opening bell when it reached
+            // fight night, so the weeks and the fight were one press — and now that the weeks run in a single
+            // pass rather than one at a time, that press took you from agreeing to a fight to standing in the
+            // ring with no chance to read the build-up or look at the card you are on. The walk-out is its own
+            // decision: the page shows "Fight now" and waits to be told.
+            //
+            // Coming back through here with the date already reached skips this block entirely, so the second
+            // press goes to the bout.
+            _resumeAfterAwards = ShowYearAwards && Game?.DaysToFight == 0;
+            return;
         }
 
         _awardsWait = true;

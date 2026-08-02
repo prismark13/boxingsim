@@ -85,9 +85,23 @@ public sealed partial class CareerGame
         double gap = (a.Overall + YouthEdge(a)) - (b.Overall + YouthEdge(b));
         double pa = 1.0 / (1.0 + Math.Pow(10, -gap / 8.0));   // a's win probability by effective rating
         // Any given night: between two genuine world-class men, even a dominant champion can be caught — so the
-        // underdog always keeps a real puncher's chance. This caps ultra-long unbeaten reigns without letting a
-        // prospect get upset by a journeyman (the floor only applies when BOTH are top-tier).
-        if (a.Overall >= 66 && b.Overall >= 66) pa = Math.Clamp(pa, 0.07, 0.93);
+        // underdog always keeps a real puncher's chance. This is what stops ultra-long unbeaten reigns.
+        //
+        // It was a flat 7% whenever BOTH men were 66 or better, and the comment claimed that meant "both
+        // top-tier". It does not: 66 is regional-belt class, a quarter of the roster. So a 98-rated Muhammad
+        // Ali carried a 7% chance of losing on every card he appeared on, whoever was in the other corner —
+        // and against opposition twenty-five points below him the honest number is a fiftieth of that. Over
+        // twenty-five bouts it handed him three defeats he should never have had, and it did the same to every
+        // great in the world.
+        //
+        // The chance now closes as the gap opens: a puncher's chance is real between men of a level, and it is
+        // not real across a chasm. It only ever binds where the raw expectation is already extreme, so two
+        // evenly matched contenders are untouched by it.
+        if (a.Overall >= 66 && b.Overall >= 66)
+        {
+            double floor = Math.Max(0.008, 0.09 - Math.Abs(a.Overall - b.Overall) * 0.007);
+            pa = Math.Clamp(pa, floor, 1 - floor);
+        }
         double drawP = 0.05 * (1 - Math.Abs(pa - 0.5) * 2);
         Boxer? winner = null, loser = null;
         FightOutcome outcome = FightOutcome.Draw;
