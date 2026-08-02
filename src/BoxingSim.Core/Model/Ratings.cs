@@ -130,6 +130,31 @@ public sealed class Ratings
         return 1;
     }
 
+    /// <summary>The class a fighter whose headline OVERALL is this would show as.
+    ///
+    /// Overall and Class are two scales over the same man: Overall is the raw score run through TierCurve,
+    /// Class reads the raw score directly. A number on one cannot be handed to the other, and the setup screen
+    /// did exactly that — it described its talent tiers by passing POTENTIAL, which is a ceiling on Overall,
+    /// straight into ClassFromRaw, which wants a raw weighted score. So elite talent was advertised as class
+    /// 11-15 and produced fighters who peaked around 8. Nothing was wrong with the fighters; the promise and
+    /// the man were being measured with different rulers.</summary>
+    public static int ClassFromOverall(double overall) => ClassFromRaw(RawFromOverall(overall));
+
+    /// <summary>TierCurve run backwards — what raw score produces this Overall.</summary>
+    private static double RawFromOverall(double ovr)
+    {
+        var a = TierAnchors;
+        if (ovr <= a[0].Ovr) return a[0].Raw + (ovr - a[0].Ovr) / 1.667;
+        for (int i = 1; i < a.Length; i++)
+            if (ovr <= a[i].Ovr)
+            {
+                var (r0, o0) = a[i - 1];
+                var (r1, o1) = a[i];
+                return r0 + (ovr - o0) * (r1 - r0) / (o1 - o0);
+            }
+        return a[^1].Raw;   // nobody is rated past the greatest ever
+    }
+
     // Base KO rate from the winner's power alone (vs a nominal ~75 chin, even fight), calibrated to the roster:
     // median power (~75) stops ~40%, the p95 punchers (~88) ~65%, and the all-time bangers (Foreman/Wilder/Tyson,
     // rated 96–99) clear 90%.

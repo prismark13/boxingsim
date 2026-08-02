@@ -902,8 +902,12 @@ public sealed class CareerViewModel : Observable
         public static TalentOption Make(string key, string name)
         {
             var (lo, hi) = TalentRange(key);
-            // Shown on the 1-15 class scale, because that is the scale every rating in the app uses.
-            return new TalentOption(key, $"{name}  ({Ratings.ClassFromRaw(lo)}–{Ratings.ClassFromRaw(hi)})");
+            // Shown on the 1-15 class scale, because that is the scale every rating in the app uses — but
+            // CONVERTED, not handed over raw. These bounds are potential, which caps a man's Overall, and
+            // ClassFromRaw wants a raw weighted score: two different rulers. Passed straight through, "elite"
+            // advertised class 11-15 and produced fighters who peaked at 8, and the fighters were the honest
+            // half of that.
+            return new TalentOption(key, $"{name}  ({Ratings.ClassFromOverall(lo)}–{Ratings.ClassFromOverall(hi)})");
         }
 
         /// <summary>A record's generated ToString prints its whole shape - "TalentOption { Key = random915,
