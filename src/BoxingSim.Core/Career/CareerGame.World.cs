@@ -68,10 +68,7 @@ public sealed partial class CareerGame
         var next = Date.AddDays(days);
         if (next > target) next = target;
         AdvanceClockTo(next);
-        CatchUpYears();
-        SettleDueVacantTitles();   // a belt ordered months ago is fought for when the night comes round
-        SettleDueStepUps();        // and a man who decided to move up does it in the weeks after that fight
-        RunEvent();
+        WorldTick();
         return NewsSince(mark);
     }
 

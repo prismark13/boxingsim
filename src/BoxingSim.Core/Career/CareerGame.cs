@@ -191,10 +191,27 @@ public sealed partial class CareerGame
             // There was a second CatchUpYears after RunEvent too, because a card could carry the clock over
             // New Year by itself. Cards do not move the clock any more, so a step crosses at most the boundary
             // it was going to cross, and one pass before the cards run is the whole of it.
-            CatchUpYears();
-            RunEvent();
+            WorldTick();
         }
     }
+
+    /// <summary>Everything the world does at one tick of the clock, whichever path drove it.
+    ///
+    /// There are two, and there always have been: AdvanceSome for a career, AdvanceWorld for a universe. They
+    /// each carried their own copy of this sequence, so a step added to one of them silently did not happen in
+    /// the other — and that is not a hypothetical. Vacant-title fights were booked here and never fought,
+    /// because the settle went into the career path only: a universe's belts sat empty for a decade, the
+    /// welterweight title was vacant ninety per cent of the time, and the WBC never came into existence at
+    /// all. One sequence, called from both, so the next thing added to a tick cannot go missing from half of
+    /// the world.</summary>
+    private void WorldTick()
+    {
+        CatchUpYears();
+        SettleDueVacantTitles();   // a belt ordered months ago is fought for when the night comes round
+        SettleDueStepUps();        // and a man who decided to move up does it in the weeks after that fight
+        RunEvent();
+    }
+
     private static readonly WeightClass[] AllDivisions = WeightClasses.All;
 
     // ---- read-only views of any division, for the UI's cross-division picture ----
@@ -442,6 +459,9 @@ public sealed partial class CareerGame
             InjectDebuts();
             RunNpcSeason();
             AgeRetireCrown();
+            // The warm-up never ticks the clock, so nothing else would ever fight the vacancies it creates —
+            // and a career would then open on belts that had been "ordered" decades ago.
+            SettleDueVacantTitles();
             ComputeAwardsFor(y);
         }
         Date = new DateOnly(startYear, 1, 1);
