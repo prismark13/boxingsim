@@ -71,8 +71,9 @@ public sealed partial class CareerGame
 
     /// <summary>Send a fighter up to the next division: he relinquishes any belts he held, is rebalanced, keeps
     /// his record, and (unless he's seeding a brand-new division) needs 1–4 warm-up fights before a title shot.</summary>
-    private void MoveUpTo(Boxer b, WeightClass to, bool warmup = true)
+    private void MoveUpTo(Boxer b, WeightClass to, bool warmup = true, DateOnly? on = null)
     {
+        var night = on ?? Date;
         var from = b.WeightClass;
         b.DebutWeight ??= from;   // captured on the first move up — the floor the two-division climb cap measures from
         var vacated = BeltsHeld(b).Select(x => x.Belt).ToList();
@@ -85,14 +86,20 @@ public sealed partial class CareerGame
         VacateLineal(from, b, $"moves up to {to.DisplayName()}");
         foreach (var region in RegionalBelts) if (_titles.Regional(from, region)?.Id == b.Id) _titles.ClearRegional(from, region);
         if (vacated.Count > 0 && (b.Id == Player.Id || from == Division))
-            LogEvent($"{b.Name} relinquishes the {string.Join(", ", vacated)} title{(vacated.Count > 1 ? "s" : "")} to move up to {to.DisplayName()}.", b.Id == Player.Id, kind: "title", div: from);
+            LogEvent($"{b.Name} relinquishes the {string.Join(", ", vacated)} title{(vacated.Count > 1 ? "s" : "")} to move up to {to.DisplayName()}.", b.Id == Player.Id, kind: "title", div: from, on: night);
         b.WeightClass = to;
-        if (b.Id != Player.Id && (WorldRanked(b) || b.Class >= 8))
-            // "move", not "title". It can vacate belts, which is why it was filed as title news, but a man
-            // changing division is not a title fight — and with a title filter on the news feed it was the one
-            // thing showing up in a list of championship results that had not been a fight at all. Nothing
-            // depended on the old kind: WorthWatching only considers events that carry a bout, and this has none.
-            LogEvent($"{b.Name} campaigns up to {to.DisplayName()}{(vacated.Count > 0 ? $", vacating the {string.Join(", ", vacated)}" : "")}.", false, kind: "move", div: to);
+        // ONLY IF HE IS SOMEBODY. This asked WorldRanked, which is twenty BOUTS — a body of work, not a
+        // standing, and the same mistake that once let an unranked fighter be matched with the division's #4.
+        // Any journeyman who had turned up twenty times made the news for changing weight, so the feed filled
+        // with nine identical lines about men nobody had heard of. He has to have been ON the board he is
+        // leaving, or have held a belt on it.
+        //
+        // "move", not "title". It can vacate belts, which is why it was filed as title news, but a man
+        // changing division is not a title fight — and with a title filter on the news feed it was the one
+        // thing showing up in a list of championship results that had not been a fight at all. Nothing
+        // depended on the old kind: WorthWatching only considers events that carry a bout, and this has none.
+        if (b.Id != Player.Id && (wasChampion || placeBefore > 0))
+            LogEvent($"{b.Name} campaigns up to {to.DisplayName()}{(vacated.Count > 0 ? $", vacating the {string.Join(", ", vacated)}" : "")}.", false, kind: "move", div: to, on: night);
         RebalanceRatings(b.Ratings);
         b.Potential = b.Overall;
         if (_historical.TryGetValue(b.Id, out var h)) { var prime = h.Prime.Clone(); RebalanceRatings(prime); _historical[b.Id] = (prime, h.Peak); }
@@ -294,7 +301,10 @@ public sealed partial class CareerGame
             if (b is not null && NextActiveUp(b.WeightClass) is WeightClass to && StepUpAllowed(b, to))
             {
                 var from = b.WeightClass;
-                MoveUpTo(b, to);
+                // Dated to the night he actually moved, not to the fortnightly tick that noticed. A tick
+                // settles everything due since the last one, so nine men who moved across two weeks were all
+                // stamped with the same day and arrived in the feed as one indigestible block.
+                MoveUpTo(b, to, on: on);
                 UpdateBeltsFor(from);
             }
         }
