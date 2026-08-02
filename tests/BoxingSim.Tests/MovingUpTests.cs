@@ -133,31 +133,34 @@ public class MovingUpTests
             var upstairs = g.EveryFighter.Where(b => !b.Retired && b.WeightClass == to)
                                          .OrderByDescending(CareerGame.RankScore).ToList();
             if (upstairs.Count < 3) continue;
-            double third = CareerGame.RankScore(upstairs[2]);
+            // FIRST, not third. A reigning champion who moves up is ranked at the top of the division he
+            // arrives in — see CarryStandingUp. The property under test is unchanged and is the point of the
+            // test: wherever the floor sits, it is a FLOOR and never a bonus.
+            double top = CareerGame.RankScore(upstairs[0]);
             double before = g.Player.RankPoints;
             double scoreBefore = CareerGame.RankScore(g.Player);
 
             g.MoveUp();
             double after = g.Player.RankPoints;
 
-            if (scoreBefore > third + 1)
+            if (scoreBefore > top + 1)
             {
                 // Already better than the floor. It must have done nothing at all — not rounded him up, not
                 // topped him off. A floor that pays out to a man who does not need it is a bonus wearing a
                 // floor's name, and every move up becomes a free promotion.
                 Assert.True(Math.Abs(after - before) < 0.001,
-                            $"seed {seed}: he was {scoreBefore - third:F0} clear of third at {to.DisplayName()} "
+                            $"seed {seed}: he was {scoreBefore - top:F0} clear of the best man at {to.DisplayName()} "
                             + $"and the move still moved him, {before:F0} → {after:F0}");
-                checked_.Add($"seed {seed}: clear of third already, {before:F0} untouched");
+                checked_.Add($"seed {seed}: clear of the top already, {before:F0} untouched");
             }
             else
             {
                 // Below it, so he is lifted — to the floor exactly, and not one point past it.
-                Assert.True(after > before, $"seed {seed}: he was below third and got nothing");
-                Assert.True(Math.Abs(CareerGame.RankScore(g.Player) - (third + 1)) < 0.001,
-                            $"seed {seed}: floored to {CareerGame.RankScore(g.Player):F0} when third at "
-                            + $"{to.DisplayName()} is {third:F0} — the floor overshot");
-                checked_.Add($"seed {seed}: lifted {before:F0} → {after:F0}, third was {third:F0}");
+                Assert.True(after > before, $"seed {seed}: he was below the top man and got nothing");
+                Assert.True(Math.Abs(CareerGame.RankScore(g.Player) - (top + 1)) < 0.001,
+                            $"seed {seed}: floored to {CareerGame.RankScore(g.Player):F0} when the best man at "
+                            + $"{to.DisplayName()} is {top:F0} — the floor overshot");
+                checked_.Add($"seed {seed}: lifted {before:F0} → {after:F0}, top was {top:F0}");
             }
         }
 

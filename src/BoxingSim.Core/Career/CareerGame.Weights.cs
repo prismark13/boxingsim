@@ -52,11 +52,18 @@ public sealed partial class CareerGame
     /// And it cannot inflate anybody: a man already above the floor keeps his own points and gains nothing, so
     /// this can only ever rescue a standing that understates him.
     ///
-    /// A world champion is floored at third. Not first — he has to beat somebody up here before he is the best
-    /// man in the division — but high enough that a couple of tune-ups and a year of the ability anchor pulling
-    /// on him still leave him inside the top five the title-shot gate asks for. Floored at fifth he is exactly
-    /// eligible and one ordinary night from not being, which makes the promise conditional on nothing moving.
-    /// A ranked contender is floored at fifteenth: on the board, in the mix, with work to do.</summary>
+    /// A world champion is floored at FIRST. This was third, on the reasoning that he has to beat somebody up
+    /// here before he is the best man in the division — which is true of who would win a fight and false of
+    /// how he is ranked. A sanctioning body does not make a reigning champion the fourth-best man in the
+    /// division he has just moved into; it ranks him at the top and orders him a fight. Third also decayed:
+    /// the ability anchor pulls on him for a year while his freshly docked ratings catch up, and men floored
+    /// at third were sliding out of the top five before the tune-ups were done, so the promise came to nothing
+    /// and the belt stayed a year and a half away.
+    ///
+    /// A contender is floored by WHAT HE WAS rather than by one flat number. Everyone from the division's #1
+    /// to its #10 was dropped to fifteenth alike, which is a demotion for the man who was next in line and a
+    /// promotion for the man who was tenth. The top five arrive fifth, the rest of the top ten arrive twelfth:
+    /// on the board, in the mix, with work to do.</summary>
     private void CarryStandingUp(Boxer b, WeightClass to, int floorPlace)
     {
         if (floorPlace <= 0) return;
@@ -104,7 +111,18 @@ public sealed partial class CareerGame
         b.Potential = b.Overall;
         if (_historical.TryGetValue(b.Id, out var h)) { var prime = h.Prime.Clone(); RebalanceRatings(prime); _historical[b.Id] = (prime, h.Peak); }
         // After the rebalance, so the credit is not handed out and then docked back off again.
-        CarryStandingUp(b, to, wasChampion ? 3 : placeBefore is > 0 and <= 10 ? 15 : 0);
+        CarryStandingUp(b, to, wasChampion ? 1 : placeBefore is > 0 and <= 5 ? 5 : placeBefore is > 0 and <= 10 ? 12 : 0);
+        // AND A CHAMPION WHO MOVES UP IS OWED THE FIGHT, not merely well placed for one. Ranking him first
+        // still left him waiting for a champion to pick him out of ten contenders at random, which is how a
+        // man could cross a division and spend two years being shown gatekeepers. This is what the mandatory
+        // machinery is for and it already exists — an eliminator winner is "next for the title" — so an
+        // arriving champion takes the same claim, for the same eighteen months.
+        //
+        // It does not TAKE a claim from anybody: if the division already owes somebody a shot, that man won
+        // it in the ring and keeps it. And it is a claim on a fight, not a free belt — he still has to win.
+        if (wasChampion && b.Id != Player.Id
+            && !(_mandatory.TryGetValue(to, out var standing) && night <= standing.Until))
+            _mandatory[to] = (b.Id, night.AddDays(540));
         if (warmup)
         {
             // A champion does not serve the same apprenticeship as a man nobody has heard of. One or two
