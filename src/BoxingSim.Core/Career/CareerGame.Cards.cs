@@ -183,14 +183,53 @@ public sealed partial class CareerGame
         StageDueRematches(pool, staged);
         var used = new HashSet<int>();
         for (int k = 0; k < pool.Count; k++) if (staged.Contains(pool[k].Id)) used.Add(k);
+        // THE OPPONENT LADDER, built once for the card rather than searched per bout.
+        //
+        // A record is built UP something. The matchmaker had no notion of an opponent — it took a man and
+        // looked twelve places down a list sorted by rating, which meant a soft touch when a division held
+        // forty fighters and means a point and a half when it holds six hundred. So a debutant was matched
+        // with his own level, one of the two had to lose, and the median first defeat in this sport arrived
+        // in a man's second fight.
+        //
+        // The journeymen were always there — four out of five men the sim invents have a class-1-to-3 ceiling
+        // — they were simply never CHOSEN. They are bucketed here by how far along they are themselves, so a
+        // prospect climbs: his debut against somebody making his own, then men who have been around a while,
+        // then a seasoned journeyman by the time he is nearing twenty. One pass over the pool per card, so
+        // this costs nothing per bout.
+        var ladder = new Dictionary<CareerStage, List<int>>();
+        for (int k = 0; k < pool.Count; k++)
+        {
+            if (pool[k].Potential > JourneymanCeiling) continue;
+            var st = CareerStages.Of(pool[k]);
+            if (!ladder.TryGetValue(st, out var bucket)) ladder[st] = bucket = new List<int>();
+            bucket.Add(k);
+        }
+
         for (int b = 0; b < bouts; b++)
         {
             int i = _rng.Next(pool.Count);
             if (used.Contains(i)) continue;
-            int span = _rng.NextDouble() < 0.35 ? 40 + _rng.Next(70) : 12;   // ~35% a wide-gap tune-up
             int j = -1;
-            for (int k = i + 1; k < Math.Min(pool.Count, i + span); k++)
-                if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20, top8) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
+
+            // A man still building a record is GIVEN an opponent off the ladder, at the rung his own mileage
+            // has reached. Two of them are never put in with each other — that is the fight that costs one of
+            // them a nought, and neither has earned it yet.
+            if (BuildingARecord(pool[i]))
+            {
+                int had = ProFights(pool[i]);
+                var rung = had < 8 ? CareerStage.Starter : had < 15 ? CareerStage.PrePrime : CareerStage.Prime;
+                j = PickOffTheLadder(pool, ladder, rung, i, used, top20, top8);
+                // NO LADDER, NO FIGHT. Falling through to the ordinary search handed him whoever happened to
+                // sit next to him in the rankings, which for an undeveloped man is somebody at his own level
+                // or above — the exact fight the ladder exists to keep him out of. A prospect with nobody
+                // suitable in the building sits the card out; there is another one in a fortnight.
+                if (j < 0) continue;
+            }
+
+            int span = _rng.NextDouble() < 0.35 ? 40 + _rng.Next(70) : 12;   // ~35% a wide-gap tune-up
+            if (j < 0)
+                for (int k = i + 1; k < Math.Min(pool.Count, i + span); k++)
+                    if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20, top8) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
             if (j < 0) for (int k = i + 1; k < pool.Count; k++) if (!used.Contains(k) && !BadMatch(pool[i], pool[k], top20, top8)) { j = k; break; }
             if (j < 0) continue;
             // Live, not from the pool snapshot: a title defence or a regional earlier on this same card may
@@ -256,15 +295,38 @@ public sealed partial class CareerGame
             int n = pool.Count;
             var used = new bool[n];
             for (int i = 0; i < n; i++) if (owed.Contains(pool[i].Id)) used[i] = true;
+            // The same ladder the event cards use. This is the SECOND place a card gets built and it had its
+            // own matchmaking, so a prospect protected on one path was fed to the wolves on the other — the
+            // same duplication that once left a universe's belts vacant for a decade.
+            var seasonLadder = new Dictionary<CareerStage, List<int>>();
+            for (int k = 0; k < n; k++)
+            {
+                if (pool[k].Potential > JourneymanCeiling) continue;
+                var st = CareerStages.Of(pool[k]);
+                if (!seasonLadder.TryGetValue(st, out var bk)) seasonLadder[st] = bk = new List<int>();
+                bk.Add(k);
+            }
+            var takenSet = new HashSet<int>();
             for (int i = 0; i < n; i++)
             {
                 if (used[i]) continue;
+                takenSet.Clear();
+                for (int k = 0; k < n; k++) if (used[k]) takenSet.Add(k);
+                int j = -1;
+                if (BuildingARecord(pool[i]))
+                {
+                    int had = ProFights(pool[i]);
+                    var rung = had < 8 ? CareerStage.Starter : had < 15 ? CareerStage.PrePrime : CareerStage.Prime;
+                    j = PickOffTheLadder(pool, seasonLadder, rung, i, takenSet, top20, top8);
+                    if (j < 0) continue;   // nobody suitable in the building; he sits this card out
+                }
                 // usually a competitive fight (a notch below); ~30% a wide-gap tune-up vs a journeyman.
                 int hi = _rng.NextDouble() < 0.30 ? Math.Min(n - 1, i + 30 + _rng.Next(80))
                                                   : Math.Min(n - 1, i + 4 + _rng.Next(8));
-                int j = -1;
+                if (j < 0)
                 for (int k = i + 1; k <= hi; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20, top8) && (j < 0 || _rng.NextDouble() < 0.5)) j = k;
-                if (j < 0) for (int k = i + 1; k < n; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20, top8)) { j = k; break; }
+                if (j < 0 && !BuildingARecord(pool[i]))
+                    for (int k = i + 1; k < n; k++) if (!used[k] && !BadMatch(pool[i], pool[k], top20, top8)) { j = k; break; }
                 if (j < 0) continue;   // this man has no valid opponent on this card — skip HIM, don't halt the whole card
                 used[i] = used[j] = true;
                 int rounds = i < 6 ? 10 : 8;
@@ -283,7 +345,12 @@ public sealed partial class CareerGame
             int guard = 0;
             while (FightsThisYear(pr) < 5 && !AtYearCap(pr) && guard++ < 6)
             {
+                // A JOURNEYMAN, AND CLEARLY BELOW HIM. This asked for anyone up to four points BETTER, which
+                // for an undeveloped young man is a fight he loses about half the time — and it is the busiest
+                // source of bouts a prospect has, so it undid the ladder on its own.
                 var foe = ActiveIn(wc).Where(b => b.Id != pr.Id && b.Id != Player.Id && ProFights(b) >= 4
+                                             && (!BuildingARecord(pr) || (b.Potential <= JourneymanCeiling
+                                                                          && b.Overall <= pr.Overall - 6))
                                              && b.Overall <= pr.Overall + 4 && _medical.Available(b) && !AtYearCap(b)
                                              && !BookedWithThePlayer(b) && !RecentFoes(pr, 3).Contains(b.Name))
                                     .OrderBy(_ => _rng.Next()).FirstOrDefault();
@@ -555,6 +622,19 @@ public sealed partial class CareerGame
         if (strong.Overall >= 78 && ProFights(weak) < 12) return true;
         // A ranked contender won't face a fighter who hasn't served his apprenticeship yet (shorter for a phenom).
         if ((top20.Contains(x.Id) && !ReadyForContenders(y)) || (top20.Contains(y.Id) && !ReadyForContenders(x))) return true;
+        // UNDER TWENTY, HE SITS OUT RATHER THAN TAKE A BAD ONE. A man still building a record is not put in
+        // with somebody clearly better, and this lives HERE because there are three separate places a card
+        // gets built and every one of them calls this. Two of them had been taught the ladder and the third —
+        // the supporting bouts on the player's own bill — shuffles the division and pairs whoever comes out
+        // adjacent, which is how a 74-ceiling prospect lost his professional debut to a seventy-rated man.
+        //
+        // It does not protect the journeymen. Being the smaller half of a mismatch is their trade, and the
+        // record a young fighter is building has to be built on somebody.
+        if (BuildingARecord(weak) && strong.Overall > weak.Overall + 6) return true;
+        // Two men with a future never meet before either of them has a record. This used to let one in ten
+        // through, which across a division and a decade is most of the prospects in it taking a defeat off
+        // another prospect — a nought that neither had earned and that the sport had no reason to hand out.
+        if (BuildingARecord(x) && BuildingARecord(y)) return true;
         // Prospects are protected: two unbeaten-ish young hopefuls generally avoid each other, building
         // records against journeymen and gatekeepers rather than risking a blemish early.
         if (IsProspect(x) && IsProspect(y) && _rng.NextDouble() < 0.9) return true;
@@ -572,6 +652,42 @@ public sealed partial class CareerGame
     /// class-7 man and told he was building a record.</summary>
     private bool DangerousProspect(Boxer b) =>
         IsProspect(b) && b.Record.Losses == 0 && b.Potential >= 70;
+
+    /// <summary>The ceiling that makes a man an opponent rather than a comer. Four out of five fighters the
+    /// sim invents are below it; they are the trade a record is built on.</summary>
+    private const int JourneymanCeiling = 67;
+
+    /// <summary>A man with a future who has not built a record yet. He is fed, and he is not put in with
+    /// another of his own kind — a fight between two of these costs one of them a nought he has not earned,
+    /// and both of them are somebody's investment.</summary>
+    private bool BuildingARecord(Boxer b) => ProFights(b) < 20 && b.Potential > JourneymanCeiling;
+
+    /// <summary>An opponent for a man building a record: off the rung his own mileage has reached, rated
+    /// below him, and not already boxing tonight. Falls through to the next rung down when a division has
+    /// nobody at the right one — a thin weight class should still put a card on.</summary>
+    private int PickOffTheLadder(List<Boxer> pool, Dictionary<CareerStage, List<int>> ladder, CareerStage rung,
+                                 int me, HashSet<int> used, HashSet<int> top20, HashSet<int> top8)
+    {
+        foreach (var tryRung in new[] { rung, CareerStage.PrePrime, CareerStage.Starter, CareerStage.PostPrime })
+        {
+            if (!ladder.TryGetValue(tryRung, out var bucket) || bucket.Count == 0) continue;
+            // A handful of attempts rather than a scan: the bucket is large and any of them will do.
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                int k = bucket[_rng.Next(bucket.Count)];
+                if (k == me || used.Contains(k)) continue;
+                // AND CLEARLY WORSE, not merely no better. "Rated below him" let a fully developed journeyman
+                // in with an undeveloped prospect a point or two above — which is a coin toss, and it is how a
+                // 73-ceiling man came to lose his professional debut to a 66. The journeyman is AT his ceiling
+                // and the prospect is nowhere near his yet; today's rating is what decides the fight, so the
+                // margin has to be in today's rating.
+                if (pool[k].Overall > pool[me].Overall - 8) continue;
+                if (BadMatch(pool[me], pool[k], top20, top8)) continue;
+                return k;
+            }
+        }
+        return -1;
+    }
 
     private bool IsProspect(Boxer b) =>
         !WorldRanked(b) && ProFights(b) < 16 && b.Age <= 27 && (b.Potential - b.Overall) >= 3;
