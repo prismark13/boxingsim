@@ -472,9 +472,18 @@ public sealed partial class CareerGame
 
             // A man who beat you and is still going. This one needs no seniority — the first loss of a
             // career makes a rivalry on its own, whenever it comes. Most recent first: the freshest wound.
+            //
+            // UNLESS YOU HAVE PUT IT RIGHT. A rivalry answered is a rivalry closed, and this had no notion of
+            // that: it returned whoever had last beaten you for ever, so a man you avenged in your very next
+            // fight sat at the top of the dashboard as "the man to watch" for the rest of your career. What
+            // counts is the LAST result between the two of you.
             foreach (var h in Enumerable.Reverse(Player.History))
-                if (h.Result == 'L' && here.FirstOrDefault(b => b.Name == h.Opponent) is Boxer beat)
-                    return beat;
+            {
+                if (h.Result != 'L') continue;
+                if (here.FirstOrDefault(b => b.Name == h.Opponent) is not Boxer beat) continue;
+                bool avenged = Player.History.Any(x => x.Opponent == h.Opponent && x.Date > h.Date && x.Result == 'W');
+                if (!avenged) return beat;
+            }
 
             // Otherwise there is nobody yet, and the honest answer is to say so.
             //

@@ -183,7 +183,13 @@ internal sealed class AwardsBoard
                 Detail = $"beat {x.Loser} · {x.ChancePhrase}{(x.Title ? " · title" : "")}",
                 Commentary = $"Nobody saw it coming: the ratings gave {x.Winner} {x.ChancePhrase.Replace(" shot", "")} against {x.Loser}{(string.IsNullOrEmpty(x.LoserStanding) ? "" : $", {x.LoserStanding},")} and he won by {Long(x.Method)}{(x.Title ? " to rip away the world title" : "")} in {x.Div.DisplayName()}." }).ToList();
 
-        var ko = notable.Where(x => x.Method is "KO" or "TKO")
+        // KNOCKOUT of the Year is a knockout. A TKO is a referee deciding a man has had enough, which can be
+        // the right call over a fighter still on his feet — it is a stoppage, and the award is not for
+        // stoppages. Only if a year produced no clean knockout at all does it fall back to them, because an
+        // award nobody won is worse than one that had to settle.
+        var koPool = notable.Where(x => x.Method == "KO").ToList();
+        if (koPool.Count == 0) koPool = notable.Where(x => x.Method is "KO" or "TKO").ToList();
+        var ko = koPool
             .OrderByDescending(x => x.LoserOvr + (x.Title ? 12 : 0) + Math.Max(0, 9 - x.Round) * 2 + x.Kds * 3).Take(3)
             .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div, Bout = x.Ref,
                 Detail = $"KO{(x.Round > 0 ? $" rd{x.Round}" : "")} {x.Loser}{(x.Title ? " · title" : "")}",

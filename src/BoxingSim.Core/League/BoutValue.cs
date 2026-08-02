@@ -121,7 +121,19 @@ public static class BoutValue
         double s = Math.Max(0, f.Overall - 55) * 5.0;   // 55 → 0, 100 → 225
         if (rank == 1) s += 75;
         else if (rank > 0) s += Math.Max(0, 60 - rank * 3);
-        return s + Unbeaten(f) + Streak(f) + Prospect(f);
+
+        // WHAT HE MIGHT BE, as against what he has done — and it is capped for a man the boards have not
+        // placed yet. Promise stacked three ways with nothing holding it down: a 10-0 prospect drew 56 for
+        // being a prospect, 30 for the streak and, from twelve fights, another 40 for being unbeaten. On a
+        // rating of 75 that came to 186 against the 165 of a #10 heavyweight rated 82 — so the kid closed the
+        // show over a ranked contender, which is not how a bill is ordered.
+        //
+        // Uncapped once he IS ranked, because a ranked contender who is also unbeaten is exactly the draw this
+        // term is for. The cap sits below what a low ranking is worth, so promise can lift him over journeymen
+        // and never over the men who have earned a number.
+        double promise = Unbeaten(f) + Streak(f) + Prospect(f);
+        if (rank == 0) promise = Math.Min(promise, 45);
+        return s + promise;
     }
 
     /// <summary>A young fighter people have come to see BEFORE he has done anything — the other kind of draw.
