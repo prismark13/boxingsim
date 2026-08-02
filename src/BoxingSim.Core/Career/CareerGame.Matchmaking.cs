@@ -403,9 +403,18 @@ public sealed partial class CareerGame
         };
 
         var pool = ranked.Where(b => !hard.Any(r => r.No(b))).ToList();
-        // Nothing at all fits: relax the preferences, never the two guards that exist to stop a mismatch.
+        // Nothing at all fits: relax the preferences, never the guards that exist to stop a mismatch — and the
+        // man he JUST FOUGHT is one of them. This line promised not to relax them and then dropped that one,
+        // so whenever the pool emptied the sport's answer was to serve the same opponent straight back: beat
+        // a man on the Saturday and he is across the ring again next time out, with no rematch billing on it
+        // because nobody asked for one. Rare enough to survive every seed the suite had, until a change
+        // elsewhere reordered the random stream and one of them walked into it.
+        //
+        // Keeping the guard can empty the pool a second time, and that is fine: the fall-through below finds
+        // him a fresh opponent, which is a better night than a rematch nobody wanted.
         if (pool.Count == 0)
-            pool = ranked.Where(b => b.Id != Player.Id && !IsWorldChampion(b) && !offLimits.Contains(b.Id)).ToList();
+            pool = ranked.Where(b => b.Id != Player.Id && !IsWorldChampion(b) && !offLimits.Contains(b.Id)
+                                     && !recent.Contains(b.Name)).ToList();
         // Still nothing. The last resort was "anyone at all", which walked straight through the guard the line
         // above had just promised not to relax — and that is how an unranked fighter came to be offered the
         // division's #4 as a record-builder. A journeyman nobody has heard of is a poor night; a mismatch the
