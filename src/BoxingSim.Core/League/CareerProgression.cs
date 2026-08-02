@@ -64,10 +64,11 @@ public sealed class CareerProgression
         // starts building from the minimum rather than waiting for a man to be visibly shot.
         double chance = 0;
         int overMin = fights - CareerMileage.MinimumCareer;
-        if (overMin > 0) chance += 0.015 + overMin * 0.006;
+        if (overMin > 0) chance += (0.015 + overMin * 0.006) * DriftRelief(b);
         int worn = fights - CareerMileage.PostPrimeUntil(b);
+        // Visibly shot is visibly shot. No standing buys this off, or the great ones never leave.
         if (worn > 0) chance += 0.10 + worn * 0.05;
-        else if (CareerMileage.PastPrime(b) > 0) chance += 0.05;
+        else if (CareerMileage.PastPrime(b) > 0) chance += 0.05 * DriftRelief(b);
 
         // A faded fighter, or one who has been stopped repeatedly, goes sooner.
         if (b.Overall < 40) chance += 0.18;
@@ -77,6 +78,24 @@ public sealed class CareerProgression
 
         return _rng.NextDouble() < chance;
     }
+
+    /// <summary>How much of the DRIFT a man's standing buys off.
+    ///
+    /// The drift term models a fighter quietly ceasing to get calls, which is how most careers actually end and
+    /// is right for most of a roster. It was applied to everyone equally, and that is wrong at the top: a man
+    /// the whole sport wants to see does not stop getting offers. It retired Tony Zale in 1943 — unbeaten at
+    /// 33-0, rated 96, holding the world middleweight title with five defences, in the middle of a prime the
+    /// roster documents as 1940-1948 — on a 4.5% roll, one fight after he had stepped up a division. Then it
+    /// did the same to the next one, which is why moving up looked like a death sentence: you notice it when it
+    /// takes somebody you were watching.
+    ///
+    /// Only the drift. Mileage, a fighter falling apart, repeated knockout losses and the forties all still
+    /// count in full, because those are reasons to stop that being famous does not answer.</summary>
+    private static double DriftRelief(Boxer b) =>
+        b.IsChampion  ? 0.15    // holding a world belt: he is not going anywhere
+        : b.Overall >= 88 ? 0.30
+        : b.Overall >= 80 ? 0.55
+        : 1.0;                  // everybody else drifts out the way they always did
 
     private void Bump(Ratings r, double physical, double skill, double innate)
     {

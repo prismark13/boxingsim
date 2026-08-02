@@ -20,6 +20,9 @@ public class MovingUpTests
     private readonly ITestOutputHelper _out;
     public MovingUpTests(ITestOutputHelper o) => _out = o;
 
+    private static int ProFightsOf(CareerGame g) =>
+        g.Player.Record.Wins + g.Player.Record.Losses + g.Player.Record.Draws;
+
     private static bool IsWorldTitle(FightOffer o) => o.TitleFight && o.Belt is "WBA" or "WBC" or "IBF" or "World";
     private static bool HoldsAWorldBelt(CareerGame g) =>
         g.BeltsHeld(g.Player).Any(x => x.Belt is "WBA" or "WBC" or "IBF" or "World");
@@ -71,9 +74,18 @@ public class MovingUpTests
                 warmups++;
                 if (g.Player.Record.Losses > lossesBefore) { outcome = "beaten in a warm-up"; break; }
             }
-            outcome ??= $"no belt in {warmups}";
+            // A career that ends is not the same as a belt that never came, and lumping them together hid the
+            // more interesting of the two.
+            outcome ??= g.Player.Retired
+                ? $"RETIRED {warmups} fights after moving up, aged {g.Player.Age} on {g.Player.Record} "
+                  + $"({ProFightsOf(g)} bouts, ovr {g.Player.Overall})"
+                : $"no belt in {warmups}";
 
             seen.Add($"seed {seed}: {belts} champion at {from.DisplayName()} → {to.DisplayName()}, {outcome}");
+            // Dropped from the sample for the same reason a loss is: nobody is owed a title shot who is no
+            // longer a fighter. Reported rather than hidden, because "he retired" is the answer to a different
+            // and more interesting question — see MovingUpDoesNotEndCareers.
+            if (outcome.StartsWith("RETIRED")) continue;
             if (outcome.StartsWith("no belt") || (outcome.StartsWith("belt offered") && warmups > 2))
                 tooLong.Add(seen[^1]);
         }
@@ -136,5 +148,36 @@ public class MovingUpTests
 
         foreach (var line in checked_) _out.WriteLine(line);
         Assert.True(checked_.Count >= 3, $"only {checked_.Count} moves were observed, too few to have tested anything");
+    }
+
+    /// <summary>A man does not cross a division in order to retire in it.
+    ///
+    /// The step-up curve used to PEAK post-prime, on the reasoning that a fighter is likeliest to outgrow his
+    /// weight late. Measured over twenty years and 435 move-ups, what it produced was a sport where moving up
+    /// was the last thing anybody ever did: the median man moved at 35 fights with 8 left, 40% were gone within
+    /// six fights of arriving, and 161 of those 174 hung them up on age and mileage rather than drifting out
+    /// for want of opposition — so it was the timing, not the matchmaking.
+    ///
+    /// The rule that replaced it is the one worth pinning: the weight of the decision belongs where the career
+    /// is. A prime fighter is likelier to move than a faded one, and a man at the end of the road does not move
+    /// at all. Pinned as the SHAPE of the curve rather than as a tuning of it, so the numbers stay free to
+    /// change and the ordering cannot quietly inverting itself again.</summary>
+    [Fact]
+    public void MovingUpIsAPrimeDecisionRatherThanALastResort()
+    {
+        double starter  = CareerGame.StepUpChanceAt(CareerStage.Starter);
+        double prePrime = CareerGame.StepUpChanceAt(CareerStage.PrePrime);
+        double prime    = CareerGame.StepUpChanceAt(CareerStage.Prime);
+        double post     = CareerGame.StepUpChanceAt(CareerStage.PostPrime);
+        double end      = CareerGame.StepUpChanceAt(CareerStage.End);
+        _out.WriteLine($"starter={starter}  pre-prime={prePrime}  prime={prime}  post-prime={post}  end={end}");
+
+        Assert.True(starter == 0, "a man five fights into his career is not outgrowing his division yet");
+        Assert.True(end == 0, "a fighter at the end of the road does not cross a division to retire in it");
+        Assert.True(prime > post,
+                    $"moving up is a prime decision: prime is {prime} and post-prime {post}, which says a faded "
+                    + "fighter is the likeliest to go up — that is the bug this replaced");
+        Assert.True(prime > prePrime, "the prime is still the likeliest time, ahead of a kid filling out");
+        Assert.True(prePrime > 0, "a young man growing out of a light division has to be able to leave it");
     }
 }

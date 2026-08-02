@@ -112,11 +112,15 @@ public sealed partial class CareerGame
     /// <summary>Count of organic career move-ups performed (excludes new-division seeding). Diagnostics/tests.</summary>
     public int StepUpsPerformed { get; private set; }
 
+
     /// <summary>How many more fights the player has to take before a world title in his new division is open
     /// to him, or 0 if it already is. A man who has just moved up is told nothing about why the belt has gone
     /// quiet, and "one more and you can challenge" is the single most useful thing the camp could tell him.</summary>
     public int TuneUpsLeft =>
         _warmupUntil.TryGetValue(Player.Id, out var t) ? Math.Max(0, t - ProFights(Player)) : 0;
+
+    /// <summary>The per-fight step-up chance by career stage, exposed for verification/tuning.</summary>
+    public static double StepUpChanceAt(CareerStage stage) => PerFightStepUpBase(stage);
 
     /// <summary>The escalating champion step-up hazard, exposed for verification/tuning.</summary>
     public static double DefenceStepUpHazardAt(int defenceNumber) => DefenceStepUpHazard(defenceNumber);
@@ -177,14 +181,25 @@ public sealed partial class CareerGame
     private static double ScaleWeight(WeightClass wc) =>
         wc == WeightClass.Heavyweight ? 215 : wc.WeightLimitLbs();
 
-    /// <summary>The flat per-fight chance any fighter drifts up a weight, from his prime onward (bodies fill out).
-    /// Zero before the prime — a kid isn't outgrowing his division yet.</summary>
+    /// <summary>The flat per-fight chance any fighter drifts up a weight.
+    ///
+    /// This used to peak POST-PRIME, on the reasoning that a man is likeliest to outgrow his weight late. What
+    /// it actually produced was a sport where crossing a division was the last thing a fighter ever did.
+    /// Measured over twenty years and 435 move-ups: the median man moved at 35 fights and had 8 left, 40% were
+    /// gone within SIX fights of arriving, and of those, 161 of 174 hung them up on age and mileage rather than
+    /// drifting out for lack of opposition. So it was not a matchmaking failure — they were simply being sent
+    /// up with nothing left to spend there, and a division kept filling with men who came to retire.
+    ///
+    /// Real careers climb through the prime, not out the back of it. Leonard, Duran, Hearns and Pacquiao all
+    /// went up while they were the best version of themselves — that is the whole point of moving, to go and
+    /// win something else. The weight of it belongs where the career is, so the curve peaks in the prime and
+    /// tails off after, and a young man growing out of a light division gets a real chance at it too.</summary>
     private static double PerFightStepUpBase(CareerStage stage) => stage switch
     {
-        CareerStage.Prime => 0.008,       // ~0.8%/fight
-        CareerStage.PostPrime => 0.015,   // ~1.5%/fight — most likely to outgrow the weight late
-        CareerStage.End => 0.010,
-        _ => 0.0                          // Starter / PrePrime: too early
+        CareerStage.PrePrime => 0.003,    // a kid outgrowing the division he debuted in — bodies fill out young
+        CareerStage.Prime => 0.006,       // the classic move: champion at one weight, off to win a second
+        CareerStage.PostPrime => 0.004,   // some still do, but it is no longer the likeliest time
+        _ => 0.0                          // Starter: too early. End: see the guard in TryQueueStepUp.
     };
 
     /// <summary>The extra, escalating chance a champion vacates to move up on the back of a title defence.
@@ -229,6 +244,11 @@ public sealed partial class CareerGame
     private void TryQueueStepUp(Boxer? b, double p)
     {
         if (b is null || b.Id == Player.Id || b.Retired || p <= 0) return;
+        // NOBODY CROSSES A DIVISION TO RETIRE IN IT. A man in the last stretch has nothing to build up there:
+        // he arrives, takes a tune-up, and hangs them up. This catches the champion path as well as the flat
+        // one — a twelve-defence reign can put a man in the End stage, and the escalating hazard would happily
+        // send him up for two fights and a retirement notice.
+        if (CareerStages.Of(b) == CareerStage.End) return;
         if (_stepUpQueued.Contains(b.Id)) return;
         if (NextActiveUp(b.WeightClass) is not WeightClass to || !StepUpAllowed(b, to)) return;
         // The greater the fighter, the more he chases legacy across the weights — an all-time great is far likelier
