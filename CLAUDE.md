@@ -74,8 +74,10 @@ The rule for every change to `Core`:
   restore. It is gone. Weight class is a parameter.
 - **`_log.Count` is not a position.** The event log is a capped FIFO (1,500), so once full its length stops
   moving. Marks are taken against `_logWrites`. Using the length as a position silently killed the news feed
-  for every career past about fifteen years. The same applies to any other capped list — fighter ledgers are
-  capped at 60 bouts.
+  for every career past about fifteen years. The same applies to any other capped list. Fighter ledgers used
+  to be capped at 60 and no longer are — a record is the whole record — so size is controlled where it
+  belongs, in the save: only the player and class-10-plus fighters keep a ledger, and only the player keeps
+  the round-by-round grid.
 - **Saves are DTOs, not domain objects.** `CareerSave` and its `*Save` types are a deliberate boundary so the
   model can be refactored without breaking existing careers. Don't serialise `Boxer` directly. The save is
   written to a temp file and moved into place; a corrupt one is renamed `.broken`, never deleted.

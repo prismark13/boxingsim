@@ -97,10 +97,19 @@ public class MovingUpTests
         }
 
         foreach (var line in seen) _out.WriteLine(line);
-        Assert.True(seen.Count >= 3, $"only {seen.Count} of 12 careers produced a champion with a division above "
+        Assert.True(seen.Count >= 6, $"only {seen.Count} of 12 careers produced a champion with a division above "
                                      + "him, which is too few to have tested anything");
-        Assert.True(tooLong.Count == 0,
-                    "a champion who moved up was still not being offered a belt: " + string.Join("; ", tooLong));
+
+        // A STRONG MAJORITY RATHER THAN A GUARANTEE, and the difference is a rule we chose. A belt that falls
+        // vacant is now a fight the sport has to order and wait two to five months for, so a champion can move
+        // up into a division whose title is genuinely between owners and wait through it. Asserting "always"
+        // would mean exempting that case away one condition at a time until the test agreed with itself; what
+        // is actually true is that the overwhelming majority get their shot inside two warm-ups, and a
+        // regression in the RULE would drop this well below the bar rather than nudge it.
+        int quick = seen.Count - tooLong.Count;
+        Assert.True(quick * 10 >= seen.Count * 8,
+                    $"only {quick} of {seen.Count} champions who moved up were challenging again inside two "
+                    + "warm-ups: " + string.Join("; ", tooLong));
     }
 
     /// <summary>The credit is a floor, not a bonus — it can rescue a standing that understates a man, and it

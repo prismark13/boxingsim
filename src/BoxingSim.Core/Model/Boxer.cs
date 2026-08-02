@@ -113,6 +113,10 @@ public sealed class BoutLine
     public int KdAgainst { get; init; }
     public string? Note { get; init; }    // fight type, e.g. "WBA title", "eliminator", "NABF title"
 
+    /// <summary>The injury that ended his career on this night, if one did — "a detached retina", and so on.
+    /// A man's last fight is the most important line on his record and it used to look like any other loss.</summary>
+    public string? CareerEndingInjury { get; init; }
+
     /// <summary>The weight the fight was made at. A record is not a list of nights at one weight — men move
     /// up, and a title won at welterweight is a different thing from one won at middleweight — so the bout
     /// has to remember its own division rather than borrow whatever the fighter happens to weigh now.

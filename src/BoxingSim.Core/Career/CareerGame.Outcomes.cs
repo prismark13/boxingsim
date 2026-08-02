@@ -54,6 +54,47 @@ public sealed partial class CareerGame
     /// <see cref="LegalNightFor"/> pushes a fight off a date either man has already boxed on. A caller that
     /// reports the bout must date the report by what comes back, not by what it passed in — announcing a new
     /// champion on a night he did not fight is exactly the fault this returns to prevent.</summary>
+    /// <summary>The injuries that end a career rather than interrupt one.</summary>
+    private static readonly string[] RingEnders =
+        { "a detached retina", "a fractured orbital bone", "a broken jaw", "a bleed on the brain", "a shattered hand" };
+
+    /// <summary>Did tonight finish him? Returns what did, or null.
+    ///
+    /// Rare on purpose — this is the thing that takes a man out of the sport with no warning, and it stops
+    /// being a shock if it happens often. Age carries most of the weight: a twenty-four-year-old walks away
+    /// from damage that retires a thirty-six-year-old, which is as true of eyes and hands as it is of chins.
+    /// Being knocked out repeatedly over a career tells as well, because the men who go this way are usually
+    /// the men who have already taken too much.</summary>
+    private string? CareerEndingBlow(Boxer f, DateOnly on)
+    {
+        if (f.Retired) return null;
+        // These numbers are small because the sport is large. ApplyOutcome runs for EVERY bout in the world —
+        // journeyman six-rounders included — so a rate that reads as rare on one card is a plague across a
+        // division: the first pass at 1-in-2,500 produced sixty-two career-ending injuries in three years of a
+        // single division and kept the belts permanently vacant, which took unifications to zero. It has to be
+        // rare per NIGHT, not rare per career.
+        double risk = 0.00003                                    // a young, unmarked fighter: about 1 in 33,000
+                    + Math.Max(0, f.Age - 32) * 0.00006          // it is the late thirties that carry this
+                    + Math.Min(6, f.Record.KnockoutLosses) * 0.00008;
+        if (_rng.NextDouble() >= risk) return null;
+        return RingEnders[_rng.Next(RingEnders.Length)];
+    }
+
+    /// <summary>Take him out of the sport, and make sure the world notices. A belt he was holding is vacated
+    /// the way it is for a retirement, because that is what this is.</summary>
+    private void HangThemUpInjured(Boxer f, string injury, DateOnly on)
+    {
+        f.Retired = true;
+        f.IsChampion = false;
+        _titles.VacateWorldBelts(f.WeightClass, f);
+        VacateLineal(f.WeightClass, f, "is forced out of the sport");
+        bool inducted = MaybeInductHoF(f);
+        if (!inducted)
+            LogEvent($"{f.Name} ({f.Record}) is forced to retire with {injury}.",
+                     f.Id == Player.Id, kind: "retire", div: f.WeightClass, on: on);
+        UpdateBeltsFor(f.WeightClass);
+    }
+
     private DateOnly ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null, DateOnly? on = null)
     {
         var night = LegalNightFor(a, b, on ?? Date);
@@ -95,6 +136,13 @@ public sealed partial class CareerGame
                 _medical.Suspend(f.Id, night.AddDays(28 + _rng.Next(63)));
         }
 
+        // A CAREER CAN END IN THE RING, and for everyone. The engine has always produced these — a detached
+        // retina, a fractured orbital, a broken jaw — and exactly one line of code read the flag, for the
+        // player. So the sport had a hazard that only ever befell one man in it, and the NPC resolver did not
+        // generate them at all: every other fighter in the world was immortal until his mileage ran out.
+        // Rolled here instead, which is the one place every bout in the world goes through, fast model or full.
+        string? endedA = CareerEndingBlow(a, night), endedB = CareerEndingBlow(b, night);
+
         // Each fighter's ledger: date, result, method, round, knockdowns scored / suffered.
         char ra = res.IsDraw ? 'D' : res.Winner!.Id == a.Id ? 'W' : 'L';
         char rb = res.IsDraw ? 'D' : res.Winner!.Id == b.Id ? 'W' : 'L';
@@ -120,8 +168,13 @@ public sealed partial class CareerGame
         // The weight it was made at. Equal for an ordinary bout; for a superfight between two divisions it is
         // the heavier man's, because that is the weight the lighter man came up to.
         var at = (WeightClass)Math.Max((int)a.WeightClass, (int)b.WeightClass);
-        Record(a, b.Name, ra, res.Method, res.EndRound, res.KnockdownsB, res.KnockdownsA, note, cardsA, keepRounds ? roundsA : null, commentary, at, night);
-        Record(b, a.Name, rb, res.Method, res.EndRound, res.KnockdownsA, res.KnockdownsB, note, cardsB, keepRounds ? roundsB : null, commentary, at, night);
+        Record(a, b.Name, ra, res.Method, res.EndRound, res.KnockdownsB, res.KnockdownsA, note, cardsA, keepRounds ? roundsA : null, commentary, at, night, endedA);
+        Record(b, a.Name, rb, res.Method, res.EndRound, res.KnockdownsA, res.KnockdownsB, note, cardsB, keepRounds ? roundsB : null, commentary, at, night, endedB);
+
+        // Retired AFTER both ledgers are written, so the fight that finished him is the last line on his
+        // record rather than a bout he was already retired for.
+        if (endedA is not null) HangThemUpInjured(a, endedA, night);
+        if (endedB is not null) HangThemUpInjured(b, endedB, night);
 
         // Where the two men stood BEFORE this result moved them — the year-end awards judge an upset on what
         // was expected going in, and everything below rewrites it.

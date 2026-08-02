@@ -33,10 +33,15 @@ public sealed partial class CareerGame
     /// The night is an argument. It used to be read off the world clock, which meant staging a fight was done
     /// by ASSIGNING to that clock first and hoping nothing else looked at it in between — see the note on
     /// <see cref="ApplyOutcome"/>.</summary>
-    private void Record(Boxer f, string opp, char result, string method, int round, int kdFor, int kdAgainst, string? note, string? cards, IReadOnlyList<BoutRound>? rounds, IReadOnlyList<string>? commentary, WeightClass at, DateOnly on)
+    private void Record(Boxer f, string opp, char result, string method, int round, int kdFor, int kdAgainst, string? note, string? cards, IReadOnlyList<BoutRound>? rounds, IReadOnlyList<string>? commentary, WeightClass at, DateOnly on, string? endedBy = null)
     {
-        f.History.Add(new BoutLine { Date = on, Opponent = opp, Result = result, Method = method, Round = round, KdFor = kdFor, KdAgainst = kdAgainst, Note = note, Cards = cards, Rounds = rounds, Commentary = commentary, Division = at });
-        if (f.History.Count > 60) f.History.RemoveAt(0);   // keep the ledger bounded
+        // A RECORD IS THE WHOLE RECORD. The ledger used to drop its oldest line past sixty bouts, so a
+        // seventy-fight veteran had genuinely lost his first ten fights: his debut, his first title, the men he
+        // came up against on the way. A career simulator whose careers cannot be read back to the start is
+        // missing the thing it is for. The cap was there for size and the save had already solved that
+        // properly by then — only the player and class-10-plus fighters keep a ledger at all, and only the
+        // player keeps the heavy round-by-round grid, so the cap was buying almost nothing.
+        f.History.Add(new BoutLine { Date = on, Opponent = opp, Result = result, Method = method, Round = round, KdFor = kdFor, KdAgainst = kdAgainst, Note = note, Cards = cards, Rounds = rounds, Commentary = commentary, Division = at, CareerEndingInjury = endedBy });
     }
 
     /// <summary>Pull the key play-by-play moments from a full-engine bout (knockdowns, cuts, big shots,

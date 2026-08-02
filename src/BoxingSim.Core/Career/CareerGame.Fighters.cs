@@ -171,7 +171,6 @@ public sealed partial class CareerGame
                 else method = _rng.NextDouble() < 0.75 ? "UD" : "SD";
             }
             b.History.Add(new BoutLine { Date = when, Opponent = opp, Result = rc, Method = method, Round = round });
-            if (b.History.Count > 60) b.History.RemoveAt(0);
         }
     }
 

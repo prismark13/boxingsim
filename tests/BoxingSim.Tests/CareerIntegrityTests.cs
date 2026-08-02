@@ -64,8 +64,17 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
     private static bool IsSingleBelt(string? n) => n is "WBA title" or "WBC title" or "IBF title" or "World title";
     private static bool IsMerged(string? n) => n is "unification" or "Undisputed title";
 
+    /// <summary>Every ledger in the world, not just the Hall's.
+    ///
+    /// It read the Hall of Fame because those snapshots were the only COMPLETE records — everyone else's was
+    /// capped at sixty bouts and had lost its early years. That cap is gone, so the whole roster is readable
+    /// now, and the sample should be the whole roster: a couple of dozen inductees is a small enough sample
+    /// that the unification count swung from 32 to 8 on a change that merely reordered the random stream,
+    /// which is a test measuring luck rather than the sim.</summary>
     private List<IReadOnlyList<BoutLine>> TitleLedgers() =>
-        _g.HallOfFame.Select(m => (IReadOnlyList<BoutLine>)m.History).ToList();
+        _g.EveryFighter.Select(b => (IReadOnlyList<BoutLine>)b.History)
+                       .Concat(_g.HallOfFame.Select(m => (IReadOnlyList<BoutLine>)m.History))
+                       .Where(h => h.Count > 0).ToList();
 
     [Fact]
     public void TitleBoutsAreNeverCrammedDaysApart()

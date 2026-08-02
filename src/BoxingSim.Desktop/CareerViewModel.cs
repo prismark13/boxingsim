@@ -2402,6 +2402,9 @@ public sealed class CareerViewModel : Observable
             int kd = rs.Sum(r => r.KdFor), kda = rs.Sum(r => r.KdAgainst);
             if (kd + kda > 0) detail += $" · KD {kd}-{kda}";
         }
+        // The last line of a career says so. A man forced out of the sport by what happened on this night had
+        // it recorded as an ordinary loss, and the most important entry on his record read like any other.
+        if (h.CareerEndingInjury is string ended) detail += $"  ·  forced to retire — {ended}";
         // The owner travels with the row: rebuilding the fight to watch it needs BOTH men, and the bout line
         // only names the opponent. A title fight is flagged as one worth the extra search when it is replayed,
         // so the night it comes back with is the best of several rather than the first that fits.
