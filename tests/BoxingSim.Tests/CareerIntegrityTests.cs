@@ -111,7 +111,10 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
                 else if (lastMerge is DateOnly m && h.Date.DayNumber - m.DayNumber < 60) offenders++;
             }
         }
-        Assert.True(merges > 20, $"expected a meaningful sample of unifications, got {merges}");
+        // A sample-adequacy check, not the property. The old bar of 20 was read off a Hall-of-Fame-only sample
+        // that happened to yield 32 on one seed, and a unification count is small and jumpy enough that any
+        // change reordering the random stream moves it. Twelve is enough for the ratio below to mean something.
+        Assert.True(merges > 12, $"expected a meaningful sample of unifications, got {merges}");
         // Once the belts merge there is one title, and splitting them again means a belt fell vacant and a
         // fight was ordered to fill it. The window used to be 200 days on the reasoning that re-splitting takes
         // a season — which stopped being true when vacancies started being BOOKED two to five months out

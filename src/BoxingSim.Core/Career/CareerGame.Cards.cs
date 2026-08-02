@@ -64,6 +64,7 @@ public sealed partial class CareerGame
     /// matched, roll or no roll. Activity scales both ends, so a busy champion of a busy era fights more.</summary>
     private bool DefendsOnThisCard(Boxer champ)
     {
+        if (BookedWithThePlayer(champ)) return false;   // he is already booked — against the player
         double activity = CareerMileage.Activity(champ);
         int idle = DaysSinceLastBout(champ);
         if (idle < (int)(112 / activity)) return false;   // a title camp is a real camp
@@ -76,7 +77,7 @@ public sealed partial class CareerGame
         // Champions don't fight on undercards — when they fight, it's a title defence (handled below).
         // A man who's already boxed 8 times this year sits the rest of it out.
         var pool = ActiveIn(wc).Where(b => b.Id != Player.Id && !HoldsAnyWorldBelt(b) && !AtYearCap(b) && _medical.Available(b)
-                                        && Rested(b))
+                                        && Rested(b) && !BookedWithThePlayer(b))
                          .OrderByDescending(b => b.Overall).ToList();
         if (pool.Count < 2) return;
 
@@ -87,6 +88,7 @@ public sealed partial class CareerGame
         // fortnight (which produced impossible back-to-back title bouts days apart). Both men must be rested.
         if (!UnifiedIn(wc) && ChampOf(wc) is Boxer wba && WbcOf(wc) is Boxer wbc && wba.Id != wbc.Id
             && wba.Id != Player.Id && wbc.Id != Player.Id
+            && !BookedWithThePlayer(wba) && !BookedWithThePlayer(wbc)   // one of them owes the player a night
             && DaysSinceLastBout(wba) >= (int)(112 / CareerMileage.Activity(wba)) && DaysSinceLastBout(wbc) >= (int)(112 / CareerMileage.Activity(wbc))
             && _rng.NextDouble() < UnificationChance(wc, 0.006, 0.04))
         {
@@ -504,6 +506,19 @@ public sealed partial class CareerGame
     /// LegalNightFor stays as the backstop it always claimed to be, for the paths that stage a bout without
     /// coming through a card pool.</summary>
     private bool Rested(Boxer b) => DaysSinceLastBout(b) >= 28;
+
+    /// <summary>A man matched with the player is OFF THE MARKET until that night.
+    ///
+    /// He was not. The fight is agreed weeks or months ahead and the world went on booking him in the
+    /// meantime, so the opponent on the poster could be beaten, cut, knocked out, suspended — and, now that a
+    /// career can end in the ring, retired outright — between the handshake and the first bell. The player
+    /// would walk out to face a man whose record no longer matched the one he had studied, or find the bout
+    /// quietly gone. A fighter with a date in the diary does not take another fight before it.
+    ///
+    /// Lifts by itself: the moment the night passes, or the offer is turned down and replaced, he is back in
+    /// the pool with no flag to clear.</summary>
+    private bool BookedWithThePlayer(Boxer b) =>
+        !Player.Retired && Offer is { } o && o.Opponent.Id == b.Id && Date < OfferDate;
 
 
     /// <summary>True if pairing these two would be a mismatch a prospect shouldn't be in: a raw fighter

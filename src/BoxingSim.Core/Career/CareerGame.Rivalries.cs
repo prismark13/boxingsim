@@ -264,7 +264,8 @@ public sealed partial class CareerGame
     /// <summary>Can this man be put in a big fight at all - fit, not at his cap, and not the player, whose
     /// nights are his own to accept or turn down.</summary>
     private bool FreeForABigNight(Boxer b) =>
-        !b.Retired && b.Id != Player.Id && _medical.Available(b) && !AtYearCap(b) && !RecentlyMovedUp(b) && Rested(b);
+        !b.Retired && b.Id != Player.Id && _medical.Available(b) && !AtYearCap(b) && !RecentlyMovedUp(b) && Rested(b)
+        && !BookedWithThePlayer(b);
 
     private void StageP4PSuperfight()
     {
@@ -390,7 +391,8 @@ public sealed partial class CareerGame
         // rule lives — so a man owed a return, or owed a shot, could be pulled into a championship a fortnight
         // after his last fight and the bout would then be shoved forward to find a legal night.
         if (RematchFoeFor(champ) is Boxer owed && owed.Id != Player.Id
-            && (otherChamp is null || owed.Id != otherChamp.Id) && !RecentlyMovedUp(owed) && Rested(owed))
+            && (otherChamp is null || owed.Id != otherChamp.Id) && !RecentlyMovedUp(owed) && Rested(owed)
+            && !BookedWithThePlayer(owed))
             return owed;
 
         var recent = RecentFoes(champ, 4);
@@ -406,7 +408,7 @@ public sealed partial class CareerGame
         }
         bool Ok(Boxer b) => b.Id != Player.Id && b.Id != champ.Id
                          && (otherChamp is null || b.Id != otherChamp.Id) && WorldRanked(b) && !RecentlyMovedUp(b)
-                         && _medical.Available(b) && Rested(b);
+                         && _medical.Available(b) && Rested(b) && !BookedWithThePlayer(b);
         // Prefer a contender he hasn't just fought and hasn't already met several times.
         var ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name) && champ.History.Count(h => h.Opponent == b.Name) < 3).ToList();
         if (ranked.Count == 0) ranked = here.Where(b => Ok(b) && !recent.Contains(b.Name)).ToList();
@@ -415,7 +417,8 @@ public sealed partial class CareerGame
         // against the best available REAL contender (a rising fighter, gatekeeper-plus) — never a class-1–3 journeyman.
         if (ranked.Count == 0)
             ranked = here.Where(b => b.Id != Player.Id && b.Id != champ.Id && (otherChamp is null || b.Id != otherChamp.Id)
-                                  && !RecentlyMovedUp(b) && _medical.Available(b) && b.Potential >= 66 && ProFights(b) >= 15 && !recent.Contains(b.Name))
+                                  && !RecentlyMovedUp(b) && _medical.Available(b) && !BookedWithThePlayer(b)
+                                  && b.Potential >= 66 && ProFights(b) >= 15 && !recent.Contains(b.Name))
                          .OrderByDescending(RankScore).ToList();
         if (ranked.Count == 0) return null;
         var top10 = ranked.OrderByDescending(RankScore).Take(10).ToList();
