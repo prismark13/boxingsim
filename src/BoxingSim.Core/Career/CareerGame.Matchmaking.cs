@@ -372,10 +372,22 @@ public sealed partial class CareerGame
         // 2. WHO HE MUST NOT BE MATCHED WITH. Conjunctive, so no rule can undo another, and each says why.
         //    Until he is world-ranked he is kept off the division's leading men BY RANKING as well as by
         //    rating: an unproven #1 is often a young fighter whose rating has not caught up.
-        var offLimits = ranking
-            ? new HashSet<int>()
-            : ActiveIn(Player.WeightClass).Where(RankedContender)
-                  .OrderByDescending(RankScore).Take(15).Select(b => b.Id).ToHashSet();
+        // THE SAME TOP FIFTEEN THE BOARD PRINTS. This built its own list — the contender-filtered ranking,
+        // taken fifteen deep — while the board tops itself up with men who have eight bouts when the division
+        // is thin on qualified contenders. So a man could be #4 on the rankings page and absent from the list
+        // that is supposed to keep an unranked fighter away from him, and the two only ever agreed by luck.
+        // One derivation, so "the division's leading men" means one thing.
+        // AND IT KEYS OFF WHERE HE STANDS, not off how many times he has boxed. This lifted on WorldRanked,
+        // which is twenty bouts — a body of work, not a standing. A man can have thirty fights and be fortieth
+        // in his division, and for him the guard was simply off: he was matched with the leading men on the
+        // strength of having turned up twenty times. He is on the board or he is not.
+        HashSet<int> offLimits;
+        if (BoardPlace(Player) > 0) offLimits = new HashSet<int>();
+        else
+        {
+            var (champs, contenders) = BoardOf(Player.WeightClass, 15);
+            offLimits = champs.Concat(contenders).Select(b => b.Id).ToHashSet();
+        }
         var recent = RecentFoes(Player, 3);
 
         var hard = new (string Why, Func<Boxer, bool> No)[]
@@ -394,7 +406,13 @@ public sealed partial class CareerGame
         // Nothing at all fits: relax the preferences, never the two guards that exist to stop a mismatch.
         if (pool.Count == 0)
             pool = ranked.Where(b => b.Id != Player.Id && !IsWorldChampion(b) && !offLimits.Contains(b.Id)).ToList();
-        if (pool.Count == 0) pool = ranked.Where(b => b.Id != Player.Id).ToList();
+        // Still nothing. The last resort was "anyone at all", which walked straight through the guard the line
+        // above had just promised not to relax — and that is how an unranked fighter came to be offered the
+        // division's #4 as a record-builder. A journeyman nobody has heard of is a poor night; a mismatch the
+        // matchmaker exists to prevent is a bug. So the guard holds and the sport finds him somebody.
+        if (pool.Count == 0)
+            return new FightOffer { Opponent = _factory.CreateProspect(Player.WeightClass, GeneratedCap, Year),
+                                    Rounds = proFights <= 6 ? 6 : 8, Context = "stay-busy" };
 
         // 3. SCORE WHAT IS LEFT. Closeness to the night we are making, then the things that make a man the
         //    right OPPONENT rather than merely the right rating.

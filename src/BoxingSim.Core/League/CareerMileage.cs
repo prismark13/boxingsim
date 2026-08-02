@@ -83,6 +83,16 @@ public static class CareerMileage
     /// <summary>Still competitive, but the edge has gone.</summary>
     public static int PostPrimeUntil(Boxer b) => Scaled(64 + Vary(b, "po", 12));        // 64-75, scaled
 
+    /// <summary>The age a prime is over by, whatever the mileage says.
+    ///
+    /// Every boundary here is in bouts, on the principle that a boxer is worn down by being hit rather than by
+    /// birthdays — and that principle is right about two thirty-year-olds with eighteen and seventy fights.
+    /// Taken as the ONLY thing that counts it goes wrong at the other end: a man who boxes rarely reaches his
+    /// fifty-third fight in his late thirties and was still classed as prime the whole way, so the sport had
+    /// thirty-eight-year-olds in the best form of their lives. Mileage still decides the shape of a career;
+    /// this only says that the years cannot be nothing at all.</summary>
+    public static int PrimeEndsByAge(Boxer b) => 33 + Vary(b, "age", 4);   // 33-36, varied like the rest
+
     /// <summary>Nobody goes beyond this. Long careers, but not endless ones.</summary>
     public static int CareerLimit(Boxer b) => Scaled(80 + Vary(b, "end", 11));          // 80-90, scaled
 
@@ -100,8 +110,13 @@ public static class CareerMileage
     /// <summary>Apply the world's career-length dial to a boundary, keeping it at least one bout.</summary>
     private static int Scaled(int fights) => Math.Max(1, (int)Math.Round(fights * LengthScale));
 
-    /// <summary>How far past his best a man is, in bouts. Zero while he is still in it.</summary>
-    public static int PastPrime(Boxer b) => Math.Max(0, Fights(b) - PrimeUntil(b));
+    /// <summary>How far past his best a man is, in bouts. Zero while he is still in it.
+    ///
+    /// Years past the age his prime ends count as mileage he never had to earn — three bouts a year, which is
+    /// roughly the pace he would have been boxing at anyway. Without it a fighter who took few fights simply
+    /// never declined.</summary>
+    public static int PastPrime(Boxer b) =>
+        Math.Max(0, Fights(b) - PrimeUntil(b)) + Math.Max(0, b.Age - PrimeEndsByAge(b)) * 3;
 
     /// <summary>How far through his development he is, 0 at debut and 1 once he has arrived. Drives how much
     /// of his ceiling a fighter has grown into.</summary>
@@ -110,8 +125,12 @@ public static class CareerMileage
         int f = Fights(b), primeAt = PrePrimeUntil(b);
         if (f <= primeAt)
         {
+            // A PRO DEBUTANT IS ALREADY A FIGHTER. This started him at 55% of his ceiling, which made the first
+            // twenty bouts of every career a man who could not beat anybody — so prospects lost early and often
+            // and nobody came through unbeaten. He has had a hundred amateur fights before he is paid for one;
+            // what he lacks is the last quarter, and that is what the next twenty-odd bouts are for.
             double t = primeAt <= 0 ? 1 : f / (double)primeAt;
-            return 0.55 + 0.45 * Math.Clamp(t, 0, 1);
+            return 0.72 + 0.28 * Math.Clamp(t, 0, 1);
         }
         // Past his best, ability bleeds away with the mileage rather than with the calendar.
         return Math.Max(0.45, 1.0 - PastPrime(b) * 0.010);
@@ -122,7 +141,7 @@ public static class CareerMileage
         int f = Fights(b);
         if (f <= StarterUntil(b)) return CareerStage.Starter;
         if (f <= PrePrimeUntil(b)) return CareerStage.PrePrime;
-        if (f <= PrimeUntil(b)) return CareerStage.Prime;
+        if (f <= PrimeUntil(b) && b.Age <= PrimeEndsByAge(b)) return CareerStage.Prime;
         if (f <= PostPrimeUntil(b)) return CareerStage.PostPrime;
         return CareerStage.End;
     }
