@@ -71,11 +71,16 @@ internal sealed class HallOfFame
         bool wasChamp = _everChampion.Contains(b.Id) || holdsBeltNow;
         _titleDivisions.TryGetValue(b.Id, out var tds);
         int weightTitles = tds is not null ? tds.Count : (wasChamp ? 1 : 0);
-        // A real champion with a genuine reign (3+ defences) or a multi-weight champion — but only a true top-tier
-        // fighter (peakClass floor keeps journeyman champions of a thin division out) — or an outright elite talent.
-        // A Hall of Famer needs a real body of work, not a handful of bouts — plus either a genuine title reign,
-        // a multi-weight title, or an elite career-long talent.
-        bool worthy = proFights >= 15 && ((((wasChamp && defenses >= 3) || weightTitles >= 2) && peakClass >= 8) || (peak >= 88 && proFights >= 25));
+        // A HALL OF FAMER WON A WORLD TITLE. The elite-talent clause used to stand on its OWN — peak 88 with
+        // twenty-five fights let a man in on ability alone, so the Hall filled up with 70-3 records that had
+        // never been near a belt. Ability is what separates the champions inside the Hall; it is not a way in
+        // through the side. Being champion is now required of every route, and what varies is what he did with
+        // it: a real reign, a second division, or a career at a level the sport rarely sees.
+        //
+        // The peakClass floor stays on the first two, to keep the journeyman champion of a thin division out.
+        bool worthy = proFights >= 15 && wasChamp
+                   && ((((defenses >= 3) || weightTitles >= 2) && peakClass >= 8)
+                       || (peak >= 88 && proFights >= 25));
         if (!worthy) return false;
 
         _hof.Add(new HallOfFamer

@@ -232,8 +232,21 @@ public sealed partial class CareerGame
     // The night is passed wherever the caller knows it — a belt changes hands IN A FIGHT, and that fight has
     // its own date. Callers with no night (a yearly stripping, a relinquishment between cards) fall back to
     // the clock, which for them is the right answer.
-    private void CrownChampion(Boxer b, DateOnly? on = null) => _titles.CrownChampion(b, on);
-    private void CrownWbc(Boxer b, DateOnly? on = null) => _titles.SetWbc(b.WeightClass, b, on);
-    private void CrownIbf(Boxer b, DateOnly? on = null) => _titles.SetIbf(b.WeightClass, b, on);
+    private void CrownChampion(Boxer b, DateOnly? on = null) { _titles.CrownChampion(b, on); Crowned(b); }
+    private void CrownWbc(Boxer b, DateOnly? on = null) { _titles.SetWbc(b.WeightClass, b, on); Crowned(b); }
+    private void CrownIbf(Boxer b, DateOnly? on = null) { _titles.SetIbf(b.WeightClass, b, on); Crowned(b); }
+
+    /// <summary>He won a world belt. Written down the MOMENT it happens, in the division it happened in.
+    ///
+    /// The Hall used to learn this by looking around once a year: the turn-of-the-year pass asked who was
+    /// champion on 1 January and recorded that. So a man who won a belt in March and lost it in November was
+    /// never recorded as having held one at all — and to register as a two-weight champion you had to be
+    /// holding a belt on New Year's Day in two different divisions, in two different years. The sport had
+    /// none. Every multi-weight champion the Hall was built to honour was invisible to it.</summary>
+    private void Crowned(Boxer b)
+    {
+        _hall.MarkChampion(b.Id);
+        _hall.MarkTitleDivision(b.Id, b.WeightClass);
+    }
 
 }

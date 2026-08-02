@@ -116,7 +116,7 @@ public class GoldenMasterTests
         // ... then -> here when the slate widened to three. The universe fingerprint did NOT move, which is
         // the confirmation it is the player's: a universe's ghost is retired, so he has no division to be
         // ranked in and his slate stays one wide.
-        Assert.Equal("81CC58BD37961E50", Hash(body));
+        Assert.Equal("A7F47CB28DC17084", Hash(body));
     }
 
     [Fact]
@@ -141,6 +141,6 @@ public class GoldenMasterTests
         // ... and here for the scored matchmaker, which looks wrong for a world with no player in it. It is
         // not: a universe builds ONE offer, for the ghost it retires before the first week, and that single
         // call draws a different count of random numbers than it used to. Everything after it shifts.
-        Assert.Equal("E7597FCCAD9B3FB2", Hash(body));
+        Assert.Equal("8C2B1154E0A35944", Hash(body));
     }
 }

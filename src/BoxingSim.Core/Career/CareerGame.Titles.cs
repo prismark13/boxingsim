@@ -197,6 +197,7 @@ public sealed partial class CareerGame
         if (belt == "WBC") _titles.SetWbc(wc, who, on);
         else if (belt == "IBF") _titles.SetIbf(wc, who, on);
         else { _titles.SetChamp(wc, who, on); who.IsChampion = true; }
+        Crowned(who);   // a belt won vacant is still a belt won — see Crowned
     }
 
     /// <summary>Order a fight for a vacant belt, two to five months out.</summary>
