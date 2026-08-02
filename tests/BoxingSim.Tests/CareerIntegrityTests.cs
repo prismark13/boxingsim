@@ -167,6 +167,39 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
             Assert.True(m.WeightTitles <= 6, $"{m.Name} holds titles in {m.WeightTitles} divisions");
     }
 
+    /// <summary>A career carried across the fix gets its multi-weight champions back from the ledgers.
+    ///
+    /// Recording a belt in the division it was won in only began when that fix landed. Before it, the world
+    /// looked around once a year and wrote down who was champion on 1 January, which yields at most one
+    /// division per man — so a save made under the old code has no multi-weight champion in it, the enshrined
+    /// are frozen snapshots that can never gain one, and a player twenty years into a career would have had
+    /// to start again. The evidence survives in the fight histories, and load rebuilds from them.</summary>
+    [Fact]
+    public void AnOldSaveRecoversItsMultiWeightChampionsFromTheLedgers()
+    {
+        var save = _g.ToSave();
+        int before = _g.HallOfFame.Count(m => m.WeightTitles >= 2);
+        Assert.True(before > 0, "the fixture world has no multi-weight champions, so this proves nothing");
+
+        // Wind it back to what the old sampling would have left behind: no title-division table at all, and
+        // every inductee remembered as a one-division champion.
+        save.TitleDivisions.Clear();
+        foreach (var m in save.HallOfFame)
+        {
+            m.TitleDivisions.Clear();
+            m.WeightTitles = m.WasChampion ? 1 : 0;
+        }
+
+        var loaded = CareerGame.Load(save, new Random(4));
+        int after = loaded.HallOfFame.Count(m => m.WeightTitles >= 2);
+        Assert.True(after > 0, "not one multi-weight champion was recovered from the ledgers");
+
+        // And nobody is credited with a division he never won a belt in — the repair reads world titles only,
+        // so a man's regional straps must not turn him into a two-weight champion.
+        foreach (var m in loaded.HallOfFame)
+            Assert.True(m.WeightTitles <= 6, $"{m.Name} recovered {m.WeightTitles} divisions");
+    }
+
     /// <summary>A cut is a technical knockout, and the two columns must each agree with the ledger.
     ///
     /// Every stoppage used to land in the KO column, so a fighter who could not crack an egg carried a gaudy

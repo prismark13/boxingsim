@@ -567,22 +567,36 @@ public sealed partial class CareerGame
         foreach (var m in s.HallOfFame)
         {
             var memberDiv = Enum.TryParse<WeightClass>(m.Division, out var md) ? md : WeightClass.Heavyweight;
+            var history = m.History.Select(h => new BoutLine
+            {
+                Date = ParseDate(h.Date, Date), Opponent = h.Opponent, Result = h.Result.Length > 0 ? h.Result[0] : 'D',
+                Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards,
+                // Saves written before the Hall carried the weight fall back to the division he is
+                // REMEMBERED at — right for the many who never moved, and the best guess for the rest.
+                Division = Enum.TryParse<WeightClass>(h.Div, out var hd) ? hd : memberDiv,
+                CareerEndingInjury = h.CareerEndingInjury
+            }).ToList();
+
+            // What he is REMEMBERED for is frozen at induction, so a man enshrined under the old code kept
+            // whatever the once-a-year sampling had written down — at most one division, which is why the
+            // Hall had no multi-weight champions in it at all. His ledger still knows: a won world-title
+            // bout carries the weight it was made at. Rebuilt from that rather than asking a player twenty
+            // years into a career to start again. An old save whose bouts have no weight recovers only the
+            // division he is remembered at, which is what it already said — no worse, and never wrong.
+            var divs = m.TitleDivisions.Select(x => Enum.TryParse<WeightClass>(x, out var d) ? (WeightClass?)d : null)
+                                       .Where(x => x is not null).Select(x => x!.Value).ToHashSet();
+            foreach (var h in history)
+                if (h.Result == 'W' && IsWorldTitleNote(h.Note)) divs.Add(h.Division);
+
             _hall.Load(new HallOfFamer
             {
                 Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country,
                 Division = memberDiv,
-                Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, WeightTitles = m.WeightTitles,
-                TitleDivisions = m.TitleDivisions.Select(s => Enum.TryParse<WeightClass>(s, out var d) ? (WeightClass?)d : null).Where(x => x is not null).Select(x => x!.Value).ToList(),
+                Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion,
+                WeightTitles = Math.Max(m.WeightTitles, divs.Count),
+                TitleDivisions = divs.OrderBy(d => (int)d).ToList(),
                 Age = m.Age, Year = m.Year,
-                History = m.History.Select(h => new BoutLine
-                {
-                    Date = ParseDate(h.Date, Date), Opponent = h.Opponent, Result = h.Result.Length > 0 ? h.Result[0] : 'D',
-                    Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards,
-                    // Saves written before the Hall carried the weight fall back to the division he is
-                    // REMEMBERED at — right for the many who never moved, and the best guess for the rest.
-                    Division = Enum.TryParse<WeightClass>(h.Div, out var hd) ? hd : memberDiv,
-                    CareerEndingInjury = h.CareerEndingInjury
-                }).ToList()
+                History = history
             });
         }
         AwardWinner AwLoad(AwardWinnerSave w) => new()
@@ -610,6 +624,15 @@ public sealed partial class CareerGame
                 _hall.LoadTitleDivisions(id, kv.Value.Split('|', StringSplitOptions.RemoveEmptyEntries)
                     .Select(x => Enum.TryParse<WeightClass>(x, out var w) ? (WeightClass?)w : null)
                     .Where(w => w is not null).Select(w => w!.Value).ToHashSet());
+
+        // And the same repair for the living. Careers carried across the fix have belts recorded only where
+        // the old New-Year sampling happened to catch a man holding one, so a fighter who won at light-middle
+        // in March and moved up is on record as a one-division champion. His ledger says otherwise. Doing it
+        // on LOAD rather than on save means a career already on disk is mended by being opened.
+        foreach (var b in _roster)
+            foreach (var h in b.History)
+                if (h.Result == 'W' && IsWorldTitleNote(h.Note))
+                    _hall.MarkTitleDivision(b.Id, h.Division);
         foreach (var kv in s.BeltDefenses)
         {
             var parts = kv.Key.Split('|');
