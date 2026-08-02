@@ -83,6 +83,17 @@ public sealed class Boxer
     /// <summary>Fight-by-fight ledger built up during a career sim (empty for the static roster).</summary>
     public List<BoutLine> History { get; } = new();
 
+    /// <summary>What forced him out of the sport, if anything did — "a detached retina", and so on.
+    ///
+    /// Read from the ledger rather than stored beside it. The night it happened already carries it, and a
+    /// second copy on the fighter is a second thing to keep in step: the bout line is written before he is
+    /// retired, so the two could only ever disagree by someone forgetting one of them. It also means every
+    /// career already on disk answers this correctly without a migration.
+    ///
+    /// Null for a man who simply grew old and stopped, which is nearly all of them.</summary>
+    public string? RetiredThroughInjury =>
+        History.Count == 0 ? null : History[^1].CareerEndingInjury;
+
     public bool Retired { get; set; }
 
     /// <summary>Elo-style points that drive divisional ranking; updated after every bout.</summary>

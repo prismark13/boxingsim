@@ -168,6 +168,12 @@ public sealed class HallOfFamer
     public int Year { get; init; }         // year inducted (= year retired)
     public List<BoutLine> History { get; init; } = new();   // his fight ledger, snapshotted at induction
 
+    /// <summary>What forced him out, if anything did. Read from the snapshot's last line — the bout that
+    /// ended him is recorded before he is retired and inducted, so it is always there to be read. A career
+    /// cut short is the most important thing about some of these men and the Hall said nothing about it.</summary>
+    public string? RetiredThroughInjury =>
+        History.Count == 0 ? null : History[^1].CareerEndingInjury;
+
     /// <summary>Ranking weight for the Hall: a world belt is the entry ticket, then multi-division reigns,
     /// defences and pure ability — a two- or three-weight champion outranks a one-belt titlist.</summary>
     public int Prestige => (WasChampion ? 1000 : 0) + Math.Max(0, WeightTitles - 1) * 60 + Defenses * 8 + PeakOverall;

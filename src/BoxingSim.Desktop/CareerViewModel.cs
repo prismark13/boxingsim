@@ -2244,7 +2244,11 @@ public sealed class CareerViewModel : Observable
         Record = m.Record,
         Meta = string.Join("  ·  ", new[]
         {
-            Ui.Code(m.Country), m.Division.DisplayName(), $"retired {m.Year} aged {m.Age}",
+            Ui.Code(m.Country), m.Division.DisplayName(),
+            // "Forced out" rather than "retired" when the sport took the decision from him.
+            m.RetiredThroughInjury is string ended
+                ? $"forced out {m.Year} aged {m.Age} — {ended}"
+                : $"retired {m.Year} aged {m.Age}",
             $"peak {m.PeakOverall} OVR"
         }),
         Belts = (m.WeightTitles >= 2 ? $"{m.WeightTitles}-weight champion" : m.WasChampion ? "World champion" : "")

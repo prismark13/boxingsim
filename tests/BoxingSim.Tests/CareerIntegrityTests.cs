@@ -167,6 +167,30 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
             Assert.True(m.WeightTitles <= 6, $"{m.Name} holds titles in {m.WeightTitles} divisions");
     }
 
+    /// <summary>A career ended in the ring says so, on the man and not only in his ledger.
+    ///
+    /// The engine has always produced these — a detached retina, a bleed on the brain — and the fact was
+    /// written on the bout line and read by exactly one label deep inside a fight history. Nothing else in
+    /// the game knew: the Hall of Fame listed a man forced out at thirty as though he had grown old and
+    /// stopped. It is read from the ledger rather than stored twice, so it cannot drift out of step with the
+    /// night it happened, and every career already saved answers it without a migration.</summary>
+    [Fact]
+    public void AFighterForcedOutOfTheSportSaysSo()
+    {
+        var ended = _g.EveryFighter.Where(b => b.RetiredThroughInjury is not null).ToList();
+        Assert.True(ended.Count > 0, "no career in the whole world was ended in the ring — nothing to test");
+
+        foreach (var b in ended)
+        {
+            Assert.True(b.Retired, $"{b.Name} was ended by {b.RetiredThroughInjury} and is not retired");
+            // It is the LAST thing that happened to him. A man does not fight on past the injury that ended him.
+            Assert.Equal(b.History[^1].CareerEndingInjury, b.RetiredThroughInjury);
+        }
+
+        // And a man who simply grew old reports nothing, or the label would be on everybody.
+        Assert.Contains(_g.EveryFighter, b => b.Retired && b.RetiredThroughInjury is null);
+    }
+
     /// <summary>The sport had a past before the player, and men moved up in it.
     ///
     /// A step up in weight is QUEUED a few weeks after the bout that prompts it and settled on the world

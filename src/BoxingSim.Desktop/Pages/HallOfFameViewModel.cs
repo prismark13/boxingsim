@@ -31,6 +31,9 @@ public sealed class HallOfFameViewModel : Observable
                 if (m.WeightTitles >= 2) bits.Add($"{m.WeightTitles}-weight champ");
                 else if (m.WasChampion) bits.Add("world champ");
                 if (m.Defenses > 0) bits.Add($"{m.Defenses} def");
+                // A career that was ended rather than finished is the most important thing about some of
+                // these men, and the roll used to read as though they had all simply grown old.
+                if (m.RetiredThroughInjury is string ended) bits.Add($"career ended by {ended}");
                 HallOfFame.Add(new RankRow(r.ToString(), m.PeakClass, m.Name, string.Join(" · ", bits),
                                            m.Record, false, m.WasChampion, null, m));
                 r++;
