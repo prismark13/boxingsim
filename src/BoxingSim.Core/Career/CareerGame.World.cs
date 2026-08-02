@@ -153,7 +153,7 @@ public sealed partial class CareerGame
             // of the sport, so the rankings stay full of active men rather than ghosts.
             bool inactive = b.Id != Player.Id && !_historical.ContainsKey(b.Id)
                             && ProFights(b) > 0 && DaysSinceLastBout(b) > 730;
-            if (_careers.ShouldRetire(b) || inactive)
+            if (_careers.ShouldRetire(b, IsWorldChampion(b)) || inactive)
             {
                 b.Retired = true;
                 if (b.IsChampion) b.IsChampion = false;

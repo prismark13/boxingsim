@@ -53,7 +53,11 @@ public sealed class CareerProgression
     /// <summary>Whether he hangs them up. Careers end because a man has had enough fights, not because he has
     /// had enough birthdays — so this counts bouts. Nobody's career is cut short below the minimum unless an
     /// injury ends it, and nobody goes past his own limit.</summary>
-    public bool ShouldRetire(Boxer b)
+    /// <param name="holdsAWorldBelt">Whether he is a world champion RIGHT NOW — passed in, because a Boxer
+    /// cannot tell you. Boxer.IsChampion is set for the primary belt only, so a WBC or IBF holder reads as an
+    /// ordinary fighter: two of the three champions in every division were invisible to the one clause meant
+    /// to keep a champion in the sport, and they were retiring out of it mid-reign as a result.</param>
+    public bool ShouldRetire(Boxer b, bool holdsAWorldBelt = false)
     {
         int fights = CareerMileage.Fights(b);
         if (fights >= CareerMileage.CareerLimit(b)) return true;
@@ -64,11 +68,11 @@ public sealed class CareerProgression
         // starts building from the minimum rather than waiting for a man to be visibly shot.
         double chance = 0;
         int overMin = fights - CareerMileage.MinimumCareer;
-        if (overMin > 0) chance += (0.015 + overMin * 0.006) * DriftRelief(b);
+        if (overMin > 0) chance += (0.015 + overMin * 0.006) * DriftRelief(b, holdsAWorldBelt);
         int worn = fights - CareerMileage.PostPrimeUntil(b);
         // Visibly shot is visibly shot. No standing buys this off, or the great ones never leave.
         if (worn > 0) chance += 0.10 + worn * 0.05;
-        else if (CareerMileage.PastPrime(b) > 0) chance += 0.05 * DriftRelief(b);
+        else if (CareerMileage.PastPrime(b) > 0) chance += 0.05 * DriftRelief(b, holdsAWorldBelt);
 
         // A faded fighter, or one who has been stopped repeatedly, goes sooner.
         if (b.Overall < 40) chance += 0.18;
@@ -91,8 +95,8 @@ public sealed class CareerProgression
     ///
     /// Only the drift. Mileage, a fighter falling apart, repeated knockout losses and the forties all still
     /// count in full, because those are reasons to stop that being famous does not answer.</summary>
-    private static double DriftRelief(Boxer b) =>
-        b.IsChampion  ? 0.15    // holding a world belt: he is not going anywhere
+    private static double DriftRelief(Boxer b, bool holdsAWorldBelt) =>
+        holdsAWorldBelt || b.IsChampion ? 0.15    // holding a world belt: he is not going anywhere
         : b.Overall >= 88 ? 0.30
         : b.Overall >= 80 ? 0.55
         : 1.0;                  // everybody else drifts out the way they always did

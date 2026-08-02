@@ -212,9 +212,15 @@ public sealed partial class CareerGame
     private static double DefenceStepUpHazard(int defenceNumber)
     {
         if (defenceNumber < 1) return 0;
-        // Survival S(n) = exp(-k·n²) with k≈0.0105 gives S(10)≈0.35 (→65% moved). Conditional per-defence
-        // hazard = 1 − S(n)/S(n−1) = 1 − exp(−k·(2n−1)) — ~1% at the first defence rising to ~18% by the tenth.
-        const double k = 0.0105;
+        // Survival S(n) = exp(-k·n²); the conditional per-defence hazard is 1 − S(n)/S(n−1) = 1 − exp(−k·(2n−1)).
+        //
+        // k was 0.0105, which is 65% of champions having moved up by their tenth defence. That was set when
+        // reigns were short enough that almost nobody reached ten — and once WBC and IBF champions stopped
+        // being retired out of the sport by a clause that could not see them, reigns lengthened and the hazard
+        // started firing: a quarter of all reigns were ending with the champion vacating to move up. A
+        // champion moving up is a story, not a schedule. k=0.0036 puts it at about 30% by the tenth defence,
+        // which leaves it something the great ones do and the rest talk about.
+        const double k = 0.0036;
         return 1.0 - Math.Exp(-k * (2 * defenceNumber - 1));
     }
 

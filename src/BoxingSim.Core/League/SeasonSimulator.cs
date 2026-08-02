@@ -159,7 +159,7 @@ public sealed class SeasonSimulator
             foreach (var b in div.Boxers.Where(b => !b.Retired).ToList())
             {
                 _world.Careers.AdvanceOneYear(b);
-                if (_world.Careers.ShouldRetire(b))
+                if (_world.Careers.ShouldRetire(b, b.IsChampion))
                 {
                     b.Retired = true;
                     report.Retirements++;
