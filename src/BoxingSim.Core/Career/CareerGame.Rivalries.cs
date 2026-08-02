@@ -422,7 +422,22 @@ public sealed partial class CareerGame
                          .OrderByDescending(RankScore).ToList();
         if (ranked.Count == 0) return null;
         var top10 = ranked.OrderByDescending(RankScore).Take(10).ToList();
-        return top10[_rng.Next(top10.Count)];
+        // AN UNBEATEN CONTENDER IS THE FIGHT BEING ASKED FOR. The ten were drawn from uniformly, so a spotless
+        // record helped a man reach the room and bought him nothing once he was in it — and the pressure a
+        // 24-0 challenger generates is the whole reason that fight gets made ahead of the 19-4 man beside him.
+        //
+        // It is also the pressure the unbeaten need applied TO them. Nothing was pushing them into the fight
+        // that ends the run, so they retired spotless far too often: 7.4% of the Hall of Fame against a real
+        // sport where Marciano is famous for being nearly alone in it.
+        double Weight(Boxer b) => b.Record.Losses == 0 && ProFights(b) >= 12 ? 3.0 : 1.0;
+        double total = top10.Sum(Weight);
+        double pick = _rng.NextDouble() * total;
+        foreach (var b in top10)
+        {
+            pick -= Weight(b);
+            if (pick <= 0) return b;
+        }
+        return top10[^1];
     }
 
 }

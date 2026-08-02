@@ -278,8 +278,15 @@ public sealed partial class CareerGame
         // cruiserweight. A second move is two-thirds as likely as the first, a fourth about a fifth.
         int climbed = (int)b.WeightClass - (int)(b.DebutWeight ?? b.WeightClass);
         double weariness = Math.Pow(0.62, climbed);
+        // AN UNBEATEN MAN HAS RUN OUT OF THINGS TO PROVE AT HIS WEIGHT, and the sport says so to him long
+        // before he is ready to hear it: there is nobody left down here, go up and find somebody. A record
+        // with a defeat in it still has an argument to settle in the division he is standing in.
+        //
+        // It needs a body of work behind it — an 8-0 novice is unbeaten because he has not been tested yet,
+        // which is the opposite of the case for sending him up in weight.
+        double nothingLeftToProve = b.Record.Losses == 0 && ProFights(b) >= 12 ? 1.6 : 1.0;
         // Rolled right after a bout, so the wait is measured from the fight that prompted it.
-        if (_rng.NextDouble() < p * greatness * weariness)
+        if (_rng.NextDouble() < p * greatness * weariness * nothingLeftToProve)
             _stepUpQueued[b.Id] = Date.AddDays(28 + _rng.Next(57));   // 4 to 12 weeks
     }
 

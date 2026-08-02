@@ -277,6 +277,12 @@ public sealed partial class CareerGame
         // an exceptional talent breaks in after 20 fights, an ordinary fighter needs 24. (Champions are
         // 80+, so this never lets a novice near the belt inside his first 20 bouts.)
         int fightsToRank = ContenderApprenticeship(Player) switch { 12 => 14, 15 => 17, _ => Player.Potential >= 85 ? 20 : 24 };
+        // AN UNBEATEN RECORD IS ITS OWN ARGUMENT, and it shortens the wait. A 20-0 contender is a bigger
+        // night than a 22-2 one and the sanctioning bodies feel it — the pressure to make the fight is the
+        // record itself. Never below the floor an exceptional talent already gets, though: this brings a good
+        // fighter up to that timetable, it does not invent a faster one, so the guard keeping a green man out
+        // of a championship ring is untouched. He still has to be top five to get near it at all.
+        if (Player.Record.Losses == 0) fightsToRank = Math.Max(14, fightsToRank - 4);
         // A man who has held a world belt has served it. The count is here to keep a green fighter out of a
         // championship ring and nothing else, and he has already been in one — which mattered most to the very
         // fighter it was never meant to catch: moving up rebalances a man for the heavier weight and then resets
