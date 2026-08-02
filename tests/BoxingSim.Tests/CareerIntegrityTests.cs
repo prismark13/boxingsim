@@ -167,6 +167,27 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
             Assert.True(m.WeightTitles <= 6, $"{m.Name} holds titles in {m.WeightTitles} divisions");
     }
 
+    /// <summary>The sport had a past before the player, and men moved up in it.
+    ///
+    /// A step up in weight is QUEUED a few weeks after the bout that prompts it and settled on the world
+    /// tick — which the warm-up does not run, because it advances a season at a time. So every move the
+    /// sport's whole history asked for was queued and never taken: sixty-five years in which no fighter
+    /// changed division, and therefore not one multi-weight champion among the greats a new career opens
+    /// with. The vacant-title booking had exactly this fault and was fixed; this was missed alongside it.
+    ///
+    /// It is asserted on the men who retired BEFORE the player debuted, because those are the pure product
+    /// of the warm-up. Asserting it on the Hall as a whole would not have caught this: the live years do
+    /// settle their step-ups, so they quietly supply multi-weight champions and hide the fault behind
+    /// them.</summary>
+    [Fact]
+    public void ThePastProducedMultiWeightChampionsToo()
+    {
+        var beforeHisTime = _g.HallOfFame.Where(m => m.Year < 1978).ToList();
+        Assert.True(beforeHisTime.Count > 10,
+                    $"expected a Hall full of men who retired before the player, got {beforeHisTime.Count}");
+        Assert.Contains(beforeHisTime, m => m.WeightTitles >= 2);
+    }
+
     /// <summary>A career carried across the fix gets its multi-weight champions back from the ledgers.
     ///
     /// Recording a belt in the division it was won in only began when that fix landed. Before it, the world

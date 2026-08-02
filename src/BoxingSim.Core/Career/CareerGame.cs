@@ -462,6 +462,14 @@ public sealed partial class CareerGame
             // The warm-up never ticks the clock, so nothing else would ever fight the vacancies it creates —
             // and a career would then open on belts that had been "ordered" decades ago.
             SettleDueVacantTitles();
+            // NOR WOULD ANYBODY EVER MOVE UP. A step up in weight is queued four to twelve weeks after the
+            // bout that prompts it and settled on the world tick, which the warm-up does not run — so every
+            // move the sport's whole history asked for was queued and never taken. Sixty-five years of
+            // boxing in which no fighter changed division, which is why the Hall of Fame opened with fifty
+            // champions and not one multi-weight champion among them: winning a belt in a second division
+            // was not unlikely in the past, it was impossible. Same fault as the vacancies immediately
+            // above, and it was missed when that one was fixed.
+            SettleDueStepUps();
             ComputeAwardsFor(y);
         }
         Date = new DateOnly(startYear, 1, 1);
