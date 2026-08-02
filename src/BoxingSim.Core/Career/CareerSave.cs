@@ -42,6 +42,9 @@ public sealed class CareerSave
     /// <summary>Every belt's line of succession. Written whole rather than diffed — a century of boxing is a
     /// few thousand short records, which is nothing beside the roster it sits next to.</summary>
     public List<BeltReignSave> Lineage { get; set; } = new();
+
+    /// <summary>Vacant-title fights ordered but not yet fought. See VacantBoutSave.</summary>
+    public List<VacantBoutSave> VacantTitleBouts { get; set; } = new();
     public Dictionary<string, int> Regional { get; set; } = new();   // "Division|Region" → holder Id
     public List<HallOfFamerSave> HallOfFame { get; set; } = new();
     public List<AwardsYearSave> Awards { get; set; } = new();
@@ -95,6 +98,18 @@ public sealed class HallOfFamerSave
 
 /// <summary>One reign in a belt's line of succession, flattened for the save. Names and countries rather than
 /// ids into the roster: the roster is pruned of retired men, and a lineage has to outlive the men in it.</summary>
+/// <summary>A fight for a vacant belt that has been ordered and not yet happened.
+///
+/// Saved because leaving it out let a reload postpone one: the booking lived only in memory, so reopening a
+/// career found the belt still vacant and ordered the fight again from today. A player who saved often could
+/// keep a division waiting forever.</summary>
+public sealed class VacantBoutSave
+{
+    public string Div { get; set; } = "";
+    public string Belt { get; set; } = "";
+    public string On { get; set; } = "";   // yyyy-MM-dd
+}
+
 public sealed class BeltReignSave
 {
     public string Div { get; set; } = "";

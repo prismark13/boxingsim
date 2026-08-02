@@ -173,23 +173,76 @@ public sealed partial class CareerGame
         else _titles.SetRegional(holder.WeightClass, belt, holder);
     }
 
-    /// <summary>Brings the WBC belt into being in 1963 and re-crowns vacant world/regional belts in a division.</summary>
+    // ---- vacant belts ----
+    //
+    // A VACANT BELT IS A FIGHT SOMEBODY HAS TO MAKE, not a hole the world fills the instant it appears. It used
+    // to be settled in the same breath as it fell vacant: a champion retired on 1 January and his successor was
+    // crowned on 1 January, so a belt never spent a day unclaimed and the fight for it happened before anyone
+    // could hear it had been ordered. Real vacancies take months — the body orders it, two men are matched, and
+    // the division waits.
+    //
+    // So it is booked here and fought when the calendar reaches it. Keyed by division and belt so the fortnight
+    // tick cannot order the same fight over and over while it stands vacant.
+    private readonly List<(WeightClass Div, string Belt, DateOnly On)> _vacantBouts = new();
+
+    private Boxer? HolderOf(WeightClass wc, string belt) => belt switch
+    {
+        "WBC" => WbcOf(wc),
+        "IBF" => IbfOf(wc),
+        _ => ChampOf(wc)
+    };
+
+    private void SetHolder(WeightClass wc, string belt, Boxer who, DateOnly on)
+    {
+        if (belt == "WBC") _titles.SetWbc(wc, who, on);
+        else if (belt == "IBF") _titles.SetIbf(wc, who, on);
+        else { _titles.SetChamp(wc, who, on); who.IsChampion = true; }
+    }
+
+    /// <summary>Order a fight for a vacant belt, two to five months out.</summary>
+    private void BookVacantTitle(WeightClass wc, string belt)
+    {
+        if (_vacantBouts.Any(v => v.Div == wc && v.Belt == belt)) return;
+        var on = Date.AddDays(60 + _rng.Next(91));   // 2-5 months, the way one is actually made
+        _vacantBouts.Add((wc, belt, on));
+        LogEvent($"The {belt} {wc.DisplayName()} title is vacant. A fight to fill it is ordered for "
+                 + $"{on:MMMM yyyy}.", kind: "title", div: wc);
+    }
+
+    /// <summary>Fight any vacant-title bout whose night has come. Called from the world tick, so a belt is won
+    /// on the date it was booked for rather than on whatever day the belt happened to fall empty.</summary>
+    private void SettleDueVacantTitles()
+    {
+        for (int i = _vacantBouts.Count - 1; i >= 0; i--)
+        {
+            var v = _vacantBouts[i];
+            if (v.On > Date) continue;
+            _vacantBouts.RemoveAt(i);
+            if (!DivisionActive(v.Div)) continue;
+            // Somebody may have taken it in the meantime — a unification, or a lineal claim. Then there is no
+            // vacancy left to fill and the order lapses, which is what happens in the sport too.
+            if (HolderOf(v.Div, v.Belt) is not null) continue;
+
+            var others = v.Belt switch
+            {
+                "WBC" => new[] { ChampOf(v.Div)?.Id ?? 0, IbfOf(v.Div)?.Id ?? 0 },
+                "IBF" => new[] { ChampOf(v.Div)?.Id ?? 0, WbcOf(v.Div)?.Id ?? 0 },
+                _ => new[] { WbcOf(v.Div)?.Id ?? 0, IbfOf(v.Div)?.Id ?? 0 }
+            };
+            if (ContestVacantTitle(v.Div, v.Belt, others) is { } won)
+                SetHolder(v.Div, v.Belt, won.Winner, won.Night);
+        }
+    }
+
+    /// <summary>Brings the WBC belt into being in 1963 and orders fights for vacant world/regional belts.</summary>
     private void UpdateBeltsFor(WeightClass wc)
     {
         if (!DivisionActive(wc)) return;   // the division doesn't exist yet — no belts to fill
         if (WbcOf(wc) is Boxer w && w.Retired) _titles.SetWbc(wc, null);
-        if (WbcActive && WbcOf(wc) is null)
-        {
-            if (ContestVacantTitle(wc, "WBC", ChampOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0) is { } won)
-                _titles.SetWbc(wc, won.Winner, won.Night);   // announced by ContestVacantTitle, dated to fight night
-        }
-        // The IBF is established in 1983; fill it from the leading contender who isn't already a world champ.
+        if (WbcActive && WbcOf(wc) is null) BookVacantTitle(wc, "WBC");
+        // The IBF is established in 1983; it is filled the same way, by a fight that is ordered and then waited for.
         if (IbfOf(wc) is Boxer iw && iw.Retired) _titles.SetIbf(wc, null);
-        if (IbfActive && IbfOf(wc) is null)
-        {
-            if (ContestVacantTitle(wc, "IBF", ChampOf(wc)?.Id ?? 0, WbcOf(wc)?.Id ?? 0) is { } won)
-                _titles.SetIbf(wc, won.Winner, won.Night);   // announced by ContestVacantTitle, dated to fight night
-        }
+        if (IbfActive && IbfOf(wc) is null) BookVacantTitle(wc, "IBF");
 
         // A line that has ended (its holder retired or moved) is cleared, and a man who now holds every belt
         // going is recognised as the lineal champion — otherwise a division can show an "undisputed" champion

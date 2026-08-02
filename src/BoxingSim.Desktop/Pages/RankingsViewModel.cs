@@ -29,6 +29,11 @@ public sealed class RankingsViewModel : Observable
         });
     }
 
+    /// <summary>The belt holders, shown above the list rather than inside it — see Rebuild.</summary>
+    public ObservableCollection<RankRow> Champions { get; } = new();
+    public bool HasChampions => Champions.Count > 0;
+
+    /// <summary>The contenders, numbered from one.</summary>
     public ObservableCollection<RankRow> Rankings { get; } = new();
 
     private WeightClass _viewDivision;
@@ -73,18 +78,30 @@ public sealed class RankingsViewModel : Observable
     public void Rebuild()
     {
         Rankings.Clear();
+        Champions.Clear();
         var game = _game();
         if (game is not null)
         {
-            int r = 1;
-            foreach (var b in game.RankingBoard(ViewDivision, 15))
+            var (champions, contenders) = game.BoardOf(ViewDivision, 15);
+
+            // The champions are their own block, labelled by the belt each man holds rather than by a number.
+            // They used to head the same list the contenders were numbered in, and while every number was
+            // right the page still read as wrong: with three champions above him, the man labelled #5 sits on
+            // the eighth row, and the eye counts rows.
+            foreach (var b in champions)
             {
-                bool champ = game.IsWorldChampion(b);
                 var belts = game.BeltsHeld(b).Select(x => x.Belt).ToList();
-                Rankings.Add(new RankRow(champ ? "C" : r.ToString(), b.Class, b.Name,
-                                         belts.Count > 0 ? string.Join(" · ", belts) : "",
-                                         b.Record.ToString(), b.Id == game.Player.Id, champ, b));
-                if (!champ) r++;   // contenders are #1 down; the champions sit above the numbering
+                Champions.Add(new RankRow(belts.Count > 0 ? belts[0] : "C", b.Class, b.Name,
+                                          belts.Count > 0 ? string.Join(" · ", belts) : "",
+                                          b.Record.ToString(), b.Id == game.Player.Id, true, b));
+            }
+
+            // #1 is now the first row of its own list.
+            for (int i = 0; i < contenders.Count; i++)
+            {
+                var b = contenders[i];
+                Rankings.Add(new RankRow((i + 1).ToString(), b.Class, b.Name, "",
+                                         b.Record.ToString(), b.Id == game.Player.Id, false, b));
             }
         }
         RaiseAll();

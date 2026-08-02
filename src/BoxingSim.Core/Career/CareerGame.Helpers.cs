@@ -211,13 +211,13 @@ public sealed partial class CareerGame
     private int BoardPlace(Boxer b)
     {
         if (IsWorldChampion(b)) return 0;
-        int place = 0;
-        foreach (var man in RankingBoard(b.WeightClass, 15))
-        {
-            if (IsWorldChampion(man)) continue;   // above the numbering, not part of it
-            place++;
-            if (man.Id == b.Id) return place;
-        }
+        // The contender list itself, so a place is its position in the list the page prints and cannot come out
+        // as a different number. Walking the combined board and skipping champions gave the same answer only
+        // while the page did its own skipping in the same order — two derivations of one fact, agreeing by
+        // luck.
+        var (_, contenders) = BoardOf(b.WeightClass, 15);
+        for (int i = 0; i < contenders.Count; i++)
+            if (contenders[i].Id == b.Id) return i + 1;
         return 0;
     }
 

@@ -42,22 +42,32 @@ public sealed partial class CareerGame
     private FightOffer Grant(string belt, Boxer champ)
     {
         _shot = new TitleShot(belt, champ.Id, ProFights(Player));
+        // A division has one champion, so once the rebuild is served the man at the end of it is often the same
+        // man — and calling that "WBA title shot" tells the player nothing about the only thing that makes it
+        // worth taking. It is a return with the belt on it, and it says so. Same truth as DefenceContext, read
+        // from the challenger's side.
+        bool again = RecentFoes(Player, 3).Contains(champ.Name);
         return new FightOffer { Opponent = champ, Rounds = 12, TitleFight = true, Belt = belt,
-                                Context = $"{belt} title shot" };
+                                Context = again ? $"rematch — the {belt} title, and it is his" : $"{belt} title shot" };
     }
 
     /// <summary>He turned down a belt. The sanctioning body does not hold it open: the champion is ordered to
     /// defend against somebody else, and the player waits the same few fights he would have waited had he
     /// taken the shot and lost it. This is the rule that makes refusing a title fight a decision.</summary>
-    private void ForfeitShot()
+    private void ForfeitShot(string belt, Boxer? champion)
     {
-        if (_shot is not { } s) return;
-        var champ = _roster.FirstOrDefault(b => b.Id == s.ChampionId);
+        // The rebuild is owed for REFUSING A BELT, not for refusing a granted one. This used to return early
+        // when no shot had been formally granted — and a title fight can reach the player without one, because
+        // a rematch with a champion is offered as itself and carries the belt with it. Turn that down and it
+        // cost nothing at all: the cooldown was never set, so the same championship came back on the next
+        // slate, and the next. The rule this whole mechanism exists to enforce had a door in it.
+        var named = _shot is { } s ? _roster.FirstOrDefault(b => b.Id == s.ChampionId) : null;
+        champion ??= named;
         _shot = null;
         _lastTitleShot = ProFights(Player);   // the same rebuild gap as if he had taken it
-        LogEvent(champ is null
-                     ? $"{Player.Name} passes on the {s.Belt} title fight. The shot goes elsewhere."
-                     : $"{Player.Name} passes on {champ.Name}. The {s.Belt} orders him to defend against somebody else.",
+        LogEvent(champion is null
+                     ? $"{Player.Name} passes on the {belt} title fight. The shot goes elsewhere."
+                     : $"{Player.Name} passes on {champion.Name}. The {belt} orders him to defend against somebody else.",
                  playerBout: true, kind: "title");
     }
 
@@ -110,6 +120,18 @@ public sealed partial class CareerGame
     /// <summary>Where a man stands on his division's board, or 0. For the UI, which cannot see the ranking
     /// internals but has to say "#4" beside a name for it to mean anything.</summary>
     public int PlaceOf(Boxer b) => BoardPlace(b);
+
+    /// <summary>What a defence IS, in the line the player reads.
+    ///
+    /// PickChallenger's first move is to hand back a man the champion owes a return — a split card, a night he
+    /// was dropped and got up — and it deliberately walks past the rule that says "not a man he has just
+    /// fought", because settling that is the whole point. The offer then went out labelled "WBA title defence"
+    /// with no hint of why the same face was in front of him a fight later. The reason is the interesting part
+    /// of the fight; a card that will not say it reads like the matchmaker repeating himself.</summary>
+    private string DefenceContext(string plain, Boxer challenger) =>
+        RematchFoeFor(Player)?.Id == challenger.Id
+            ? $"rematch — {RematchWhy(Player, challenger)}, and the belt is on it"
+            : plain;
 
     /// <summary>This cycle's choices. At most one of them can be a belt.</summary>
     private List<FightOffer> BuildSlate()
@@ -209,7 +231,8 @@ public sealed partial class CareerGame
             var chall = PickChallenger(Player, null)   // a top-10 contender he hasn't just fought
                      ?? ranked.FirstOrDefault(b => b.Id != Player.Id);
             if (chall is not null)
-                return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = UndisputedBelt, Context = "undisputed title defence" };
+                return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = UndisputedBelt,
+                                        Context = DefenceContext("undisputed title defence", chall) };
         }
         else if (holdsWba || holdsWbc || holdsIbf)
         {
@@ -217,26 +240,37 @@ public sealed partial class CareerGame
             var chall = PickChallenger(Player, null)   // a top-10 contender he hasn't just fought
                      ?? ranked.FirstOrDefault(b => b.Id != Player.Id);
             if (chall is not null)
-                return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = belt, Context = $"{belt} title defence" };
+                return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = belt,
+                                        Context = DefenceContext($"{belt} title defence", chall) };
         }
 
         // The fight he is owed, or owes. A draw, a split card, a cut that stopped it, a night he was beaten by
         // somebody nobody rated - the public wants it settled, and it is offered to him before the matchmaker
         // goes back to building his record. He can still turn it down; it stays wanted.
+        // After a title bout, rebuild with a few wins before the next shot — no back-to-back challenges.
+        bool titleCooldownOk = proFights - _lastTitleShot >= 3;
+
         if (RematchFoeFor(Player) is Boxer again)
         {
             // A rematch with a champion is for the belt - it is the same fight, and the belt was on it.
             string? belt = Champion?.Id == again.Id ? PrimaryBelt
                          : WbcChampion?.Id == again.Id ? "WBC"
                          : IbfChampion?.Id == again.Id ? "IBF" : null;
-            return new FightOffer
-            {
-                Opponent = again,
-                Rounds = belt is not null || WorldRanked(again) ? 12 : 10,
-                TitleFight = belt is not null,
-                Belt = belt,
-                Context = $"rematch — {RematchWhy(Player, again)}"
-            };
+            // WHICH MAKES IT A TITLE SHOT, and the rules a title shot lives under apply to it. This branch sat
+            // above them and answered to none: refuse a world title and the same champion came back on the
+            // very next slate as "the fight you are owed", so the forfeit that exists to make refusing a belt
+            // cost something cost nothing at all. He is not offered a man he has just turned down either —
+            // the ordinary path has always steered round _declined, and this walked straight through it.
+            bool blocked = belt is not null && (!titleCooldownOk || _declined.Contains(again.Id));
+            if (!blocked)
+                return new FightOffer
+                {
+                    Opponent = again,
+                    Rounds = belt is not null || WorldRanked(again) ? 12 : 10,
+                    TitleFight = belt is not null,
+                    Belt = belt,
+                    Context = $"rematch — {RematchWhy(Player, again)}"
+                };
         }
 
         // A title shot is earned by being world-ranked (top 5) with a real body of work behind you:
@@ -250,8 +284,6 @@ public sealed partial class CareerGame
         // buys the shorter apprenticeship. He then owed twenty-four fights to challenge for a belt he had been
         // wearing a month earlier, and the tune-up count everyone was looking at had nothing to do with it.
         bool servedHisApprenticeship = proFights >= fightsToRank || _hall.WasEverChampion(Player.Id);
-        // After a title bout, rebuild with a few wins before the next shot — no back-to-back challenges.
-        bool titleCooldownOk = proFights - _lastTitleShot >= 3;
         if (idx >= 0 && idx <= 4 && servedHisApprenticeship && titleCooldownOk && !RecentlyMovedUp(Player))
         {
             // The opportunity he already has, if it is still real, before any new one is minted. A shot is a

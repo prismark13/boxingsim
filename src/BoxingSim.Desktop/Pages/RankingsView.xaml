@@ -36,10 +36,23 @@
                         HorizontalAlignment="Right" Padding="12,5" FontSize="11" />
             </Grid>
         </Border>
+        <!-- The champions above the list, not in it. They headed the same list the contenders were numbered
+             in, and although every number was right the page read as wrong: with three champions up top the
+             man labelled #5 is on the eighth row, and the eye counts rows. -->
         <Border Grid.Row="2" Style="{StaticResource Card}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Padding="0,4,0,8">
-                <ItemsControl ItemsSource="{Binding Rankings}" ItemTemplate="{StaticResource RankRowTemplate}" />
+                <StackPanel>
+                    <StackPanel Visibility="{Binding HasChampions, Converter={StaticResource BoolVis}}">
+                        <TextBlock Text="CHAMPIONS" Style="{StaticResource PanelHeader}" Margin="16,8,0,2" />
+                        <ItemsControl ItemsSource="{Binding Champions}"
+                                      ItemTemplate="{StaticResource RankRowTemplate}" />
+                        <Border Height="1" Background="{StaticResource Line}" Margin="16,10,16,4" />
+                    </StackPanel>
+                    <TextBlock Text="CONTENDERS" Style="{StaticResource PanelHeader}" Margin="16,8,0,2"
+                               Visibility="{Binding HasChampions, Converter={StaticResource BoolVis}}" />
+                    <ItemsControl ItemsSource="{Binding Rankings}" ItemTemplate="{StaticResource RankRowTemplate}" />
+                </StackPanel>
             </ScrollViewer>
         </Border>
     </Grid>

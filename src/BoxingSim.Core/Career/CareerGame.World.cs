@@ -69,6 +69,7 @@ public sealed partial class CareerGame
         if (next > target) next = target;
         AdvanceClockTo(next);
         CatchUpYears();
+        SettleDueVacantTitles();   // a belt ordered months ago is fought for when the night comes round
         RunEvent();
         return NewsSince(mark);
     }
@@ -176,11 +177,9 @@ public sealed partial class CareerGame
             if (champ is null || champ.Retired)
             {
                 _titles.SetChamp(wc, null);
-                var won = ContestVacantTitle(wc, PrimaryBelt, WbcOf(wc)?.Id ?? 0, IbfOf(wc)?.Id ?? 0);
-                if (won is { } v)   // announced by ContestVacantTitle, dated to fight night
-                {
-                    _titles.SetChamp(wc, v.Winner, v.Night); v.Winner.IsChampion = true;
-                }
+                // Ordered rather than settled on the spot — see BookVacantTitle. A champion retiring on
+                // 1 January used to have his successor crowned on 1 January.
+                BookVacantTitle(wc, PrimaryBelt);
             }
         }
 

@@ -69,6 +69,12 @@ public class MovingUpTests
             while (warmups <= 4 && g.Offer is not null && !g.Player.Retired)
             {
                 if (g.Slate.Any(IsWorldTitle)) { outcome = $"belt offered after {warmups}"; break; }
+                // Nobody can be offered a belt that nobody is holding. A vacancy is a fight the sport has to
+                // order and then wait two to five months for, so a champion who moves up into a division whose
+                // title is sitting empty is not being overlooked — there is simply nothing to challenge for
+                // yet, and counting it against the promise measures the calendar rather than the rule.
+                if (g.Champion is null && g.WbcChampion is null && g.IbfChampion is null)
+                { outcome = $"the division's belts were vacant after {warmups}"; break; }
                 int lossesBefore = g.Player.Record.Losses;
                 g.TakeOffer();
                 warmups++;
@@ -85,7 +91,7 @@ public class MovingUpTests
             // Dropped from the sample for the same reason a loss is: nobody is owed a title shot who is no
             // longer a fighter. Reported rather than hidden, because "he retired" is the answer to a different
             // and more interesting question — see MovingUpDoesNotEndCareers.
-            if (outcome.StartsWith("RETIRED")) continue;
+            if (outcome.StartsWith("RETIRED") || outcome.StartsWith("the division's belts")) continue;
             if (outcome.StartsWith("no belt") || (outcome.StartsWith("belt offered") && warmups > 2))
                 tooLong.Add(seen[^1]);
         }

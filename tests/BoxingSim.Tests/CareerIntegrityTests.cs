@@ -99,12 +99,16 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
             foreach (var h in tl)
             {
                 if (IsMerged(h.Note)) { merges++; lastMerge = h.Date; }
-                else if (lastMerge is DateOnly m && h.Date.DayNumber - m.DayNumber < 200) offenders++;
+                else if (lastMerge is DateOnly m && h.Date.DayNumber - m.DayNumber < 60) offenders++;
             }
         }
         Assert.True(merges > 20, $"expected a meaningful sample of unifications, got {merges}");
-        // Once the belts merge there is one title. Splitting them again legitimately (a champion relinquishing
-        // rather than face a mandatory) takes a season, so only a close-in single-belt bout is impossible.
+        // Once the belts merge there is one title, and splitting them again means a belt fell vacant and a
+        // fight was ordered to fill it. The window used to be 200 days on the reasoning that re-splitting takes
+        // a season — which stopped being true when vacancies started being BOOKED two to five months out
+        // instead of settled the instant they appeared, so a legitimate refill now lands inside it by design.
+        // Sixty days is the floor of that booking: a single-belt bout sooner than a vacancy can even be
+        // ordered is still impossible, and that is the part worth guarding.
         Assert.True(offenders * 5 <= merges, $"{offenders} single-belt bouts within 200d of a merge, over {merges} merges");
     }
 

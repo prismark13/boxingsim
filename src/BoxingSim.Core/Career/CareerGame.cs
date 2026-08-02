@@ -253,24 +253,41 @@ public sealed partial class CareerGame
     /// the sim protects a prospect from shouldn't shift just because a board lists champions differently.</summary>
     public IReadOnlyList<Boxer> RankingBoard(WeightClass wc, int take = 15)
     {
+        var (champions, contenders) = BoardOf(wc, take);
+        return champions.Concat(contenders).Take(take).ToList();
+    }
+
+    /// <summary>A division split the way a board is actually read: the men holding belts, and the contenders
+    /// behind them.
+    ///
+    /// The two were one list, with the champions occupying the first rows and the contenders numbered from one
+    /// underneath them. Every number was correct and the page still read as wrong, because with three champions
+    /// up top the man labelled #5 is sitting on the eighth row and the eye counts rows. Handing the two out
+    /// separately lets the champions be shown as what they are — a block, by belt — and lets #1 be the first
+    /// contender row rather than the fourth thing down.
+    ///
+    /// One source for both halves, because the number printed beside a man ANYWHERE comes from this list (see
+    /// BoardPlace). When the page and the fight offer each worked out a place for themselves, they disagreed.</summary>
+    public (IReadOnlyList<Boxer> Champions, IReadOnlyList<Boxer> Contenders) BoardOf(WeightClass wc, int take = 15)
+    {
         var champions = ActiveIn(wc).Where(IsWorldChampion).OrderByDescending(RankScore).ToList();
         var champIds = champions.Select(b => b.Id).ToHashSet();
         var contenders = ActiveIn(wc).Where(b => RankedContender(b) && !champIds.Contains(b.Id))
                                      .OrderByDescending(RankScore).ToList();
-        var board = champions.Concat(contenders).Take(take).ToList();
 
         // A board is never half empty. To be a RANKED contender a man needs twenty bouts and a 65% win rate,
         // and there are stretches - a young world, a generation retiring together - where a division of two
         // hundred active fighters has only a handful who clear both. Real bodies rank someone regardless, so
         // the rest of the list is topped up with the best of who is actually there.
-        if (board.Count < take)
+        if (contenders.Count < take)
         {
-            var have = board.Select(b => b.Id).ToHashSet();
-            board.AddRange(ActiveIn(wc).Where(b => !have.Contains(b.Id) && ProFights(b) >= 8)
-                                       .OrderByDescending(RankScore)
-                                       .Take(take - board.Count));
+            var have = contenders.Select(b => b.Id).ToHashSet();
+            contenders.AddRange(ActiveIn(wc).Where(b => !have.Contains(b.Id) && !champIds.Contains(b.Id)
+                                                        && ProFights(b) >= 8)
+                                            .OrderByDescending(RankScore)
+                                            .Take(take - contenders.Count));
         }
-        return board;
+        return (champions, contenders.Take(take).ToList());
     }
 
     /// <summary>True if the fighter currently holds any world belt (WBA/WBC/IBF) in his division.</summary>
@@ -488,6 +505,9 @@ public sealed partial class CareerGame
         foreach (var kv in s.LinealChampions) if (Enum.TryParse<WeightClass>(kv.Key, out var wc) && byId.TryGetValue(kv.Value, out var c)) _titles.LoadBelt(wc, "Ring", c);
         _lastTitleShot = s.LastTitleShot;
         if (s.WarmupUntilFights > 0) _warmupUntil[s.PlayerId] = s.WarmupUntilFights;
+        foreach (var v in s.VacantTitleBouts)
+            if (Enum.TryParse<WeightClass>(v.Div, out var vd) && DateOnly.TryParse(v.On, out var von))
+                _vacantBouts.Add((vd, v.Belt, von));
         if (s.ShotBelt is string sb) _shot = new TitleShot(sb, s.ShotChampionId, s.ShotGrantedAtFights);
         _declined.AddRange(s.Declined);
         foreach (var h in s.Historical) _historical[h.Id] = (h.Prime.ToRatings(), h.Peak);
@@ -599,6 +619,9 @@ public sealed partial class CareerGame
             ShotBelt = _shot?.Belt, ShotChampionId = _shot?.ChampionId ?? 0,
             ShotGrantedAtFights = _shot?.GrantedAtFights ?? 0,
             WarmupUntilFights = _warmupUntil.GetValueOrDefault(Player.Id),
+            VacantTitleBouts = _vacantBouts
+                .Select(v => new VacantBoutSave { Div = v.Div.ToString(), Belt = v.Belt, On = v.On.ToString("yyyy-MM-dd") })
+                .ToList(),
             Declined = _declined.ToList()
         };
         foreach (var kv in _titles.AllChampions) if (kv.Value is Boxer c) s.Champions[kv.Key.ToString()] = c.Id;

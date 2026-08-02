@@ -1,3 +1,4 @@
+using System.Linq;
 using BoxingSim.Core.Career;
 using BoxingSim.Core.Model;
 using Xunit;
@@ -27,17 +28,18 @@ public class RankingLabelTests
 
         foreach (var wc in g.LiveDivisions)
         {
-            var board = g.RankingBoard(wc, 15);
+            // The board as the page now lays it out: a block of champions, and a numbered list of contenders
+            // under it. The two used to be one list with the champions taking the first rows, which is what
+            // this test was written against — every number was right and the page still read as wrong, because
+            // with three champions up top the man labelled #5 sits on the eighth row.
+            var (champions, contenders) = g.BoardOf(wc, 15);
+            foreach (var man in champions)
+                Assert.True(g.PlaceOf(man) == 0,
+                            $"{man.Name} holds a belt in {wc}, so he sits above the numbering — but a place "
+                            + $"of #{g.PlaceOf(man)} would be printed for him on a bill.");
             int expected = 0;
-            foreach (var man in board)
+            foreach (var man in contenders)
             {
-                if (g.IsWorldChampion(man))
-                {
-                    Assert.True(g.PlaceOf(man) == 0,
-                                $"{man.Name} holds a belt in {wc}, so he sits above the numbering — but a place "
-                                + $"of #{g.PlaceOf(man)} would be printed for him on a bill.");
-                    continue;
-                }
                 expected++;
                 Assert.True(g.PlaceOf(man) == expected,
                             $"{man.Name} is #{expected} on the {wc} rankings page but #{g.PlaceOf(man)} "
@@ -55,7 +57,8 @@ public class RankingLabelTests
         for (int i = 0; i < 8 && g.Offer is not null && !g.Player.Retired; i++) g.TakeOffer();
 
         var wc = g.Player.WeightClass;
-        var onTheBoard = g.RankingBoard(wc, 15).Select(b => b.Id).ToHashSet();
+        var (champs, ranked) = g.BoardOf(wc, 15);
+        var onTheBoard = champs.Concat(ranked).Select(b => b.Id).ToHashSet();
         int checkedOff = 0;
 
         foreach (var b in g.EveryFighter.Where(b => !b.Retired && b.WeightClass == wc && !onTheBoard.Contains(b.Id)))
