@@ -59,13 +59,12 @@
                         Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
                         ToolTip="The date has come — first bell"
                         Visibility="{Binding ReadyToFight, Converter={StaticResource BoolVis}}" />
-                <Button Content="Continue" Command="{Binding StepForward}"
+                <!-- One button. "Continue" and "Go to fight night" did the same thing once the weeks stopped
+                     being stepped through one at a time, and two controls for one action is what this row
+                     was cleaned up from once already. -->
+                <Button Content="Go to fight night" Command="{Binding RunTheRest}"
                         Style="{StaticResource PrimaryButton}" Padding="14,10" FontSize="13"
-                        ToolTip="One more week"
-                        Visibility="{Binding InCamp, Converter={StaticResource BoolVis}}" />
-                <Button Grid.Column="2" Content="Go to fight night" Command="{Binding RunTheRest}"
-                        Padding="14,10" FontSize="13"
-                        ToolTip="Run the remaining weeks straight through to the first bell"
+                        ToolTip="Run the weeks straight through to the first bell"
                         Visibility="{Binding InCamp, Converter={StaticResource BoolVis}}" />
                 <Button Grid.Column="2" Content="Turn it down" Command="{Binding HoldOut}"
                         Padding="14,10" FontSize="13"
@@ -95,41 +94,11 @@
                                        Foreground="{StaticResource Faint}" VerticalAlignment="Center" />
                         </Grid>
 
-                        <!-- A fight in his own division worth stopping for. The round-by-round is
-                             already stored for these, so it can actually be watched. -->
-                        <Border Background="{StaticResource AccentSoft}" BorderBrush="{StaticResource Accent}"
-                                BorderThickness="1" CornerRadius="8" Padding="12,9" Margin="0,10,0,0"
-                                Visibility="{Binding HasTheOne, Converter={StaticResource BoolVis}}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="IN YOUR DIVISION, TONIGHT" FontSize="11"
-                                               FontWeight="SemiBold" Foreground="{StaticResource Accent}" />
-                                    <TextBlock Text="{Binding TheOne}" FontSize="15"
-                                               Foreground="{StaticResource Text}" Margin="0,3,0,0"
-                                               TextWrapping="Wrap" />
-                                </StackPanel>
-                                <!-- Two answers, because there are two. Offering only "Watch it" left no way
-                                     to decline it: the result was being held back from the feed for a fight
-                                     the player might never open, so saying no had to be sayable. Either
-                                     answer settles it and the feed gives up the result. -->
-                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Command="{Binding WatchTheOne}" Style="{StaticResource PrimaryButton}"
-                                            Padding="14,7" AutomationProperties.Name="Watch it"
-                                            ToolTip="Watch the fight, round by round">
-                                        <TextBlock><Run Text="✓" FontSize="14" /><Run Text="  Watch it" /></TextBlock>
-                                    </Button>
-                                    <Button Command="{Binding SkipTheOne}" Padding="14,7" Margin="8,0,0,0"
-                                            AutomationProperties.Name="Don't watch it"
-                                            ToolTip="Skip it — the result goes into the feed">
-                                        <TextBlock><Run Text="✗" FontSize="14" /><Run Text="  Not tonight" /></TextBlock>
-                                    </Button>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                        <!-- There was a "worth stopping for" panel here that halted the run-up and asked
+                             whether you wanted to watch a fight in your own division. It is gone with the
+                             stop: the build-up runs straight to fight night now, and every result in the feed
+                             is already openable, so the fight can still be watched — by choosing to, rather
+                             than by being interrupted and asked. -->
 
                         <!-- Taller than it was. This is the main thing on the page while the
                              weeks run — the sport happening on the way to your fight — not a
@@ -544,13 +513,9 @@
                                Foreground="{StaticResource Muted}" FontSize="13" />
                 </Border>
 
-                <Border Style="{StaticResource Card}"
-                        Visibility="{Binding HasLedger, Converter={StaticResource BoolVis}}">
-                    <StackPanel>
-                        <TextBlock Text="FIGHT RECORD" Style="{StaticResource PanelHeader}" />
-                        <ItemsControl ItemsSource="{Binding Ledger}" ItemTemplate="{StaticResource LedgerRowTemplate}" />
-                    </StackPanel>
-                </Border>
+                <!-- No fight record here. This page is the fight in front of him and the weeks between now
+                     and it; his own history belongs on the pages that are about him, and repeating it under
+                     the poster only pushed the build-up further down. -->
             </StackPanel>
         </ScrollViewer>
     </Grid>

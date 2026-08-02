@@ -451,22 +451,10 @@ public sealed class CareerViewModel : Observable
         ResolveCard = new Cmd(DoResolveCard, () => CanResolveCard);
         SkipBout = new Cmd(DoSkipBout);
         LeaveArena = new Cmd(DoLeaveArena);
-        StepForward = new Cmd(() =>
-        {
-            if (AwaitingStep) ReleaseGate();
-            else if (!_waiting) Take(resuming: true);
-        });
-        RunTheRest = new Cmd(() =>
-        {
-            _autoRest = true;
-            _autoRestPending = true;      // survives into a resumed run, which resets _autoRest
-            if (AwaitingStep) ReleaseGate();
-            else if (!_waiting) Take(resuming: true);
-        });
-        // Both of these end a held run, so both have to let go of the gate or the loop waits for ever.
+        RunTheRest = new Cmd(() => { if (!_waiting) Take(resuming: true); });
         CloseNewsDrawer = new Cmd(() => NewsOpen = false);
         WaitForFight = new Cmd(DoWaitForFight);
-        StopWaiting = new Cmd(() => { _waiting = false; ReleaseGate(); Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); RaiseCampGates(); });
+        StopWaiting = new Cmd(() => { _waiting = false; Raise(nameof(IsWaiting)); Raise(nameof(ShowCamp)); RaiseCampGates(); });
         WatchTheOne = new Cmd(DoWatchTheOne);
         SkipTheOne = new Cmd(DoSkipTheOne);
         ShowFighter = new Cmd(OnShowFighter);
@@ -1205,9 +1193,6 @@ public sealed class CareerViewModel : Observable
     // The build-up ran itself: a week every 550ms, a bout every 1250ms, and you sat and watched it go past.
     // Putting the weeks on screen was meant to let them be READ. So the default now is that it waits for you.
 
-    private TaskCompletionSource<bool>? _gate;
-    private bool _autoRest;
-    private bool _autoRestPending;
 
     /// <summary>Whether there is any wait left to carry on with — held between weeks OR stopped for something.
     ///
@@ -1311,11 +1296,17 @@ public sealed class CareerViewModel : Observable
     private FightOffer? _pickedOffer;
     private bool _picked => _pickedOffer is not null && ReferenceEquals(_pickedOffer, Game?.Offer);
 
-    /// <summary>Record the pick, then redraw everything that keys off it.</summary>
+    /// <summary>Picking a fight IS agreeing to it.
+    ///
+    /// Choosing one off the slate used to only SELECT it, and the fight then had to be accepted a second time
+    /// on a different panel. Two presses for one decision, and the second one asked a question the first had
+    /// already answered — the slate exists so that choosing between nights is the decision, and there is
+    /// nothing left to confirm once it is made. Turning one down is still on the table until it is picked.</summary>
     private void OnPicked()
     {
         _pickedOffer = Game?.Offer;
         RefreshAll();
+        Take();
     }
 
     /// <summary>There are fights on the table and he has picked none of them.</summary>
@@ -1332,34 +1323,11 @@ public sealed class CareerViewModel : Observable
         RaiseCampGates();
     }
 
-    /// <summary>True while the run is holding, waiting to be told to go on. What the Continue button hangs off.</summary>
-    public bool AwaitingStep => _gate is not null;
-
-    public Cmd StepForward { get; }
     public Cmd RunTheRest { get; }
 
-    /// <summary>Hold until the player presses Continue — or fall back to a timer when they have asked for it
-    /// to run itself, either as a setting or by pressing "run the rest" during this one.
-    ///
-    /// Every way out of the panel must call <see cref="ReleaseGate"/>. A gate nobody opens is a hang with no
-    /// way out of it, and these panels cover the window.</summary>
-    private Task Gate(int autoMs)
-    {
-        if (!_prefs.StepByStep || _autoRest)
-            return Task.Delay(Math.Max(1, (int)(autoMs / Math.Max(0.25, Speed))));
-
-        _gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Raise(nameof(AwaitingStep));
-        return _gate.Task;
-    }
-
-    private void ReleaseGate()
-    {
-        var g = _gate;
-        _gate = null;
-        g?.TrySetResult(true);
-        Raise(nameof(AwaitingStep));
-    }
+    // There was a Gate here, and a "Wait for me between weeks" setting behind it, holding the run after every
+    // week of the build-up. The run-up happens in one pass now (see RunToFightNight), so there is nothing left
+    // to hold — and a setting whose checkbox does nothing is worse than no setting.
 
     // ---- the two build-up settings, bound straight to the checkboxes that set them ----
 
@@ -1400,12 +1368,6 @@ public sealed class CareerViewModel : Observable
     {
         get => _prefs.LiveUndercard;
         set { if (_prefs.LiveUndercard == value) return; _prefs.LiveUndercard = value; _prefs.Save(); Raise(); }
-    }
-
-    public bool StepByStep
-    {
-        get => _prefs.StepByStep;
-        set { if (_prefs.StepByStep == value) return; _prefs.StepByStep = value; _prefs.Save(); Raise(); }
     }
 
     /// <summary>The sound toggle, as a checkbox rather than the button on the playback bar, so all three
@@ -1569,57 +1531,51 @@ public sealed class CareerViewModel : Observable
     {
         if (Game is null || _waiting) return;
         _waiting = true;
-        // Asked for once, for this run — except when "run the rest" is what restarted it.
-        _autoRest = _autoRestPending;
-        _autoRestPending = false;
         if (!resuming) { Camp.Clear(); _campAll.Clear(); }
         SettleTheOne();
         foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(HasTheOne), nameof(TheOne) }) Raise(n);
         RaiseCampGates();
 
-        while (_waiting)
+        // THE WHOLE RUN-UP, IN ONE PASS.
+        //
+        // This used to be a week at a time on the UI thread: a background call, a busy banner, a dispatcher
+        // round trip and a 550ms pause, times however many weeks were left — so agreeing to a fight four
+        // months out meant a dozen visible stalls and the results of the sport arriving one line at a time.
+        // On top of that the run stopped to ask whether you wanted to watch anything interesting in your own
+        // division, and stopped again for the turn of the year. What should have been "get me to fight night"
+        // was half a minute of pressing Continue.
+        //
+        // The sport is simulated once, in the background, and everything it did arrives together. It is the
+        // same weeks and the same results; the only thing that has gone is the waiting.
+        var all = new List<CareerEvent>();
+        BusyMessage = "Running the weeks to fight night…";
+        Busy = true;
+        System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
+        try
         {
-            // A week of the whole sport can take a moment, and pressing Continue used to give nothing back
-            // but a cursor — which on a busy world reads as a click that did not register. Say what is
-            // happening, in the banner the rest of the app already uses for work that takes time.
-            IReadOnlyList<CareerEvent>? week;
-            BusyMessage = "Simulating the week…";
-            Busy = true;
-            System.Windows.Input.Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
-            try { week = await Task.Run(() => Game?.WaitAWeek()); }
-            finally
+            await Task.Run(() =>
             {
-                System.Windows.Input.Mouse.OverrideCursor = null;
-                Busy = false;
-            }
-            if (week is null) break;
-
-            // Something in his own weight worth watching stops the clock and asks. Decided BEFORE the rows are
-            // built, because ToCamp withholds the result of whichever bout is being offered — settle it after
-            // the lines exist and the one line that must not give the game away already has.
-            if (_theOne is null && Game.WorthWatching(week) is BoutRef b)
-            {
-                _theOne = b;
-                TheOne = Unordered(b);
-                _waiting = false;
-                foreach (var n in new[] { nameof(HasTheOne), nameof(TheOne) }) Raise(n);
-            }
-
-            foreach (var e in week)
-            {
-                var row = ToCamp(e);
-                _campAll.Insert(0, row);
-                if (Shows(row)) Camp.Insert(0, row);
-            }
-            Raise(nameof(CampCountLabel));
-            foreach (var n in new[] { nameof(CampCountdown), nameof(CampDate) }) Raise(n);
-            RaiseCampGates();
-            CheckForAwards();
-            if (ShowYearAwards) _waiting = false;   // the year turning stops the clock; it is an occasion
-
-            // Held here until Continue, or a week a second if it has been asked to run itself.
-            if (_waiting) await Gate(550);
+                IReadOnlyList<CareerEvent>? week;
+                while ((week = Game?.WaitAWeek()) is not null) all.AddRange(week);
+            });
         }
+        finally
+        {
+            System.Windows.Input.Mouse.OverrideCursor = null;
+            Busy = false;
+        }
+
+        // Newest first, the way the feed reads.
+        foreach (var e in all)
+        {
+            var row = ToCamp(e);
+            _campAll.Insert(0, row);
+            if (Shows(row)) Camp.Insert(0, row);
+        }
+        // Nothing is being held back to be watched later, so nothing is hidden.
+        SettleTheOne();
+        Raise(nameof(CampCountLabel));
+
         _waiting = false;
         foreach (var n in new[] { nameof(IsWaiting), nameof(ShowCamp), nameof(CampCountdown), nameof(CampDate) }) Raise(n);
         RaiseCampGates();
