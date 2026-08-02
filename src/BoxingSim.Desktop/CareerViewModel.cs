@@ -1973,11 +1973,9 @@ public sealed class CareerViewModel : Observable
         }
         w = Math.Max(0, w); l = Math.Max(0, l); d = Math.Max(0, d);
         ko = Math.Max(0, ko); tko = Math.Max(0, tko);
-        string wld = $"{w}-{l}-{d}";
-        if (ko == 0 && tko == 0) return wld;
-        if (tko == 0) return $"{wld} ({ko} KO)";
-        if (ko == 0) return $"{wld} ({tko} TKO)";
-        return $"{wld} ({ko} KO / {tko} TKO)";
+        // Wound back the same way it is shown: one figure for everything inside the distance. The two are
+        // still counted apart above, because a cut stoppage must not be undone from the knockout column.
+        return ko + tko > 0 ? $"{w}-{l}-{d} ({ko + tko} KO)" : $"{w}-{l}-{d}";
     }
 
     private void Play(FightResult res, Boxer pov, string billLine, string verdict, DateOnly? bout = null)
@@ -2274,9 +2272,7 @@ public sealed class CareerViewModel : Observable
 
         if (r.Wins > 0)
             rows.Add(new StatRow("KO ratio", $"{100.0 * r.StoppageWins / r.Wins:0}%",
-                                 r.TechnicalKnockoutWins > 0
-                                     ? $"{r.StoppageWins} of {r.Wins} wins inside the distance — {r.KnockoutWins} by knockout"
-                                     : $"{r.StoppageWins} of {r.Wins} wins inside the distance"));
+                                 $"{r.StoppageWins} of {r.Wins} wins inside the distance"));
         rows.Add(new StatRow("Stopped", r.Losses > 0 ? $"{r.StoppageLosses} of {r.Losses}" : "never",
                              r.Losses == 0 ? "unbeaten" :
                              r.StoppageLosses == 0 ? "never stopped - he has always heard the final bell"

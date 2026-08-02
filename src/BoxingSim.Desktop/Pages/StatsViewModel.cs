@@ -25,7 +25,8 @@ public sealed class StatsViewModel : Observable
         if (game is null) { RaiseAll(); return; }
         var p = game.Player;
         int fights = p.Record.Wins + p.Record.Losses + p.Record.Draws;
-        int koPct = p.Record.Wins > 0 ? (int)Math.Round(100.0 * p.Record.KnockoutWins / p.Record.Wins) : 0;
+        // Everything inside the distance, matching the figure the record itself prints.
+        int koPct = p.Record.Wins > 0 ? (int)Math.Round(100.0 * p.Record.StoppageWins / p.Record.Wins) : 0;
 
         var titleWins = p.History.Count(h => h.Result == 'W' && h.Note is not null && h.Note.EndsWith(" title"));
         var reigns = game.Reigns.ToList();
@@ -44,10 +45,7 @@ public sealed class StatsViewModel : Observable
                                .OrderByDescending(h => h.Date).FirstOrDefault();
 
         Stats.Add(new StatRow("Record", p.Record.ToString(), $"{fights} fights"));
-        Stats.Add(new StatRow("Knockout wins", $"{p.Record.KnockoutWins}",
-                              p.Record.TechnicalKnockoutWins > 0
-                                  ? $"{koPct}% of wins, and {p.Record.TechnicalKnockoutWins} more by stoppage"
-                                  : $"{koPct}% of wins"));
+        Stats.Add(new StatRow("Knockout wins", $"{p.Record.StoppageWins}", $"{koPct}% of wins"));
         Stats.Add(new StatRow("Longest win streak", best.ToString(), best >= 10 ? "a real run" : ""));
         Stats.Add(new StatRow("Title bouts won", titleWins.ToString(), ""));
         Stats.Add(new StatRow("Title reigns", reigns.Count.ToString(),

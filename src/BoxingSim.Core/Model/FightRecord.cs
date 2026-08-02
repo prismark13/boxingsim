@@ -27,12 +27,16 @@ public sealed class FightRecord
 
     public int Fights => Wins + Losses + Draws;
 
-    public override string ToString()
-    {
-        string wld = $"{Wins}-{Losses}-{Draws}";
-        if (KnockoutWins == 0 && TechnicalKnockoutWins == 0) return wld;
-        if (TechnicalKnockoutWins == 0) return $"{wld} ({KnockoutWins} KO)";
-        if (KnockoutWins == 0) return $"{wld} ({TechnicalKnockoutWins} TKO)";
-        return $"{wld} ({KnockoutWins} KO / {TechnicalKnockoutWins} TKO)";
-    }
+    /// <summary>One figure, the way a record is actually written: "48-0-0 (32 KO)".
+    ///
+    /// The two columns were shown apart for a version — "(30 KO / 14 TKO)" — and it reads as clutter on a
+    /// list of forty fighters. Every record in the sport is published this way, KOs and stoppages in one
+    /// number, and a reader takes "KO" to mean "did not hear the final bell".
+    ///
+    /// The SPLIT IS KEPT, because it is the honest data and something real depends on it: a cut stoppage is
+    /// a technical knockout and belongs nowhere near a measure of punching power. Anything asking what a man
+    /// can do to people should read KnockoutWins; this is the headline, and the headline is the total.</summary>
+    public override string ToString() =>
+        StoppageWins > 0 ? $"{Wins}-{Losses}-{Draws} ({StoppageWins} KO)"
+                         : $"{Wins}-{Losses}-{Draws}";
 }
