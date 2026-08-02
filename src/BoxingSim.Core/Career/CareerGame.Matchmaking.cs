@@ -310,17 +310,25 @@ public sealed partial class CareerGame
             // wires apply to it exactly as they do anywhere else. This path used to bypass them entirely,
             // which is how a 17-0 novice came to be offered a NABF title fight with an unbeaten 14-0
             // class-11 fighter. Somebody's future all-time great is not a stepping stone.
+            // Including the man he JUST FOUGHT, which was still getting through: a regional belt is one man
+            // and one challenger, so the same pairing comes up again the moment the player is eligible, and
+            // it arrives billed as a title shot rather than a rematch. Beat the NABF champion and he is back
+            // across the ring next time out. Fall through instead and let him have an ordinary night; the
+            // belt will still be there when somebody else has had a turn.
+            var recentFoes = RecentFoes(Player, 3);
             if (PlayerHolds(region))   // defend the regional belt against a fellow regional contender
             {
                 var chall = ranked.FirstOrDefault(b => b.Id != Player.Id && RegionOf(b) == region
-                                                    && !IsWorldChampion(b) && !DangerousProspect(b));
+                                                    && !IsWorldChampion(b) && !DangerousProspect(b)
+                                                    && !recentFoes.Contains(b.Name));
                 if (chall is not null)
                     return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = region, Context = $"{region} title defence" };
             }
             else                       // or challenge for it as a stepping stone to world level
             {
                 var rc = BeltHolder(region);
-                if (rc is not null && rc.Id != Player.Id && RegionOf(rc) == region && !DangerousProspect(rc))
+                if (rc is not null && rc.Id != Player.Id && RegionOf(rc) == region && !DangerousProspect(rc)
+                    && !recentFoes.Contains(rc.Name))
                     return new FightOffer { Opponent = rc, Rounds = 12, TitleFight = true, Belt = region, Context = $"{region} title shot" };
             }
         }

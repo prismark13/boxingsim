@@ -114,7 +114,7 @@ public class OpponentTests
             var o = g.Offer;
             var last3 = g.Player.History.TakeLast(3).Select(h => h.Opponent).ToList();
             if (!o.Context.StartsWith("rematch") && last3.Contains(o.Opponent.Name))
-                bad.Add($"{o.Opponent.Name} again after {string.Join(", ", last3)}");
+                bad.Add($"{o.Opponent.Name} again after {string.Join(", ", last3)} [context: {o.Context}]");
             g.TakeOffer();
         }
         Assert.True(bad.Count == 0, "a man was re-offered inside three fights: " + string.Join("; ", bad.Take(4)));
