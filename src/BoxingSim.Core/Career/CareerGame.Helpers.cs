@@ -131,7 +131,10 @@ public sealed partial class CareerGame
                 {
                     bool aStopped = aCut && (!bCut || a.Ratings.CutResistance <= b.Ratings.CutResistance);
                     aWins = !aStopped;
-                    outcome = FightOutcome.TechnicalKnockout; method = "TKO"; stopNoKd = true;
+                    // "cut", not "TKO" — the same word the full engine uses for this, so a bout resolved
+                    // quickly and a bout fought round by round describe the same ending the same way. The
+                    // ledger, the commentary and the KO count all already knew what "cut" meant.
+                    outcome = FightOutcome.TechnicalKnockout; method = "cut"; stopNoKd = true;
                     endRound = Math.Max(3, rounds - _rng.Next(4));
                 }
                 // A rare disqualification (~1 in 500 fights) — not a knockout; the fouler is thrown out.

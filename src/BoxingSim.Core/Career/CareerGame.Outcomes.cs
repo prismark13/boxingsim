@@ -75,7 +75,7 @@ public sealed partial class CareerGame
         // rare per NIGHT, not rare per career.
         double risk = 0.00003                                    // a young, unmarked fighter: about 1 in 33,000
                     + Math.Max(0, f.Age - 32) * 0.00006          // it is the late thirties that carry this
-                    + Math.Min(6, f.Record.KnockoutLosses) * 0.00008;
+                    + Math.Min(6, f.Record.StoppageLosses) * 0.00008;
         if (_rng.NextDouble() >= risk) return null;
         return RingEnders[_rng.Next(RingEnders.Length)];
     }
@@ -109,7 +109,7 @@ public sealed partial class CareerGame
         // stripped of the national title he still held, for a belt he did not win.
         if (IsWorldTitleNote(note) && !res.IsDraw && res.Winner is not null) DropRegionals(res.Winner, night);
 
-        bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
+        bool ko = res.IsStoppage;
         if (res.IsDraw) { a.Record.Draws++; b.Record.Draws++; }
         else
         {
@@ -117,8 +117,18 @@ public sealed partial class CareerGame
             res.Loser!.Record.Losses++;
             if (ko)
             {
-                res.Winner.Record.KnockoutWins++;
-                res.Loser.Record.KnockoutLosses++;
+                // Counted out, or stopped. They are different things and go in different columns — a cut is
+                // a technical knockout, and nothing about it says the winner can punch.
+                if (res.Outcome is FightOutcome.Knockout)
+                {
+                    res.Winner.Record.KnockoutWins++;
+                    res.Loser.Record.KnockoutLosses++;
+                }
+                else
+                {
+                    res.Winner.Record.TechnicalKnockoutWins++;
+                    res.Loser.Record.TechnicalKnockoutLosses++;
+                }
                 _careers.RegisterKnockoutLoss(res.Loser);
                 // A knockout means a medical suspension — a fragile fighter (low durability: chin/heart/conditioning)
                 // is hurt worse and sits out far longer; a granite-chinned man is back in a month or two.

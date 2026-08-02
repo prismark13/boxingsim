@@ -109,7 +109,7 @@ public sealed class SeasonSimulator
 
     private void ApplyRecord(FightResult res)
     {
-        bool ko = res.Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
+        bool ko = res.IsStoppage;
         if (res.IsDraw)
         {
             res.A.Record.Draws++;
@@ -121,8 +121,17 @@ public sealed class SeasonSimulator
         res.Loser!.Record.Losses++;
         if (ko)
         {
-            res.Winner.Record.KnockoutWins++;
-            res.Loser.Record.KnockoutLosses++;
+            // Separate columns: a knockout is a man counted out, a technical knockout is a stoppage.
+            if (res.Outcome is FightOutcome.Knockout)
+            {
+                res.Winner.Record.KnockoutWins++;
+                res.Loser.Record.KnockoutLosses++;
+            }
+            else
+            {
+                res.Winner.Record.TechnicalKnockoutWins++;
+                res.Loser.Record.TechnicalKnockoutLosses++;
+            }
             _world.Careers.RegisterKnockoutLoss(res.Loser);
         }
     }

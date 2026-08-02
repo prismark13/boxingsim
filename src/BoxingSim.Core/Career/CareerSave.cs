@@ -171,6 +171,10 @@ public sealed class BoxerSave
     public bool IsChampion { get; set; }
     public double RankPoints { get; set; }
     public int Wins, Losses, Draws, KoWins, KoLosses;
+    /// <summary>Stoppages that were not knockouts. Absent from saves written before the record separated
+    /// them — those load as zero, which reads as a man whose stoppages were all clean knockouts. That is
+    /// wrong but harmless, and it is the only shape the old data supports: it never recorded the split.</summary>
+    public int TkoWins, TkoLosses;
     public RatingsSave Ratings { get; set; } = new();
     public List<BoutLineSave> History { get; set; } = new();
 
@@ -183,7 +187,9 @@ public sealed class BoxerSave
             DebutWeight = b.DebutWeight?.ToString(), Reach = b.Reach, Age = b.Age,
             PeakAge = b.PeakAge, Potential = b.Potential, Retired = b.Retired, IsChampion = b.IsChampion,
             RankPoints = b.RankPoints, Wins = b.Record.Wins, Losses = b.Record.Losses, Draws = b.Record.Draws,
-            KoWins = b.Record.KnockoutWins, KoLosses = b.Record.KnockoutLosses, Ratings = RatingsSave.From(b.Ratings)
+            KoWins = b.Record.KnockoutWins, KoLosses = b.Record.KnockoutLosses,
+            TkoWins = b.Record.TechnicalKnockoutWins, TkoLosses = b.Record.TechnicalKnockoutLosses,
+            Ratings = RatingsSave.From(b.Ratings)
         };
         foreach (var h in b.History)
             s.History.Add(new BoutLineSave
@@ -216,6 +222,7 @@ public sealed class BoxerSave
         b.Reach = Reach > 0 ? Reach : Physique.ReachInchesFor(b.TopWeight ?? WeightClass, Name);
         b.Record.Wins = Wins; b.Record.Losses = Losses; b.Record.Draws = Draws;
         b.Record.KnockoutWins = KoWins; b.Record.KnockoutLosses = KoLosses;
+        b.Record.TechnicalKnockoutWins = TkoWins; b.Record.TechnicalKnockoutLosses = TkoLosses;
         foreach (var h in History)
             b.History.Add(new BoutLine
             {

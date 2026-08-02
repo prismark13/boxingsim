@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BoxingSim.Core.Career;
+using BoxingSim.Core.Engine;
 using BoxingSim.Core.Model;
 using BoxingSim.Core.Roster;
 using Xunit;
@@ -164,6 +165,36 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
         // he is the outer edge of what has ever happened.
         foreach (var m in _g.HallOfFame)
             Assert.True(m.WeightTitles <= 6, $"{m.Name} holds titles in {m.WeightTitles} divisions");
+    }
+
+    /// <summary>A cut is a technical knockout, and the two columns must each agree with the ledger.
+    ///
+    /// Every stoppage used to land in the KO column, so a fighter who could not crack an egg carried a gaudy
+    /// KO tally: a cut stoppage is decided by the LOSER'S cut resistance and never consults the winner's
+    /// power. The record now keeps them apart, and the split has to match the man's own fight history — a
+    /// record that disagrees with the ledger it was built from is how the first version of this went wrong.</summary>
+    [Fact]
+    public void TheKoAndTkoColumnsMatchTheLedger()
+    {
+        // The player's ledger is the one that is never pruned or capped, so it can be compared line for line.
+        var h = _g.Player.History;
+        int kos = h.Count(x => x.Result == 'W' && x.Method == "KO");
+        int tkos = h.Count(x => x.Result == 'W' && x.Method is "TKO" or "cut");
+
+        Assert.Equal(kos, _g.Player.Record.KnockoutWins);
+        Assert.Equal(tkos, _g.Player.Record.TechnicalKnockoutWins);
+        Assert.Equal(kos + tkos, _g.Player.Record.StoppageWins);
+
+        // And across the world, a cut never reaches the KO column. Counting it there is what inflated the
+        // stoppage rate of men with no power, so assert the world actually produces cuts before trusting it.
+        int cuts = _g.EveryFighter.Sum(f => f.History.Count(x => x.Method == "cut"));
+        Assert.True(cuts > 0, "no cut stoppages in the whole world — the guard below would prove nothing");
+        foreach (var f in _g.EveryFighter)
+        {
+            int koLines = f.History.Count(x => x.Result == 'W' && x.Method == "KO");
+            Assert.True(f.Record.KnockoutWins >= koLines,
+                        $"{f.Name} has {koLines} knockouts in his ledger but {f.Record.KnockoutWins} in his record");
+        }
     }
 
     /// <summary>A Hall of Famer's ledger has to survive the save with the WEIGHT each bout was made at.

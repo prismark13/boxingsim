@@ -1953,16 +1953,28 @@ public sealed class CareerViewModel : Observable
         // adding up his history from zero billed a 21-16 journeyman at 0-0-0. Only the bouts from this night
         // onward are taken off.
         var r = b.Record;
-        int w = r.Wins, l = r.Losses, d = r.Draws, ko = r.KnockoutWins;
+        int w = r.Wins, l = r.Losses, d = r.Draws, ko = r.KnockoutWins, tko = r.TechnicalKnockoutWins;
         foreach (var h in b.History)
         {
             if (h.Date < bout) continue;
-            if (h.Result == 'W') { w--; if (h.Method is "KO" or "TKO") ko--; }
+            // The two columns come off separately, and a cut is a technical knockout — the same split the
+            // record itself keeps, or winding a man back would move his stoppages into the wrong column.
+            if (h.Result == 'W')
+            {
+                w--;
+                if (h.Method == "KO") ko--;
+                else if (h.Method is "TKO" or "cut") tko--;
+            }
             else if (h.Result == 'L') l--;
             else d--;
         }
-        w = Math.Max(0, w); l = Math.Max(0, l); d = Math.Max(0, d); ko = Math.Max(0, ko);
-        return ko > 0 ? $"{w}-{l}-{d} ({ko} KO)" : $"{w}-{l}-{d}";
+        w = Math.Max(0, w); l = Math.Max(0, l); d = Math.Max(0, d);
+        ko = Math.Max(0, ko); tko = Math.Max(0, tko);
+        string wld = $"{w}-{l}-{d}";
+        if (ko == 0 && tko == 0) return wld;
+        if (tko == 0) return $"{wld} ({ko} KO)";
+        if (ko == 0) return $"{wld} ({tko} TKO)";
+        return $"{wld} ({ko} KO / {tko} TKO)";
     }
 
     private void Play(FightResult res, Boxer pov, string billLine, string verdict, DateOnly? bout = null)
@@ -2254,11 +2266,13 @@ public sealed class CareerViewModel : Observable
         if (fights == 0) return rows;
 
         if (r.Wins > 0)
-            rows.Add(new StatRow("KO ratio", $"{100.0 * r.KnockoutWins / r.Wins:0}%",
-                                 $"{r.KnockoutWins} of {r.Wins} wins inside the distance"));
-        rows.Add(new StatRow("Stopped", r.Losses > 0 ? $"{r.KnockoutLosses} of {r.Losses}" : "never",
+            rows.Add(new StatRow("KO ratio", $"{100.0 * r.StoppageWins / r.Wins:0}%",
+                                 r.TechnicalKnockoutWins > 0
+                                     ? $"{r.StoppageWins} of {r.Wins} wins inside the distance — {r.KnockoutWins} by knockout"
+                                     : $"{r.StoppageWins} of {r.Wins} wins inside the distance"));
+        rows.Add(new StatRow("Stopped", r.Losses > 0 ? $"{r.StoppageLosses} of {r.Losses}" : "never",
                              r.Losses == 0 ? "unbeaten" :
-                             r.KnockoutLosses == 0 ? "never stopped - he has always heard the final bell"
+                             r.StoppageLosses == 0 ? "never stopped - he has always heard the final bell"
                              : "losses that came inside the distance"));
 
         // Punch ranges need per-round cards, which are kept for ranked men and title fights.

@@ -76,7 +76,7 @@ public sealed class CareerProgression
 
         // A faded fighter, or one who has been stopped repeatedly, goes sooner.
         if (b.Overall < 40) chance += 0.18;
-        if (b.Record.KnockoutLosses >= 4) chance += 0.14;
+        if (b.Record.StoppageLosses >= 4) chance += 0.14;   // stopped is stopped, cut or counted out
         // And nobody boxes into their forties whatever the mileage says.
         if (b.Age >= 40) chance += 0.45;
 

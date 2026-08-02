@@ -44,7 +44,10 @@ public sealed class StatsViewModel : Observable
                                .OrderByDescending(h => h.Date).FirstOrDefault();
 
         Stats.Add(new StatRow("Record", p.Record.ToString(), $"{fights} fights"));
-        Stats.Add(new StatRow("Knockout wins", $"{p.Record.KnockoutWins}", $"{koPct}% of wins"));
+        Stats.Add(new StatRow("Knockout wins", $"{p.Record.KnockoutWins}",
+                              p.Record.TechnicalKnockoutWins > 0
+                                  ? $"{koPct}% of wins, and {p.Record.TechnicalKnockoutWins} more by stoppage"
+                                  : $"{koPct}% of wins"));
         Stats.Add(new StatRow("Longest win streak", best.ToString(), best >= 10 ? "a real run" : ""));
         Stats.Add(new StatRow("Title bouts won", titleWins.ToString(), ""));
         Stats.Add(new StatRow("Title reigns", reigns.Count.ToString(),

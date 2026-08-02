@@ -49,8 +49,16 @@ public sealed class FightResult
 
     public bool IsDraw => Winner is null;
 
-    /// <summary>Short method string: "KO", "TKO", "UD", "SD", "MD", "D".</summary>
+    /// <summary>Short method string: "KO", "TKO", "cut", "DQ", "UD", "SD", "MD", "D".</summary>
     public string Method { get; init; } = "";
+
+    /// <summary>The bout ended inside the distance, by any route — a knockout or a technical knockout.
+    ///
+    /// Which of the two it was is <see cref="Outcome"/>'s business and matters to the RECORD, where they sit
+    /// in separate columns: a knockout is a man counted out, a technical knockout is the referee stepping in
+    /// or a cut ending it. Summing them into one KO column is what gave fighters with no power gaudy KO
+    /// tallies — a cut stoppage reads the loser's cut resistance and never the winner's punch.</summary>
+    public bool IsStoppage => Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
 
     public string Headline()
     {

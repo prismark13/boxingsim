@@ -132,7 +132,12 @@ public sealed class BoxerFactory
             if (roll < winRate)
             {
                 b.Record.Wins++;
-                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72, b.Overall - 64)) b.Record.KnockoutWins++;
+                // Split the same way the career sim splits it — half counted out, half stopped. A seeded
+                // record that was all KO made every invented fighter look like a puncher.
+                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72, b.Overall - 64))
+                {
+                    if (_rng.NextDouble() < 0.5) b.Record.KnockoutWins++; else b.Record.TechnicalKnockoutWins++;
+                }
             }
             else if (roll < winRate + 0.10)
             {
@@ -141,7 +146,10 @@ public sealed class BoxerFactory
             else
             {
                 b.Record.Losses++;
-                if (_rng.NextDouble() < 0.25) b.Record.KnockoutLosses++;
+                if (_rng.NextDouble() < 0.25)
+                {
+                    if (_rng.NextDouble() < 0.5) b.Record.KnockoutLosses++; else b.Record.TechnicalKnockoutLosses++;
+                }
             }
         }
     }

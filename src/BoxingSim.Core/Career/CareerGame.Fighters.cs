@@ -160,14 +160,21 @@ public sealed partial class CareerGame
             if (roll < winRate)
             {
                 b.Record.Wins++; rc = 'W';
-                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72, b.Overall - 64)) { b.Record.KnockoutWins++; method = _rng.NextDouble() < 0.5 ? "KO" : "TKO"; round = 1 + _rng.Next(8); }
+                // The column follows the method rather than defaulting to KO: a stoppage that reads "TKO" in
+                // the ledger must not turn up in the KO count, or a man's record contradicts his own history.
+                if (_rng.NextDouble() < Ratings.KnockoutChance(b.Ratings.Power, 72, b.Overall - 64))
+                {
+                    method = _rng.NextDouble() < 0.5 ? "KO" : "TKO";
+                    if (method == "KO") b.Record.KnockoutWins++; else b.Record.TechnicalKnockoutWins++;
+                    round = 1 + _rng.Next(8);
+                }
                 else method = _rng.NextDouble() < 0.75 ? "UD" : "SD";
             }
             else if (roll < winRate + 0.08) { b.Record.Draws++; rc = 'D'; method = "D"; }
             else
             {
                 b.Record.Losses++; rc = 'L';
-                if (_rng.NextDouble() < 0.2) { b.Record.KnockoutLosses++; method = "TKO"; round = 1 + _rng.Next(8); }
+                if (_rng.NextDouble() < 0.2) { b.Record.TechnicalKnockoutLosses++; method = "TKO"; round = 1 + _rng.Next(8); }
                 else method = _rng.NextDouble() < 0.75 ? "UD" : "SD";
             }
             b.History.Add(new BoutLine { Date = when, Opponent = opp, Result = rc, Method = method, Round = round });
