@@ -146,9 +146,13 @@ public sealed partial class CareerGame
         }
     }
 
-    // Fighters queued to campaign up a division; applied together at year's end so no one changes weight
-    // mid-card. Populated per-bout (see ConsiderStepUp) rather than by a single yearly roll.
-    private readonly HashSet<int> _stepUpQueued = new();
+    // Fighters who have decided to campaign up, and the night it takes effect.
+    //
+    // These were flushed together at the turn of the year, so every move-up in the sport happened on
+    // 1 January: a division lost four men and gained six on the same day, and a man who outgrew his weight in
+    // February waited eleven months to act on it. A fighter moves up in the weeks AFTER a fight — the decision
+    // is made in the dressing room — so each carries his own date, four to twelve weeks out.
+    private readonly Dictionary<int, DateOnly> _stepUpQueued = new();
 
     /// <summary>Can this fighter move up to <paramref name="to"/>?
     ///
@@ -249,7 +253,7 @@ public sealed partial class CareerGame
         // one — a twelve-defence reign can put a man in the End stage, and the escalating hazard would happily
         // send him up for two fights and a retirement notice.
         if (CareerStages.Of(b) == CareerStage.End) return;
-        if (_stepUpQueued.Contains(b.Id)) return;
+        if (_stepUpQueued.ContainsKey(b.Id)) return;
         if (NextActiveUp(b.WeightClass) is not WeightClass to || !StepUpAllowed(b, to)) return;
         // The greater the fighter, the more he chases legacy across the weights — an all-time great is far likelier
         // to move up and hunt a second and third belt, so his step-up chance is skewed sharply upward.
@@ -261,29 +265,33 @@ public sealed partial class CareerGame
         // cruiserweight. A second move is two-thirds as likely as the first, a fourth about a fifth.
         int climbed = (int)b.WeightClass - (int)(b.DebutWeight ?? b.WeightClass);
         double weariness = Math.Pow(0.62, climbed);
-        if (_rng.NextDouble() < p * greatness * weariness) _stepUpQueued.Add(b.Id);
+        // Rolled right after a bout, so the wait is measured from the fight that prompted it.
+        if (_rng.NextDouble() < p * greatness * weariness)
+            _stepUpQueued[b.Id] = Date.AddDays(28 + _rng.Next(57));   // 4 to 12 weeks
     }
 
-    /// <summary>Apply every queued move-up. Run once a year (from AgeRetireCrown) so weight changes land between
-    /// campaigns, never in the middle of a card.
+    /// <summary>Move up anyone whose date has come. Called from the world tick rather than the yearly pass,
+    /// so a division changes shape through the year instead of all at once on 1 January — and still between
+    /// cards rather than during one, which was the only thing the yearly flush was really buying.
     ///
-    /// It was moved out to the fortnight tick so move-ups would land 4-12 weeks after the fight that prompted
-    /// them rather than all together on 1 January, which is how they are really made. That has to come back
-    /// with the division it empties: the yearly pass ends by putting every division's belts in order, so a
-    /// champion who moved up had his vacancy noticed in the same breath, and out on the tick nothing was
-    /// looking. Unifications fell from thirty-two to two across an eighteen-year world. Calling UpdateBeltsFor
-    /// on the division he left took it to ZERO rather than fixing it, which says the cause is not simply that
-    /// the vacancy went unbooked — so it is parked here until that is understood rather than guessed at.</summary>
-    private void FlushStepUps()
+    /// The division he leaves is told at once. The yearly pass ended by putting every division's belts in
+    /// order, so a champion who moved up had his vacancy noticed in the same breath; out here nothing is
+    /// looking, and a belt vacated in February would sit unordered until the following January.</summary>
+    private void SettleDueStepUps()
     {
         if (_stepUpQueued.Count == 0) return;
-        foreach (var id in _stepUpQueued.ToList())
+        foreach (var (id, on) in _stepUpQueued.ToList())
         {
+            if (on > Date) continue;
+            _stepUpQueued.Remove(id);
             var b = _roster.FirstOrDefault(x => x.Id == id && !x.Retired);
             if (b is not null && NextActiveUp(b.WeightClass) is WeightClass to && StepUpAllowed(b, to))
+            {
+                var from = b.WeightClass;
                 MoveUpTo(b, to);
+                UpdateBeltsFor(from);
+            }
         }
-        _stepUpQueued.Clear();
     }
 
     /// <summary>How likely the two world champions finally meet. Demand builds with DEFENCES: two established

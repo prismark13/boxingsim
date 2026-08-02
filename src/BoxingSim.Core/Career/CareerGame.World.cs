@@ -70,6 +70,7 @@ public sealed partial class CareerGame
         AdvanceClockTo(next);
         CatchUpYears();
         SettleDueVacantTitles();   // a belt ordered months ago is fought for when the night comes round
+        SettleDueStepUps();        // and a man who decided to move up does it in the weeks after that fight
         RunEvent();
         return NewsSince(mark);
     }
@@ -166,8 +167,6 @@ public sealed partial class CareerGame
                 else if (!inducted && b.Overall >= 80) LogEvent($"{b.Name} ({b.Record}) hangs them up after a fine career.", kind: "retire", div: b.WeightClass);
             }
         }
-
-        FlushStepUps();   // fighters queued over the year now campaign up in weight
 
         // Re-crown any vacant primary belt in every division that exists.
         foreach (var wc in AllDivisions)
