@@ -166,6 +166,38 @@ public class CareerIntegrityTests : IClassFixture<SeededWorld>
             Assert.True(m.WeightTitles <= 6, $"{m.Name} holds titles in {m.WeightTitles} divisions");
     }
 
+    /// <summary>A Hall of Famer's ledger has to survive the save with the WEIGHT each bout was made at.
+    ///
+    /// The snapshot writer dropped it — deliberately for the per-round grid, which is heavy, and by accident
+    /// for the division, which is one word. So a save round-trip returned every stored bout at the enum's
+    /// default, and the fix that made division travel with a bout was quietly undone the moment a career was
+    /// reloaded. It matters beyond the ledger: once a man has retired his stored bouts are the only surviving
+    /// record of WHERE he won his belts, which is the whole evidence for a multi-weight champion.</summary>
+    [Fact]
+    public void AHallOfFamersLedgerKeepsItsWeightThroughASave()
+    {
+        var reloaded = CareerGame.Load(_g.ToSave(), new Random(3));
+
+        var before = _g.HallOfFame.ToDictionary(m => m.Id);
+        int compared = 0;
+        foreach (var m in reloaded.HallOfFame)
+        {
+            if (!before.TryGetValue(m.Id, out var was)) continue;
+            Assert.Equal(was.History.Count, m.History.Count);
+            for (int i = 0; i < m.History.Count; i++)
+            {
+                Assert.Equal(was.History[i].Division, m.History[i].Division);
+                compared++;
+            }
+        }
+        Assert.True(compared > 200, $"expected a real sample of stored bouts, compared {compared}");
+
+        // And the divisions are not all one value — an all-default ledger would pass a comparison against
+        // another all-default ledger, so assert the data is actually various.
+        var seen = reloaded.HallOfFame.SelectMany(m => m.History).Select(h => h.Division).Distinct().ToList();
+        Assert.True(seen.Count > 1, $"every stored bout came back as {seen.FirstOrDefault()} — the weight was lost");
+    }
+
     [Fact]
     public void VacantTitleHeadlinesAreDatedToTheirOwnBout()
     {

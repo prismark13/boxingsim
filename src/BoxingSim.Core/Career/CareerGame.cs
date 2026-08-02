@@ -565,19 +565,26 @@ public sealed partial class CareerGame
                 _titles.SetRegional(wc, parts[1], rb);
         }
         foreach (var m in s.HallOfFame)
+        {
+            var memberDiv = Enum.TryParse<WeightClass>(m.Division, out var md) ? md : WeightClass.Heavyweight;
             _hall.Load(new HallOfFamer
             {
                 Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country,
-                Division = Enum.TryParse<WeightClass>(m.Division, out var md) ? md : WeightClass.Heavyweight,
+                Division = memberDiv,
                 Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses, WasChampion = m.WasChampion, WeightTitles = m.WeightTitles,
                 TitleDivisions = m.TitleDivisions.Select(s => Enum.TryParse<WeightClass>(s, out var d) ? (WeightClass?)d : null).Where(x => x is not null).Select(x => x!.Value).ToList(),
                 Age = m.Age, Year = m.Year,
                 History = m.History.Select(h => new BoutLine
                 {
                     Date = ParseDate(h.Date, Date), Opponent = h.Opponent, Result = h.Result.Length > 0 ? h.Result[0] : 'D',
-                    Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
+                    Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards,
+                    // Saves written before the Hall carried the weight fall back to the division he is
+                    // REMEMBERED at — right for the many who never moved, and the best guess for the rest.
+                    Division = Enum.TryParse<WeightClass>(h.Div, out var hd) ? hd : memberDiv,
+                    CareerEndingInjury = h.CareerEndingInjury
                 }).ToList()
             });
+        }
         AwardWinner AwLoad(AwardWinnerSave w) => new()
         {
             Name = w.Name, Detail = w.Detail,
@@ -682,10 +689,16 @@ public sealed partial class CareerGame
             Id = m.Id, Name = m.Name, Nickname = m.Nickname, Country = m.Country, Division = m.Division.ToString(),
             Record = m.Record, PeakOverall = m.PeakOverall, PeakClass = m.PeakClass, Defenses = m.Defenses,
             WasChampion = m.WasChampion, WeightTitles = m.WeightTitles, TitleDivisions = m.TitleDivisions.Select(d => d.ToString()).ToList(), Age = m.Age, Year = m.Year,
+            // The per-round grid and commentary are dropped deliberately — they are the heavy part and the
+            // Hall only needs the ledger. The DIVISION is not heavy and was dropped by accident: written
+            // without it, every stored bout came back as the enum's default on load, so the fix that made
+            // division travel with a bout was undone by the save round-trip. It is also the only record of
+            // WHERE a man won his belts once he is gone, which is what a multi-weight champion is made of.
             History = m.History.Select(h => new BoutLineSave
             {
                 Date = h.Date.ToString("yyyy-MM-dd"), Opponent = h.Opponent, Result = h.Result.ToString(),
-                Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note, Cards = h.Cards
+                Method = h.Method, Round = h.Round, KdFor = h.KdFor, KdAgainst = h.KdAgainst, Note = h.Note,
+                CareerEndingInjury = h.CareerEndingInjury, Div = h.Division.ToString(), Cards = h.Cards
             }).ToList()
         });
         AwardWinnerSave AwSave(AwardWinner w) => new()
