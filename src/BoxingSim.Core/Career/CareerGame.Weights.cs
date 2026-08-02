@@ -265,7 +265,15 @@ public sealed partial class CareerGame
     }
 
     /// <summary>Apply every queued move-up. Run once a year (from AgeRetireCrown) so weight changes land between
-    /// campaigns, never in the middle of a card.</summary>
+    /// campaigns, never in the middle of a card.
+    ///
+    /// It was moved out to the fortnight tick so move-ups would land 4-12 weeks after the fight that prompted
+    /// them rather than all together on 1 January, which is how they are really made. That has to come back
+    /// with the division it empties: the yearly pass ends by putting every division's belts in order, so a
+    /// champion who moved up had his vacancy noticed in the same breath, and out on the tick nothing was
+    /// looking. Unifications fell from thirty-two to two across an eighteen-year world. Calling UpdateBeltsFor
+    /// on the division he left took it to ZERO rather than fixing it, which says the cause is not simply that
+    /// the vacancy went unbooked — so it is parked here until that is understood rather than guessed at.</summary>
     private void FlushStepUps()
     {
         if (_stepUpQueued.Count == 0) return;

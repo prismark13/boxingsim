@@ -9,8 +9,14 @@ namespace BoxingSim.Core.Career;
 internal sealed record YearBout(int Year, DateOnly Date, string Winner, string Loser, int WinnerId, int LoserId,
                                 string Method, int Round, bool Title, int WinnerOvr, int LoserOvr, int Kds,
                                 bool Draw, bool Close, WeightClass Div, string LoserStanding,
-                                double WinnerPts, double LoserPts, bool Notable = true, string? Note = null)
+                                double WinnerPts, double LoserPts, bool Notable = true, string? Note = null,
+                                bool Known = false)
 {
+    /// <summary>Whether either man in it is a fighter out of the record books rather than one the sim
+    /// invented. Not a judgement about quality — a generated fighter can be the better man — but Upset of the
+    /// Year is a headline, and a headline needs a name somebody recognises.</summary>
+    public bool HasAKnownName => Known;
+
     /// <summary>How to find this night again in either man's record.</summary>
     public BoutRef Ref => new(Winner, Loser, Date);
 
@@ -162,7 +168,16 @@ internal sealed class AwardsBoard
         // hands outweighs a slightly wider gap in a bout that decided nothing, and nothing more than that.
         var notable = bouts.Where(x => x.Notable).ToList();
 
-        var upset = notable.Where(x => !x.Draw && x.PointsGap > 0)
+        // AT LEAST ONE NAME YOU KNOW. The measure is sound — ranking points are what the sport expected — but
+        // it was blind to who the two men were, so the year's upset could be a 4-1 nobody beating a 17-fight
+        // nobody, which is a result rather than a story. A real fighter on one side of it is what makes an
+        // upset an upset. The bar drops back to the whole field only if a year truly has none, because an
+        // award nobody won is worse than one that had to settle.
+        var upsetPool = notable.Where(x => !x.Draw && x.PointsGap > 0).ToList();
+        var knownUpsets = upsetPool.Where(x => x.HasAKnownName).ToList();
+        if (knownUpsets.Count > 0) upsetPool = knownUpsets;
+
+        var upset = upsetPool
             .OrderByDescending(x => x.PointsGap + (x.Title ? 60 : 0)).Take(3)
             .Select(x => new AwardWinner { Name = x.Winner, Div = x.Div, Bout = x.Ref,
                 Detail = $"beat {x.Loser} · {x.ChancePhrase}{(x.Title ? " · title" : "")}",

@@ -265,9 +265,20 @@ public sealed partial class CareerGame
         int wins = WinStreak(w);
         if (wins >= 10 && wins % 5 == 0 && _rng.NextDouble() < 0.7)
         {
-            LogEvent(Pick($"{w.Name} extends his unbeaten run to {wins} straight.",
-                          $"Still perfect — {w.Name} makes it {wins} wins in a row and is knocking on the door.",
-                          $"{w.Name} runs his streak to {wins} in a row, forcing his way into the picture."), kind: "streak", div: div,
+            // "Perfect" and "unbeaten" describe a RECORD; a streak is what a man has done since his last
+            // defeat. The two were written as though they were the same thing, so a fighter 30-4 who had won
+            // ten on the bounce was reported as still perfect — with his 30-4 record printed directly
+            // underneath it in the same headline's detail line. A feed that contradicts itself in two adjacent
+            // lines is one the player stops reading.
+            bool spotless = w.Record.Losses == 0 && w.Record.Draws == 0;
+            LogEvent(spotless
+                     ? Pick($"{w.Name} extends his unbeaten run to {wins} straight.",
+                            $"Still perfect — {w.Name} makes it {wins}-0 and is knocking on the door.",
+                            $"{w.Name} runs his record to {wins}-0, forcing his way into the picture.")
+                     : Pick($"{w.Name} makes it {wins} wins on the bounce.",
+                            $"{w.Name} is rolling — {wins} in a row since his last defeat.",
+                            $"{w.Name} runs his streak to {wins} straight, forcing his way into the picture."),
+                     kind: "streak", div: div,
                      bout: new BoutRef(w.Name, l.Name, on), detail: who, on: on);
             return;
         }

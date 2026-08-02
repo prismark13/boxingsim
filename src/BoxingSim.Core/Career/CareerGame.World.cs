@@ -296,7 +296,10 @@ public sealed partial class CareerGame
             res.KnockdownsA + res.KnockdownsB, res.IsDraw, close, (w ?? a).WeightClass, l is not null ? Standing(l) : "",
             WinnerPts: w is null || w.Id == a.Id ? aPts : bPts,
             LoserPts: l is null || l.Id == a.Id ? aPts : bPts,
-            Notable: notable, Note: note));
+            Notable: notable, Note: note,
+            // A name out of the record books on either side. Read here rather than in December because the
+            // awards hold names and the roster prunes the men who retire.
+            Known: _historical.ContainsKey(a.Id) || _historical.ContainsKey(b.Id)));
     }
 
     /// <summary>A short description of where a fighter stands — a reigning champion (with defences), a ranked
