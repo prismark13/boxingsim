@@ -738,12 +738,15 @@ public sealed class CareerViewModel : Observable
     };
     public IReadOnlyList<int> Years { get; } = Enumerable.Range(1945, 71).ToList();
     /// <summary>What you are starting with, in the app's own 1-15 units and in plain words. The combo used to
-    /// show the raw keys - "random915" and "club" - which told a new player nothing at all. New Star leads
-    /// because it is the one most people want: a real prospect, but with the ceiling left to chance.</summary>
+    /// show the raw keys - "random915" and "club" - which told a new player nothing at all.
+    ///
+    /// Elite leads, and the screen therefore opens on it: a career is a long thing to sit down to, and the
+    /// fighter most people want to spend it on is the one who can win the belt. New Star sits behind it for
+    /// anyone who would rather have the ceiling left to chance.</summary>
     public IReadOnlyList<TalentOption> Talents { get; } = new[]
     {
-        TalentOption.Make("random915", "New Star"),
         TalentOption.Make("elite", "Elite"),
+        TalentOption.Make("random915", "New Star"),
         TalentOption.Make("contender", "Contender"),
         TalentOption.Make("journeyman", "Journeyman"),
         TalentOption.Make("club", "Club fighter"),
@@ -761,7 +764,7 @@ public sealed class CareerViewModel : Observable
     private WeightClass _setupDivision;
     public WeightClass SetupDivision { get => _setupDivision; set { _setupDivision = value; Raise(); } }
 
-    private string _talent = "random915";   // New Star leads the list, so it is what the screen opens on
+    private string _talent = "elite";   // Elite leads the list, so it is what the screen opens on
     public string Talent { get => _talent; set { _talent = value; Raise(); } }
 
     /// <summary>The three careers that can be kept at once, and which one the title screen is pointed at.
