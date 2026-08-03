@@ -400,11 +400,23 @@ public class MatchmakingIntegrityTests
         {
             var o = game.Offer!;
             int fights = player.Record.Wins + player.Record.Losses + player.Record.Draws;
-            if (fights < 20 && o.Belt is null)
+            // A REMATCH IS EXEMPT, the same way it is in AnUnrankedFighterIsKeptOffTheTopOfTheDivision and for
+            // the same stated reason: a return the sport is asking for beats every guard below it, which is
+            // the point of the demand existing at all. A seventeen-fight prospect who has just beaten the
+            // division's #1 in an upset is owed that fight, and refusing to make it because he is young is
+            // the sim declining the best story it has. This test simply never had the exemption its sibling
+            // does, and only escaped it because no seed had produced the case.
+            if (fights < 20 && o.Belt is null && !o.Context.StartsWith("rematch"))
             {
                 judged++;
                 var top15 = game.RankingOf(player.WeightClass, 15).Select(b => b.Id).ToHashSet();
-                Assert.DoesNotContain(o.Opponent.Id, top15);
+                // The CONTEXT, because "found in set" says nothing about which door it came through: the
+                // ordinary pool consults the guard, and several paths — a rematch the sport is asking for, a
+                // regional belt, a granted title shot — build their own offer and return it before the guard
+                // is ever reached. Which one it was is the whole diagnosis.
+                Assert.False(top15.Contains(o.Opponent.Id),
+                             $"{fights}-fight prospect offered {o.Opponent.Name} "
+                             + $"(#{game.PlaceOf(o.Opponent)}, ovr {o.Opponent.Overall}) — context: {o.Context}");
                 // The rating ceiling ramps with experience. A 14-fight novice was once handed a class-14
                 // all-time great because graduating the apprenticeship lifted the cap straight to 99.
                 if (fights < 15)

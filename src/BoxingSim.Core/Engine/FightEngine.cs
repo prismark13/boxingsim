@@ -102,7 +102,17 @@ public sealed class FightEngine
         double powerEff = puncher.Eff(puncher.R.Power) * (1 - puncher.HandPen);
         double chin = target.EffChin();   // a chin already worn by knockdowns offers less protection
         double clean = (isCounter ? 0.72 : 0.6) + _rng.NextDouble() * 0.7;   // counters land a touch cleaner
-        double force = powerEff / Math.Max(20.0, chin) * wcKo * clean * pd.Force * forceScale;
+        // BEING OUTCLASSED BY FORTY DOES NOT HURT TWICE AS MUCH AS BEING OUTCLASSED BY TWENTY. The ratio of
+        // power to chin ran unbounded, and it compounds: the weaker man's chin falls as he takes damage, which
+        // raises the ratio, which does more damage. So a mismatch did not merely favour the better man, it ran
+        // away with itself — a ten-point gap ended inside the distance 90% of the time and a fifteen-point gap
+        // 99%, where two even men were at 36%.
+        //
+        // The fast resolver has saturated its mismatch term for exactly this reason since the sport went from
+        // 44.8% of bouts ending early to 58.6%; the engine never did. Same idea here: the advantage is real
+        // and keeps most of its bite where gaps are ordinary, and stops being a multiplier at the far end.
+        double edge = powerEff / Math.Max(20.0, chin);
+        double force = edge * wcKo * clean * pd.Force * forceScale;
         if (isCounter) force *= 0.45;   // a quick counter scores and stings, but isn't a loaded haymaker
         puncher.RoundWeighted += 1.6 * (0.5 + powerEff / 200.0) * pd.Score;
 
@@ -147,7 +157,25 @@ public sealed class FightEngine
             // it. Seventy-two is the reference jaw, near the middle of the roster, so an ordinary fighter is
             // barely moved and this is a redistribution rather than a general softening. After: 32/29/33/36/
             // 36/40/41% from 60 through 95 — flat, and inside the real band.
-            double soak = 0.0205 * (72.0 / Math.Clamp(target.R.Chin, 35, 100));
+            // AND A MAN BEING OUTCLASSED STOPS TRYING TO WIN AND STARTS TRYING TO SURVIVE. Nothing modelled
+            // that, so a mismatch ran to a stoppage almost every time: a ten-point gap ended inside the
+            // distance 90% of the time and a fifteen-point gap 99%, against 36% between equals. Capping the
+            // punch does not touch it — the cause is VOLUME. The better man lands constantly and takes
+            // nothing back, so he never tires, never takes damage, and simply accumulates the threshold.
+            //
+            // What a journeyman actually does is cover up, hold, and take it on the gloves and arms, which is
+            // the same reasoning this file already applies to a man with his back to the ropes: the extra
+            // volume does not come with proportionally cleaner shots. So the further a punch is above what he
+            // can take, the more of it his guard absorbs. It never makes him safe — the shots still land,
+            // still score, still knock him down — it stops a beating being a formality.
+            // Keyed on what the two men ARE, not on this punch and not on how the night is going. Read off
+            // force it damped the ordinary fight as hard as the mismatch, because force carries the random
+            // cleanness of the shot; read off the in-fight edge it was worse, because a man hurt in round
+            // nine also looks outclassed — and being easier to finish once you are hurt is the finishing
+            // mechanic, not a fault. Both readings took even fights under 25%. The BASE ratings say who was
+            // overmatched when the contract was signed, which is the only thing this is about.
+            double outclassed = Math.Clamp((puncher.R.Power / (double)Math.Max(35, target.R.Chin) - 1.0) * 4.0, 0, 1.0);
+            double soak = 0.0205 * (72.0 / Math.Clamp(target.R.Chin, 35, 100)) * (1.0 - 0.55 * outclassed);
             target.Damage = Math.Min(1.3, target.Damage + force * soak);
             target.Swell = Math.Min(1.0, target.Swell + 0.02 + force * 0.005);
             if (target.SwellLoc is null && target.Swell >= 0.16) { var sw = Pick(SwellLocs); target.SwellLoc = sw.Loc; target.SwellEye = sw.Eye; }
