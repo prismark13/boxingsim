@@ -246,7 +246,17 @@ public sealed partial class CareerGame
         // champion moving up is a story, not a schedule. k=0.0036 puts it at about 30% by the tenth defence,
         // which leaves it something the great ones do and the rest talk about.
         const double k = 0.0036;
-        return 1.0 - Math.Exp(-k * (2 * defenceNumber - 1));
+        double hazard = 1.0 - Math.Exp(-k * (2 * defenceNumber - 1));
+        // PAST TEN DEFENCES HE HAS BEATEN EVERYBODY THERE IS. The curve above is deliberately shallow so that
+        // moving up stays a story rather than a schedule, but shallow all the way out means a man can hold one
+        // belt for fifteen years while the division empties out underneath him — and the only fighters left
+        // who have not lost to him are the ones who were children when he won it.
+        //
+        // So the hazard steepens where the reign has already answered every question: about 11% at the
+        // eleventh defence against 6.6% before, and near a coin toss by the twentieth. The first ten are
+        // untouched, which is what keeps the ordinary long reign intact.
+        if (defenceNumber > 10) hazard += (defenceNumber - 10) * 0.04;
+        return Math.Min(0.9, hazard);
     }
 
     /// <summary>Roll a fighter's flat per-fight chance to campaign up a weight — called for both fighters after

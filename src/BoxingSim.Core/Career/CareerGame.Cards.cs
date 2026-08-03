@@ -393,10 +393,13 @@ public sealed partial class CareerGame
         else { Defended(champ.WeightClass, "WBA", champ.Id); Defended(champ.WeightClass, "WBC", champ.Id); LogTitle($"{champ.Name} retains the unified {PrimaryBelt} and WBC titles against {ch.Name}.", champ.WeightClass, RefOf(res, on), on); ConsiderTitleStepUp(champ); }
     }
 
-    /// <summary>Warmup: a unified champion runs a season of 2–3 combined defences, and may vacate a belt.</summary>
+    /// <summary>Warmup: a unified champion runs a season of 2–3 combined defences, and may vacate a belt.
+    /// One or two once he is ten defences in — see DefendBeltSeason for why a long reign slows down.</summary>
     private void UnifiedDefenceSeason(WeightClass wc, int yr)
     {
-        int titleBouts = 2 + _rng.Next(2);
+        int unifiedHeld = ChampOf(wc) is Boxer u
+                        ? BeltsHeld(u).Select(x => x.Defenses).DefaultIfEmpty(0).Max() : 0;
+        int titleBouts = unifiedHeld >= 10 ? 1 + _rng.Next(2) : 2 + _rng.Next(2);
         for (int d = 0; d < titleBouts; d++)
         {
             var c = ChampOf(wc);
@@ -430,7 +433,18 @@ public sealed partial class CareerGame
     /// <summary>Run one belt through a season of 2–3 defences, each dated across the year.</summary>
     private void DefendBeltSeason(WeightClass wc, Func<Boxer?> champ, Action<Boxer, DateOnly> crown, Func<Boxer?>? other, string belt, int yr, bool dethrone)
     {
-        int titleBouts = 2 + _rng.Next(2);
+        // A LONG-REIGNING CHAMPION BOXES LESS. Ten defences in he is picking his nights — bigger purses, longer
+        // camps, and nothing left to prove against a mandatory he has already seen off twice. Two or three a
+        // year for everybody meant the opposite: the longer a man held a belt the faster he added to the
+        // record, so a reign compounded instead of winding down, and the contenders who might have caught him
+        // were still being matched with gatekeepers while he collected another two.
+        //
+        // One or two a year past that mark gives the division time. A fighter who was nineteen when the reign
+        // began is in his prime by the time it has run, which is how a champion comes to be beaten at last by
+        // somebody who was nobody when he started.
+        int held = champ() is Boxer sitting
+                 ? BeltsHeld(sitting).Select(x => x.Defenses).DefaultIfEmpty(0).Max() : 0;
+        int titleBouts = held >= 10 ? 1 + _rng.Next(2) : 2 + _rng.Next(2);
         for (int d = 0; d < titleBouts; d++)
         {
             var c = champ();
