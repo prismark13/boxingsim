@@ -130,7 +130,19 @@ public static class CareerMileage
             // and nobody came through unbeaten. He has had a hundred amateur fights before he is paid for one;
             // what he lacks is the last quarter, and that is what the next twenty-odd bouts are for.
             double t = primeAt <= 0 ? 1 : f / (double)primeAt;
-            return 0.72 + 0.28 * Math.Clamp(t, 0, 1);
+            double coming = 0.72 + 0.28 * Math.Clamp(t, 0, 1);
+            // AND THE YEARS COUNT EVEN HERE. This branch returned before anything looked at his age, so a man
+            // who boxed rarely was still "coming through" at thirty-five — at ninety-nine percent of his
+            // ceiling and rising, having never declined a day in his life. That is where the sport's unbeaten
+            // old men came from: twenty-four fights at thirty-five, no mileage to wear him down and no
+            // birthday that counted, so nobody was ever good enough to beat him.
+            //
+            // PrimeEndsByAge and PastPrime were both written to stop exactly this and both were added to the
+            // branches BELOW, so the one case they were aimed at walked out through the top of the method.
+            // Same three-bouts-a-year conversion PastPrime uses, so a late starter ages at the pace he would
+            // have worn himself out at anyway.
+            int overAge = Math.Max(0, b.Age - PrimeEndsByAge(b));
+            return overAge == 0 ? coming : Math.Max(0.45, coming - overAge * 3 * 0.010);
         }
         // Past his best, ability bleeds away with the mileage rather than with the calendar.
         return Math.Max(0.45, 1.0 - PastPrime(b) * 0.010);
@@ -140,7 +152,10 @@ public static class CareerMileage
     {
         int f = Fights(b);
         if (f <= StarterUntil(b)) return CareerStage.Starter;
-        if (f <= PrePrimeUntil(b)) return CareerStage.PrePrime;
+        // The age gate belongs on this line as much as on the one below it. Without it a thirty-five-year-old
+        // with twenty-four bouts was labelled "coming through", and everything that reads the stage — who he
+        // is matched with, whether he moves up, when he retires — treated him as a prospect.
+        if (f <= PrePrimeUntil(b) && b.Age <= PrimeEndsByAge(b)) return CareerStage.PrePrime;
         if (f <= PrimeUntil(b) && b.Age <= PrimeEndsByAge(b)) return CareerStage.Prime;
         if (f <= PostPrimeUntil(b)) return CareerStage.PostPrime;
         return CareerStage.End;

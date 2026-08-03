@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using BoxingSim.Core.Career;
+using BoxingSim.Core.Generation;
 using BoxingSim.Core.Model;
 using Xunit;
 
@@ -23,6 +24,49 @@ namespace BoxingSim.Tests;
 /// copy now. What ages a world is the LIVE path these walk, not the history behind it.</summary>
 public class AgeingTests
 {
+    /// <summary>A man who boxes rarely still gets old.
+    ///
+    /// Every stage boundary is measured in BOUTS, on the sound principle that a fighter is worn down by being
+    /// hit rather than by birthdays. PrimeEndsByAge and PastPrime exist to stop that principle running away
+    /// with itself at the far end, and both were applied to the branches handling a man with real mileage —
+    /// while the "still coming through" branch returned before either was consulted.
+    ///
+    /// So a thirty-five-year-old with twenty-four fights sat at ninety-nine percent of his ceiling and rising,
+    /// having never declined a day, and was called a prospect by everything that reads the stage. That is
+    /// where the sport's unbeaten old men came from: no mileage to wear him down and no birthday that counted,
+    /// so nobody was ever good enough to beat him.</summary>
+    [Fact]
+    public void AManWhoBoxesRarelyStillGetsOld()
+    {
+        static Boxer Man(int age, int wins)
+        {
+            var b = new Boxer { Name = "Late Starter", Age = age, Potential = 90, Ratings = new Ratings() };
+            b.Record.Wins = wins;
+            return b;
+        }
+
+        // Same mileage, thirteen years apart. The young one is coming through; the old one cannot be.
+        var young = Man(22, 24);
+        var old = Man(35, 24);
+
+        Assert.True(CareerMileage.Development(old) < CareerMileage.Development(young),
+                    $"at 35 he is developed {CareerMileage.Development(old):F2} against "
+                    + $"{CareerMileage.Development(young):F2} at 22 — the years counted for nothing");
+        Assert.True(CareerMileage.Development(old) < 1.0, "a 35-year-old is not still growing into his ceiling");
+
+        // And nothing should call him a prospect. The exact stage the young man lands in depends on his own
+        // boundaries, which vary per fighter; what matters is that the same mileage reads as a career still
+        // ahead of him at 22 and behind him at 35.
+        Assert.True(CareerMileage.StageOf(young) is CareerStage.PrePrime or CareerStage.Prime,
+                    $"at 22 with 24 fights he is {CareerMileage.StageOf(young)}");
+        Assert.True(CareerMileage.StageOf(old) is CareerStage.PostPrime or CareerStage.End,
+                    $"at 35 with 24 fights he is still {CareerMileage.StageOf(old)}");
+
+        // Gradual rather than a cliff at the birthday, and with a floor under it.
+        Assert.True(CareerMileage.Development(Man(40, 24)) < CareerMileage.Development(old));
+        Assert.True(CareerMileage.Development(Man(60, 24)) >= 0.45);
+    }
+
     [Fact]
     public void ThePlayerAgesWithTheCalendar()
     {
