@@ -39,9 +39,29 @@ public static class FighterShape
 
     /// <summary>Compose a set of ratings. The draw order matters and is fixed: any reordering changes every
     /// fighter the sim has ever generated from a given seed.</summary>
-    public static Ratings Compose(Random rng, int potential, double dev, bool young, Spreads s, Floors f)
+    /// <param name="rollDurabilityTwice">Roll chin and stamina twice and keep the better of the two.
+    ///
+    /// For the PLAYER only, and it is about what a career is like to play rather than about realism. Those
+    /// two are the attributes a man cannot train his way out of and cannot avoid finding out about: a glass
+    /// chin means being knocked out by people you are better than, and no engine means losing rounds you
+    /// were winning. Every other bad roll gives you a fighter with a problem to solve. Those two give you
+    /// twenty fights of being punished for a dice roll made before the first bell.
+    ///
+    /// Best of two does not raise the ceiling — he can still come out with a poor chin, and the spread that
+    /// makes fighters different is untouched. It just makes the floor rarer. The world's fighters keep the
+    /// single roll, because the sport needs glass jaws in it; it only does not need the player to be one
+    /// without ever having had a say.</param>
+    public static Ratings Compose(Random rng, int potential, double dev, bool young, Spreads s, Floors f,
+                                  bool rollDurabilityTwice = false)
     {
         int Ceiling(int spread) => Ratings.Clamp(potential + rng.Next(-spread, spread + 1));
+        // Both draws always happen when it is on, so the stream does not depend on which came out higher.
+        int Durability(int spread)
+        {
+            if (!rollDurabilityTwice) return Ceiling(spread);
+            int first = Ceiling(spread), second = Ceiling(spread);
+            return Math.Max(first, second);
+        }
         static int Scale(int ceiling, double d) => Ratings.Clamp((int)Math.Round(ceiling * d));
         static double Lerp(double dev, double floor) => floor + (1.0 - floor) * dev;
 
@@ -51,9 +71,9 @@ public static class FighterShape
             Speed = Scale(Ceiling(s.Speed), young ? Lerp(dev, f.Speed) : dev),
             Defense = Scale(Ceiling(s.Defense), Lerp(dev, young ? f.Defense : f.DefenseWhenFading)),
             Accuracy = Scale(Ceiling(s.Accuracy), Lerp(dev, f.Accuracy)),
-            Stamina = Scale(Ceiling(s.Stamina), young ? Lerp(dev, f.Stamina) : dev),
+            Stamina = Scale(Durability(s.Stamina), young ? Lerp(dev, f.Stamina) : dev),
             Conditioning = Scale(Ceiling(s.Conditioning), young ? Lerp(dev, f.Conditioning) : dev),
-            Chin = Scale(Ceiling(s.Chin), Lerp(dev, f.Chin)),
+            Chin = Scale(Durability(s.Chin), Lerp(dev, f.Chin)),
             CutResistance = Ceiling(s.CutResistance),
             Aggression = Ceiling(s.Aggression),
             Heart = Ceiling(s.Heart),

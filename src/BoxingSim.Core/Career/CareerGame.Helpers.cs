@@ -457,7 +457,8 @@ public sealed partial class CareerGame
         // These were two separate copies of the same eleven lines until a change to one missed the other
         // twice — see FighterShape.
         var r = FighterShape.Compose(rng, potential, dev, young: true,
-                                     FighterShape.PlayerSpreads, FighterShape.PlayerFloors);
+                                     FighterShape.PlayerSpreads, FighterShape.PlayerFloors,
+                                     rollDurabilityTwice: true);   // chin and stamina best of two — see Compose
 
         var player = new Boxer
         {
