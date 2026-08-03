@@ -198,9 +198,20 @@ public sealed partial class CareerGame
     /// Forty per cent admits all of them and still stops a flyweight becoming a heavyweight.</summary>
     private bool StepUpAllowed(Boxer b, WeightClass to)
     {
-        // A real fighter with a documented ceiling never climbs past the top weight he actually campaigned at.
-        if (_historical.ContainsKey(b.Id) && b.TopWeight is WeightClass top) return (int)to <= (int)top;
-
+        // A REAL FIGHTER IS NOT HELD TO THE WEIGHTS HE ACTUALLY CAMPAIGNED AT. This used to cap him at his
+        // documented TopWeight, which sounds like fidelity and is really a different thing: it decides the
+        // career before it is boxed. The point of running the sport again is that it comes out differently —
+        // a man who never got the chance to move up gets it here, and one who did may not bother.
+        //
+        // It was also the reason a three-weight champion barely existed. Of the champion-caliber men on the
+        // roster, eighty-seven carried a documented ceiling and fifty-three of those could move exactly one
+        // division; only thirty-seven fighters in three simulated worlds ever climbed three at all, against
+        // 1,181 who climbed two.
+        //
+        // His FRAME still holds him, which is the limit that is actually about the man rather than about what
+        // happened to him: nothing climbs more than 40% above its debut weight, so a flyweight never turns up
+        // at heavyweight. TopWeight is still read for reach and height, where a documented physique is a fact
+        // about the body rather than a bound on the career.
         var from = b.DebutWeight ?? b.WeightClass;
         return ScaleWeight(to) <= ScaleWeight(from) * 1.40;
     }
