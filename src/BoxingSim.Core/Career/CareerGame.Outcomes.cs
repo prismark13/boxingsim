@@ -65,7 +65,9 @@ public sealed partial class CareerGame
     /// from damage that retires a thirty-six-year-old, which is as true of eyes and hands as it is of chins.
     /// Being knocked out repeatedly over a career tells as well, because the men who go this way are usually
     /// the men who have already taken too much.</summary>
-    private string? CareerEndingBlow(Boxer f, DateOnly on)
+    /// <param name="absorbed">Clean punches he took tonight, across every round.</param>
+    /// <param name="stopped">He did not hear the final bell.</param>
+    private string? CareerEndingBlow(Boxer f, int absorbed, bool stopped, DateOnly on)
     {
         if (f.Retired) return null;
         // These numbers are small because the sport is large. ApplyOutcome runs for EVERY bout in the world —
@@ -75,7 +77,16 @@ public sealed partial class CareerGame
         // rare per NIGHT, not rare per career.
         double risk = 0.00003                                    // a young, unmarked fighter: about 1 in 33,000
                     + Math.Max(0, f.Age - 32) * 0.00006          // it is the late thirties that carry this
-                    + Math.Min(6, f.Record.StoppageLosses) * 0.00008;
+                    + Math.Min(6, f.Record.StoppageLosses) * 0.00008
+                    // WHAT HE TOOK TONIGHT, which is the thing that actually does it. Keyed on defeats alone
+                    // this fell only on men who lose — 363 careers ended across 1.4 million bouts and not one
+                    // of 219 Hall of Famers, because the sport's best are rarely stopped and were therefore
+                    // immortal. A hard twelve rounds is where a career goes, and the hardest twelve rounds in
+                    // boxing are between two great fighters, neither of whom may lose it. Sixty landed is an
+                    // ordinary night and costs nothing; it is the wars that count.
+                    + Math.Max(0, absorbed - 45) * 0.0000150
+                    // And being stopped is its own event, not merely a slow night's punishment.
+                    + (stopped ? 0.00025 : 0);
         if (_rng.NextDouble() >= risk) return null;
         return RingEnders[_rng.Next(RingEnders.Length)];
     }
@@ -151,7 +162,16 @@ public sealed partial class CareerGame
         // player. So the sport had a hazard that only ever befell one man in it, and the NPC resolver did not
         // generate them at all: every other fighter in the world was immortal until his mileage ran out.
         // Rolled here instead, which is the one place every bout in the world goes through, fast model or full.
-        string? endedA = CareerEndingBlow(a, night), endedB = CareerEndingBlow(b, night);
+        // Punishment ABSORBED tonight, from the round-by-round detail both resolvers produce. This is what
+        // actually ends careers, and reading it is what lets the hazard reach the men it should: two elite
+        // fighters land far more on each other than either lands on a gatekeeper, so the nights that wreck a
+        // great fighter are the great fights. Judged on defeats alone it could only ever find journeymen.
+        int absorbedA = 0, absorbedB = 0;
+        foreach (var r in res.Rounds) { absorbedA += r.LandedB; absorbedB += r.LandedA; }
+        bool stoppedA = !res.IsDraw && res.Loser?.Id == a.Id && res.IsStoppage;
+        bool stoppedB = !res.IsDraw && res.Loser?.Id == b.Id && res.IsStoppage;
+        string? endedA = CareerEndingBlow(a, absorbedA, stoppedA, night),
+                endedB = CareerEndingBlow(b, absorbedB, stoppedB, night);
 
         // Each fighter's ledger: date, result, method, round, knockdowns scored / suffered.
         char ra = res.IsDraw ? 'D' : res.Winner!.Id == a.Id ? 'W' : 'L';
