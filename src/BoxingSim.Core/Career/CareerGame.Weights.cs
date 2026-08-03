@@ -280,7 +280,18 @@ public sealed partial class CareerGame
     {
         if (champ is null) return;
         int defs = BeltsHeld(champ).Select(x => x.Defenses).DefaultIfEmpty(0).Max();
-        TryQueueStepUp(champ, DefenceStepUpHazard(defs));
+        // A MAN WHO HAS ALREADY DONE IT ONCE IS CHASING THE RECORD. Measured, the funnel to a three-weight
+        // champion loses everybody in two places: 414 of 569 men who won a belt never left that division at
+        // all, and of the 55 who moved and won again, only 16 ever moved a third time. The conversion in
+        // between is healthy — 35% of champions who move up win something up there — so the sport was not
+        // failing to make them champions, it was failing to send them.
+        //
+        // Multiplied here rather than in the curve because it is a tiny population and a specific ambition:
+        // the two-weight champion going for a third is the fight boxing remembers, and there are only ever a
+        // handful of him. The ordinary champion's reluctance to leave a division he owns is untouched.
+        double hazard = DefenceStepUpHazard(defs);
+        if (_hall.TitleDivisionCount(champ.Id) >= 2) hazard *= 3.0;
+        TryQueueStepUp(champ, hazard);
         // Nobody defends forever: a champion piling up defences (who hasn't moved up) increasingly walks away on
         // top rather than fighting on — capping ultra-long reigns, especially in a division he can't climb out of.
         if (defs >= 12 && champ.Id != Player.Id && !champ.Retired)
@@ -316,7 +327,33 @@ public sealed partial class CareerGame
         // possible — otherwise the whole division drifts upward over a career and everyone ends up a
         // cruiserweight. A second move is two-thirds as likely as the first, a fourth about a fifth.
         int climbed = (int)b.WeightClass - (int)(b.DebutWeight ?? b.WeightClass);
-        double weariness = Math.Pow(0.62, climbed);
+        // CLIMBING IS ONLY TIRING IF IT DID NOT WORK. This counted every division he had crossed alike, so a
+        // man who won a belt at each of two weights was treated as WEARIER than the day he started — and the
+        // discount compounds, which is why three-weight champions barely existed: twelve to nineteen men in a
+        // world ever climbed three divisions against three hundred and seventy who climbed two, and almost
+        // none of the few won anything up there.
+        //
+        // A move that produced a title is not a man drifting upward out of his depth, it is the reason the
+        // move exists. So only the crossings that bought him nothing count against the next one. A fighter who
+        // has won a belt everywhere he has been goes again at full chance; one who has wandered up twice with
+        // nothing to show for it is discounted exactly as before, which is what keeps the divisions from
+        // silting upward.
+        int wonSomewhere = Math.Max(0, _hall.TitleDivisionCount(b.Id) - 1);
+        double weariness = Math.Pow(0.62, Math.Max(0, climbed - wonSomewhere));
+        // AND THE REAL REASON A MAN MOVES: HE IS CRUSHING THEM. Nothing here measured that. A fighter's chance
+        // of going up read his stage, his ceiling and his mileage — every one of them a fact about HIM, and
+        // none about whether the division still had anybody in it who could give him a night's work. So the
+        // man clearing out a weight class at will was no likelier to leave it than the contender scrapping to
+        // stay ranked, and he stayed until age took him.
+        //
+        // Measured against the best man he could still be matched with: level with the field and this is
+        // nothing, six points clear doubles his chance of moving, twelve points trebles it. That is what
+        // running out of opposition looks like from the inside, and it is why the real ones went up.
+        double dominance = 1.0;
+        var fieldBest = ActiveIn(b.WeightClass).Where(x => x.Id != b.Id && x.Id != Player.Id)
+                                               .OrderByDescending(RankScore).Take(6)
+                                               .Select(x => (int?)x.Overall).Max();
+        if (fieldBest is int rival) dominance += Math.Clamp(b.Overall - rival, 0, 18) / 6.0;
         // AN UNBEATEN MAN HAS RUN OUT OF THINGS TO PROVE AT HIS WEIGHT, and the sport says so to him long
         // before he is ready to hear it: there is nobody left down here, go up and find somebody. A record
         // with a defeat in it still has an argument to settle in the division he is standing in.
@@ -325,7 +362,7 @@ public sealed partial class CareerGame
         // which is the opposite of the case for sending him up in weight.
         double nothingLeftToProve = b.Record.Losses == 0 && ProFights(b) >= 12 ? 1.6 : 1.0;
         // Rolled right after a bout, so the wait is measured from the fight that prompted it.
-        if (_rng.NextDouble() < p * greatness * weariness * nothingLeftToProve)
+        if (_rng.NextDouble() < p * greatness * weariness * nothingLeftToProve * dominance)
             _stepUpQueued[b.Id] = Date.AddDays(28 + _rng.Next(57));   // 4 to 12 weeks
     }
 
