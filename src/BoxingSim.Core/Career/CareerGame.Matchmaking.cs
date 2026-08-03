@@ -193,6 +193,9 @@ public sealed partial class CareerGame
         // Hard cap: no more than 8 bouts in a calendar year. Once he's had his eight, the next one waits for the new year.
         if (FightsThisYear(Player) >= MaxFightsPerYear && OfferDate.Year == Date.Year)
             OfferDate = new DateOnly(Date.Year + 1, 1, 12 + _rng.Next(24));
+        // And it is announced for a Friday or a Saturday, because that is when a card is. Forward, so the
+        // gap computed above stays the minimum rest it is meant to be rather than losing up to six days.
+        OfferDate = FightNightOnOrAfter(OfferDate);
         var ranked = Active.OrderByDescending(b => RankScore(b)).ToList();   // index 0 = strongest
         int idx = ranked.FindIndex(b => b.Id == Player.Id);
         if (ranked.Count <= 1) return new FightOffer { Opponent = _factory.CreateProspect(Player.WeightClass, GeneratedCap, Year), Rounds = 6, Context = "stay-busy" };
@@ -395,8 +398,13 @@ public sealed partial class CareerGame
         // which is twenty bouts — a body of work, not a standing. A man can have thirty fights and be fortieth
         // in his division, and for him the guard was simply off: he was matched with the leading men on the
         // strength of having turned up twenty times. He is on the board or he is not.
+        // BUT STANDING ALONE IS NOT ENOUGH TO LIFT IT. Being on the board says he belongs among ranked men; it
+        // does not say he is ready for the best of them, and a wonder kid can be ranked inside a dozen bouts.
+        // Lifted on standing alone, the ceiling did not ramp — it jumped straight from "nobody in the top
+        // fifteen" to "anyone at all" the week he first appeared on it. He has to be BOTH ranked and twenty
+        // fights in, which is the same body of work every other apprenticeship in this file asks for.
         HashSet<int> offLimits;
-        if (BoardPlace(Player) > 0) offLimits = new HashSet<int>();
+        if (BoardPlace(Player) > 0 && proFights >= 20) offLimits = new HashSet<int>();
         else
         {
             var (champs, contenders) = BoardOf(Player.WeightClass, 15);

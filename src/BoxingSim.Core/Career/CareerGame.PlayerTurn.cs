@@ -86,6 +86,10 @@ public sealed partial class CareerGame
     /// A card is a thing you read before it happens. Building it at the opening bell meant the only way to
     /// find out what else was on was to have already fought, which is the wrong way round: the point of a
     /// bill is that you look at it beforehand and decide whether the night is worth your while.</summary>
+    /// <summary>Support bouts every card carries, whatever else the matchmaking manages. With the main event
+    /// that makes four fights, which is the smallest thing anybody would call a show.</summary>
+    private const int MinimumBill = 3;
+
     private readonly List<(Boxer A, Boxer B, int Rounds)> _billed = new();
 
     /// <summary>How many supports are billed ABOVE the player's own fight. Derived from what the fights are
@@ -111,13 +115,15 @@ public sealed partial class CareerGame
         Billing = Billing.MainEvent;
         if (Offer is null || Player.Retired) return;
 
-        // A club show is four fights and a raffle; a championship bill runs all night.
+        // A club show is a night out; a championship bill runs all night. These went up by one across the
+        // board — a card of three supports and a main event reads as a rehearsal rather than a fight night,
+        // and the poster is most of what a player sees of the sport around him.
         int want = Tier switch
         {
-            CardTier.Championship => 6 + _rng.Next(3),
-            CardTier.National => 5 + _rng.Next(2),
-            CardTier.Regional => 4 + _rng.Next(2),
-            _ => 3 + _rng.Next(2),
+            CardTier.Championship => 7 + _rng.Next(3),
+            CardTier.National => 6 + _rng.Next(2),
+            CardTier.Regional => 5 + _rng.Next(2),
+            _ => 4 + _rng.Next(2),
         };
 
         var used = new HashSet<int> { Player.Id, Offer.Opponent.Id };
@@ -128,6 +134,19 @@ public sealed partial class CareerGame
             made.Add(bout);
             used.Add(bout.A.Id); used.Add(bout.B.Id);
         }
+
+        // AND FOUR FIGHTS IS THE FLOOR, which the number above only ASKED for. BillDivisions hands out a list
+        // of weights to fill and MatchOneSupport declines whenever a division has nobody free — everyone
+        // already used, injured, or booked — so a card could be announced with two bouts on it and once with
+        // none at all. Sweep the live divisions for anybody still available until the bill is a bill.
+        if (made.Count < MinimumBill)
+            foreach (var wc in AllDivisions.Where(DivisionActive).OrderBy(_ => _rng.Next()))
+            {
+                if (made.Count >= MinimumBill) break;
+                if (MatchOneSupport(wc, used) is not { } extra) continue;
+                made.Add(extra);
+                used.Add(extra.A.Id); used.Add(extra.B.Id);
+            }
 
         // Top to bottom, biggest first.
         made.Sort((x, y) => y.Value.CompareTo(x.Value));
@@ -221,7 +240,10 @@ public sealed partial class CareerGame
             var (a, b, rounds) = _billed[i];
             if (a.Retired || b.Retired || !_medical.Available(a) || !_medical.Available(b)) continue;
             var res = FastBout(a, b, rounds);
-            var night = ApplyOutcome(res, a, b);
+            // TONIGHT, said out loud. An undercard is on the same bill as the main event by definition, and
+            // an undated bout is now scattered across the fortnight the world just ran — which for these
+            // would have quietly walked the supporting fights off the card the player is standing on.
+            var night = ApplyOutcome(res, a, b, on: Date);
             _undercard.Add(new UndercardBout(
                 a.Name, b.Name,
                 res.IsDraw ? null : res.Winner!.Name,

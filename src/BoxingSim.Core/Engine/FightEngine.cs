@@ -132,7 +132,23 @@ public sealed class FightEngine
                 target.Cut = Math.Min(1.0, target.Cut + 0.14 + _rng.NextDouble() * 0.22);
                 cutOpened = true; cutLoc = target.CutLoc; cutSev = CutType(target.Cut);
             }
-            target.Damage = Math.Min(1.3, target.Damage + force * 0.029);
+            // A CHIN HAS TO BUY A LONGER NIGHT, not just a softer punch. Force is power OVER chin, so it is a
+            // ratio: at parity it is 1.0 whether both men are 60 or both are 90, and cumulative damage ran to
+            // a fixed 1.0 — so the number of clean shots needed to stop ANY fighter was the same, about
+            // thirty-four, however granite his jaw. Chin protected him per punch and never per fight.
+            //
+            // That is why the engine got wilder the better the sport got. Volume rises with quality —
+            // aggression alone takes clean punches from 25 a round to 31 — and the power-punch share rises
+            // with power, so a better fight lands far more of the shots that do damage while the total needed
+            // to end it never moved. Measured at parity, bouts ending inside the distance: 40% at 60-level,
+            // 57% at 75, 84% at 85, 94% at 95. Real boxing runs 35-45% at every level.
+            //
+            // Punishment now accrues against what the man can actually take, and the constant comes down with
+            // it. Seventy-two is the reference jaw, near the middle of the roster, so an ordinary fighter is
+            // barely moved and this is a redistribution rather than a general softening. After: 32/29/33/36/
+            // 36/40/41% from 60 through 95 — flat, and inside the real band.
+            double soak = 0.0205 * (72.0 / Math.Clamp(target.R.Chin, 35, 100));
+            target.Damage = Math.Min(1.3, target.Damage + force * soak);
             target.Swell = Math.Min(1.0, target.Swell + 0.02 + force * 0.005);
             if (target.SwellLoc is null && target.Swell >= 0.16) { var sw = Pick(SwellLocs); target.SwellLoc = sw.Loc; target.SwellEye = sw.Eye; }
             if (_rng.NextDouble() < force * 0.019 * (0.5 + target.Damage)) countedOut = Knockdown(target, body: false);

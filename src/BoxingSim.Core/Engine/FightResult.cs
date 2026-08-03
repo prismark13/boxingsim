@@ -58,7 +58,14 @@ public sealed class FightResult
     /// in separate columns: a knockout is a man counted out, a technical knockout is the referee stepping in
     /// or a cut ending it. Summing them into one KO column is what gave fighters with no power gaudy KO
     /// tallies — a cut stoppage reads the loser's cut resistance and never the winner's punch.</summary>
-    public bool IsStoppage => Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout;
+    /// A DISQUALIFICATION IS NOT ONE. The engine files a DQ as a TechnicalKnockout because the fight ended
+    /// early and the outcome enum has nowhere else to put it — so a man thrown out for a low blow was being
+    /// recorded in his opponent's TKO column, and put on a knockout's medical suspension for a night nobody
+    /// laid a glove on him. The fast resolver files the same event as a Decision, so the two disagreed and
+    /// only the engine's version was wrong. Caught by the ledger test: the record showed eleven technical
+    /// knockouts against ten in the fight history, and the missing one was a DQ.
+    public bool IsStoppage =>
+        (Outcome is FightOutcome.Knockout or FightOutcome.TechnicalKnockout) && Method != "DQ";
 
     public string Headline()
     {

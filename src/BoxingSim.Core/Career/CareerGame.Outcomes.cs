@@ -24,6 +24,14 @@ public sealed partial class CareerGame
     {
         if (a.Id == Player.Id || b.Id == Player.Id) return when;
 
+        // Whatever night it was handed, it is boxed on a fight night. BACKWARDS, always — see
+        // FightNightOnOrBefore — and before the clash guard rather than after it, because the guard's pushes
+        // are whole weeks and so keep whatever weekday they are given.
+        //
+        // Which nights count depends on what the fight IS: the weekend for anything with a ranked man in it,
+        // midweek for the club circuit. See IsClubNight.
+        when = FightNightOnOrBefore(when, ClubLevel(a, b));
+
         static DateOnly? Clash(Boxer f, DateOnly d)
         {
             foreach (var h in f.History)
@@ -38,6 +46,82 @@ public sealed partial class CareerGame
             when = hit.Value.AddDays(28);
         }
         return when;
+    }
+
+    /// <summary>Boxing happens at the weekend.
+    ///
+    /// Nothing said so, so a card landed on whatever weekday the clock was standing on — and since the world
+    /// steps a fortnight at a time, that meant every fight on earth was on a Thursday for two months, and then
+    /// the player took a fight, the step phase shifted, and every fight on earth was on a Tuesday. A feed of
+    /// Tuesday-night world title fights is wrong in a way anybody who follows the sport reads instantly.
+    ///
+    /// Friday and Saturday, and no more sophistication than that. The exceptions are real — Monday nights on
+    /// American network television, a Sunday afternoon in Tokyo because of the time difference — but modelling
+    /// them means modelling the broadcaster, and the plain rule is right far more often than no rule was right
+    /// at all.</summary>
+    private static bool IsFightNight(DateOnly d) => d.DayOfWeek is DayOfWeek.Friday or DayOfWeek.Saturday;
+
+    /// <summary>A club show does not need the weekend, and should not have it.
+    ///
+    /// Friday and Saturday belong to the nights people buy tickets and turn on the television for. The small
+    /// halls run midweek precisely because the weekend is taken — a Thursday in a leisure centre is what the
+    /// bottom of the sport looks like, and putting a four-round novice bout on the same night as a world
+    /// title flattens the difference between them. The card the player is on already knows what it is; out
+    /// in the world nothing tracks a tier, so the fighters decide it: a bout with nobody world-ranked in it
+    /// is a club show whatever room it is held in.</summary>
+    private static bool IsClubNight(DateOnly d) => d.DayOfWeek is DayOfWeek.Thursday;
+
+    private bool ClubLevel(Boxer a, Boxer b) =>
+        a.Id != Player.Id && b.Id != Player.Id && !WorldRanked(a) && !WorldRanked(b);
+
+    /// <summary>The fight night on or before a day, for a bout being REPORTED.
+    ///
+    /// Backwards and never forwards, which is not a preference. A bout the world has already resolved may not
+    /// be dated after the day the world has reached, or the player reads a result before it has happened and
+    /// it sorts to the top of a feed ordered by date. ClockTests pins exactly that.</summary>
+    private static DateOnly FightNightOnOrBefore(DateOnly d, bool club = false)
+    {
+        for (int back = 0; back < 7; back++)
+        {
+            var day = d.AddDays(-back);
+            if (club ? IsClubNight(day) : IsFightNight(day)) return day;
+        }
+        return d;
+    }
+
+    /// <summary>The fight night on or after a day, for a bout being MADE. The other direction, and for the
+    /// opposite reason: the gap in front of an offer is the rest he needs before he can box again, so rounding
+    /// it up to the next weekend is honest and rounding it down quietly shortens his camp.</summary>
+    private static DateOnly FightNightOnOrAfter(DateOnly d)
+    {
+        for (int on = 0; on < 7; on++)
+            if (IsFightNight(d.AddDays(on))) return d.AddDays(on);
+        return d;
+    }
+
+    /// <summary>A night for a bout the world settled during the step just run.
+    ///
+    /// A step is a fortnight and the sport does not hold a fortnight's boxing on one evening. Every bout
+    /// resolved without a date of its own used to be stamped with the day the step ENDED, so the news feed
+    /// carried three separate fights in three countries on one Thursday and then nothing at all for two weeks.
+    /// Spreading them across the weekends the step actually covered costs one draw and turns the feed into
+    /// something that reads like a results column.
+    ///
+    /// The window is clamped rather than trusted. <see cref="_stepFrom"/> is default until the clock first
+    /// moves, and a career loaded from a save has not stepped yet either.</summary>
+    private DateOnly NightInTheStepJustRun()
+    {
+        var from = _stepFrom < Date && _stepFrom >= Date.AddDays(-92) ? _stepFrom : Date.AddDays(-14);
+
+        int count = 0;
+        for (var d = from.AddDays(1); d <= Date; d = d.AddDays(1)) if (IsFightNight(d)) count++;
+        if (count == 0) return FightNightOnOrBefore(Date);
+
+        int pick = _rng.Next(count);
+        for (var d = from.AddDays(1); d <= Date; d = d.AddDays(1))
+            if (IsFightNight(d) && pick-- == 0) return d;
+
+        return FightNightOnOrBefore(Date);
     }
 
     /// <summary>Apply a result to both men, on a given night.
@@ -108,7 +192,10 @@ public sealed partial class CareerGame
 
     private DateOnly ApplyOutcome(FightResult res, Boxer a, Boxer b, string? note = null, DateOnly? on = null)
     {
-        var night = LegalNightFor(a, b, on ?? Date);
+        // A bout handed no night of its own belongs to the stretch of calendar the step just covered, not to
+        // the day that stretch ended on. The player is the exception and is always tonight: he is standing in
+        // the ring as this runs, and his card — undercard included — is the night he agreed to.
+        var night = LegalNightFor(a, b, on ?? (a.Id == Player.Id || b.Id == Player.Id ? Date : NightInTheStepJustRun()));
         if (_watch is not null)
         {
             var w = res.Winner ?? a; var l = res.Loser ?? b;

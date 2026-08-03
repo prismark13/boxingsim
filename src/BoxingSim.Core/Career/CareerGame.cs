@@ -116,8 +116,16 @@ public sealed partial class CareerGame
     private void AdvanceClockTo(DateOnly d)
     {
         if (d <= Date) return;
+        _stepFrom = Date;
         Date = d;
     }
+
+    /// <summary>Where the clock stood before the last step, so a bout can be dated inside the stretch of
+    /// calendar it was actually fought in rather than on the day that stretch happened to end.
+    ///
+    /// Default until the clock first moves, which is why every reader of it checks the span is sane before
+    /// trusting it: a world being set up has no previous step, and the year 1 is not a fortnight ago.</summary>
+    private DateOnly _stepFrom;
     private FightOffer? _offer;
     /// <summary>The fight on the table. Setting it draws up the card it sits on — the hall, the size of the
     /// night, his billing, and the rest of the bill — because a card is something you read BEFORE you agree

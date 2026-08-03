@@ -151,9 +151,14 @@ public sealed partial class CareerGame
         {
             // Record the result AND a dated ledger line vs a journeyman, oldest first, so the fight
             // history matches the win-loss record instead of starting blank at his sim debut.
-            var when = b.DebutYear is int dy
+            var raw = b.DebutYear is int dy
                 ? new DateOnly(Math.Clamp(dy + i / 3, dy, Date.Year - 1), 1 + _rng.Next(12), 1 + _rng.Next(28))
                 : Date.AddDays(-span + (int)((i + 1.0) / (fights + 1) * span));
+            // On a fight night, like the rest of the sport. Backwards by default, so a bout measured back from
+            // today cannot land in front of today — but never so far back that a January fight falls into the
+            // year before, which would print a bout in the ledger from before the man debuted.
+            var when = FightNightOnOrBefore(raw);
+            if (when.Year < raw.Year) when = FightNightOnOrAfter(raw);
             string opp = _oppNames.Next();
             double roll = _rng.NextDouble();
             char rc; string method; int round = 0;
