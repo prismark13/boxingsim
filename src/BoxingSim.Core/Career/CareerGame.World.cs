@@ -212,7 +212,7 @@ public sealed partial class CareerGame
         // applied to records immediately — so dating it months ahead announced a champion the player could not
         // yet have watched being crowned, and put the headline below older news in a feed sorted by date.
         var wanted = NoLaterThanToday(SpreadDateFrom(Date));
-        var res = FastBout(field[0], field[1], 12);
+        var res = FastBout(field[0], field[1], 12, title: true);
         // What comes back, not what went in: if either man boxed too recently the bout is pushed to a later
         // night, and the headline has to follow the fight rather than the intention.
         var night = ApplyOutcome(res, field[0], field[1], $"{belt} title", on: wanted);

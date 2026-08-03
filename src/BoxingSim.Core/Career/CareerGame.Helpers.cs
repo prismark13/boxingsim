@@ -78,7 +78,13 @@ public sealed partial class CareerGame
 
     /// <summary>A fast, statistical resolution of an NPC-vs-NPC bout (no round-by-round sim) so a big
     /// division can be simulated cheaply. The player's own fights always use the full engine.</summary>
-    private FightResult FastBout(Boxer a, Boxer b, int rounds)
+    /// <param name="title">A world title is on it. The challenger has trained for this night his whole
+    /// career and the champion has everything to lose, and the sport's history is a list of men who were
+    /// supposed to win — Douglas over Tyson at 42-1, Rahman over Lewis, Ruiz over Joshua. So a championship
+    /// keeps a floor of 5% under the underdog however wide the gap, where an ordinary night's floor closes
+    /// as the gap opens. Without it a dominant champion faced about 2% a defence, and twenty defences
+    /// unbeaten was a 67% coin flip — which is how the Hall filled with spotless records.</param>
+    private FightResult FastBout(Boxer a, Boxer b, int rounds, bool title = false)
     {
         // Effective rating favours a young fighter still climbing toward a high ceiling, so a genuine
         // prospect very rarely loses to a journeyman who's already maxed out.
@@ -100,6 +106,7 @@ public sealed partial class CareerGame
         if (a.Overall >= 66 && b.Overall >= 66)
         {
             double floor = Math.Max(0.008, 0.09 - Math.Abs(a.Overall - b.Overall) * 0.007);
+            if (title) floor = Math.Max(floor, 0.05);   // never safer than 95% with a belt on it — see the param
             pa = Math.Clamp(pa, floor, 1 - floor);
         }
         double drawP = 0.05 * (1 - Math.Abs(pa - 0.5) * 2);

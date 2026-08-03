@@ -110,7 +110,7 @@ public sealed partial class CareerGame
                 var ch = PickChallenger(champ, WbcOf(wc));
                 if (ch is not null)
                 {
-                    var res = FastBout(champ, ch, 12);
+                    var res = FastBout(champ, ch, 12, title: true);
                     var on = ApplyOutcome(res, champ, ch, $"{PrimaryBelt} title");
                     if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} DETHRONES {champ.Name} for the {PrimaryBelt} title!", wc, RefOf(res, on), on); CrownChampion(ch, on); }
                     else { Defended(wc, "WBA", champ.Id); LogTitle($"{champ.Name} retains the {PrimaryBelt} title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(champ); }
@@ -121,7 +121,7 @@ public sealed partial class CareerGame
                 var ch = PickChallenger(wbcC, ChampOf(wc));
                 if (ch is not null)
                 {
-                    var res = FastBout(wbcC, ch, 12);
+                    var res = FastBout(wbcC, ch, 12, title: true);
                     var on = ApplyOutcome(res, wbcC, ch, "WBC title");
                     if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the WBC title from {wbcC.Name}!", wc, RefOf(res, on), on); CrownWbc(ch, on); }
                     else { Defended(wc, "WBC", wbcC.Id); LogTitle($"{wbcC.Name} retains the WBC title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(wbcC); }
@@ -135,7 +135,7 @@ public sealed partial class CareerGame
             var ch = PickChallenger(ibf, null);
             if (ch is not null)
             {
-                var res = FastBout(ibf, ch, 12);
+                var res = FastBout(ibf, ch, 12, title: true);
                 var on = ApplyOutcome(res, ibf, ch, "IBF title");
                 if (!res.IsDraw && res.Winner!.Id == ch.Id) { LogTitle($"{ch.Name} TAKES the IBF title from {ibf.Name}!", wc, RefOf(res, on), on); CrownIbf(ch, on); }
                 else { Defended(wc, "IBF", ibf.Id); LogTitle($"{ibf.Name} retains the IBF title against {ch.Name}.", wc, RefOf(res, on), on); ConsiderTitleStepUp(ibf); }
@@ -367,7 +367,7 @@ public sealed partial class CareerGame
     private void Unify(WeightClass wc)
     {
         if (ChampOf(wc) is not Boxer wba || WbcOf(wc) is not Boxer wbc || wba.Id == wbc.Id) return;
-        var res = FastBout(wba, wbc, 12);
+        var res = FastBout(wba, wbc, 12, title: true);
         var on = ApplyOutcome(res, wba, wbc, "unification");
         if (!res.IsDraw)
         {
@@ -383,7 +383,7 @@ public sealed partial class CareerGame
     {
         var ch = PickChallenger(champ, null);
         if (ch is null) return;
-        var res = FastBout(champ, ch, 12);
+        var res = FastBout(champ, ch, 12, title: true);
         var on = ApplyOutcome(res, champ, ch, "Undisputed title");
         if (!res.IsDraw && res.Winner!.Id == ch.Id)
         {
@@ -406,7 +406,7 @@ public sealed partial class CareerGame
             var ch = PickChallenger(c, null);
             if (ch is null) return;
             if (NextTitleDate(c, ch, yr, d, titleBouts) is not DateOnly nd) return;
-            var res = FastBout(c, ch, 12);
+            var res = FastBout(c, ch, 12, title: true);
             var on = ApplyOutcome(res, c, ch, "Undisputed title", on: nd);
             if (!res.IsDraw && res.Winner!.Id == ch.Id)
             {
@@ -451,7 +451,7 @@ public sealed partial class CareerGame
                 continue;
             }
             if (NextTitleDate(c, challenger, yr, d, titleBouts) is not DateOnly td) return;
-            var res = FastBout(c, challenger, 12);
+            var res = FastBout(c, challenger, 12, title: true);
             var on = ApplyOutcome(res, c, challenger, $"{belt} title", on: td);
             if (!res.IsDraw && res.Winner!.Id == challenger.Id)
             {

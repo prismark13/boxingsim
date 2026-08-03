@@ -323,7 +323,9 @@ public sealed partial class CareerGame
         string note = belt is not null ? $"{belt} title" : "superfight";
 
         var wanted = NoLaterThanToday(SpreadDate(Date.Year, 1 + _rng.Next(4), 6));
-        var res = FastBout(a, b, 12);
+        // Only when a belt is actually on it. The same pairing with no title in the balance is a superfight,
+        // and a superfight is a big night rather than a championship.
+        var res = FastBout(a, b, 12, title: belt is not null);
         var night = ApplyOutcome(res, a, b, note, on: wanted);
         ReportBout(res, night);
         // A belt changing hands here has to actually change hands, or the champions board still shows the
