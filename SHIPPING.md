@@ -42,6 +42,25 @@ If you use the small build, the tester needs the **.NET 10 Desktop Runtime** fir
 (`https://dotnet.microsoft.com/download/dotnet/10.0`, "Desktop Runtime", x64). That is a second download and an
 installer, so it is usually less trouble to send the standalone one over a link.
 
+## Never version it 1.0.0
+
+Smart App Control refuses a binary stamped `1.0.0.0` outright. This is not a guess and not a coincidence of
+one build: from a single commit, published four times with only the version changed,
+
+| stamped | result |
+|---|---|
+| `1.0.0` | blocked at load, every time |
+| `1.0.1` | starts |
+| `1.1.0` | starts |
+| `0.9.8` | starts |
+
+`1.0.0.0` is the default version an enormous amount of malware carries, because it is what a compiler stamps
+when nobody sets one — so it reads as a signal to a reputation model that has never seen the file before.
+Code Integrity blocks `BoxingSim.dll` at load and .NET surfaces it as a `FileLoadException`, which looks
+exactly like a crash and is not one.
+
+This cost a published 1.0.0 release that nobody could start. **The version after 0.9.7 is 1.0.1.**
+
 ## The one real obstacle: it is unsigned
 
 Windows will treat it as an unknown application.
