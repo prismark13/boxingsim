@@ -242,6 +242,12 @@ public sealed partial class CareerGame
         ConsiderStepUp(a);
         ConsiderStepUp(b);
 
+        // The player improves BY FIGHTING, not by having birthdays — see CareerProgression.AdvanceOneFight.
+        // Only him: the world's thousands develop on the yearly pass, which is what the world can afford and
+        // which nobody is watching closely enough to notice.
+        if (a.Id == Player.Id) _careers.AdvanceOneFight(a);
+        else if (b.Id == Player.Id) _careers.AdvanceOneFight(b);
+
         NoteRematchDemand(res, a, b, note);   // did this one leave a question?
         CaptureBout(res, a, b, note, night, aPtsBefore, bPtsBefore);  // a candidate for the year-end awards
         return night;

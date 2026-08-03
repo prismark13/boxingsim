@@ -23,9 +23,23 @@ public sealed class CareerProgression
 
         if (pastPrime <= 0)
         {
-            // Climbing toward the ceiling — the further below potential, the faster the growth.
-            double room = Math.Max(0, b.Potential - r.Overall);
-            double growth = room * 0.18;
+            // Climbing toward the ceiling, and it is his FIGHTS that take him there rather than his birthdays.
+            //
+            // This closed a flat 18% of the gap to his potential every year, which made development a function
+            // of the calendar alone: a prospect who boxed six times in a year improved exactly as much as one
+            // who boxed twice, and a busy twenty-year-old with fifteen bouts sat at 86% of his ceiling while a
+            // quiet twenty-one-year-old with five sat higher for having had a birthday. Everything else in
+            // this model is counted in bouts — the stages, the decline, the retirement — and growth was the
+            // one thing still counted in years.
+            //
+            // So the target is where his MILEAGE says he should be: 80% of his ceiling on debut, rising to all
+            // of it by the end of his pre-prime. Fifteen fights in, that is about 90% of potential, which is a
+            // twenty-one-year-old prospect who can beat a gatekeeper and is not yet ready for a champion. He
+            // closes most of the remaining gap each year, so the arc still bends rather than stepping.
+            int primeAt = CareerMileage.PrePrimeUntil(b);
+            double through = primeAt <= 0 ? 1 : Math.Clamp(CareerMileage.Fights(b) / (double)primeAt, 0, 1);
+            double target = b.Potential * (0.80 + 0.20 * through);
+            double growth = Math.Max(0, target - r.Overall) * 0.60;
             Bump(r, physical: growth, skill: growth * 1.1, innate: growth * 0.4);
         }
         else
@@ -42,6 +56,30 @@ public sealed class CareerProgression
             r.Defense = Drop(r.Defense, decl * 0.5);      // experience offsets some loss
             r.Accuracy = Drop(r.Accuracy, decl * 0.5);
         }
+    }
+
+    /// <summary>A night in the ring, for a fighter still coming through.
+    ///
+    /// Growth used to happen only on a birthday, which is why a busy prospect could not get ahead: fifteen
+    /// fights into his career he had had two of them, so he sat at 86% of his ceiling however hard he had
+    /// worked, and the man who boxed twice a year arrived at the same place for the same age. Everything
+    /// else in this model is counted in bouts. Improving is the thing a fighter does BY fighting.
+    ///
+    /// Applied to the player and nobody else, deliberately. The world's thousands develop once a year because
+    /// that is what the world can afford and nobody is watching any one of them closely; the player is watched
+    /// fight by fight, and a card that does not move after a hard night is the thing he notices. It converges
+    /// on the same target the yearly pass uses, so the two cannot disagree about where he is going.</summary>
+    public void AdvanceOneFight(Boxer b)
+    {
+        if (CareerMileage.PastPrime(b) > 0) return;   // he is spending it now, not building it
+        var r = b.Ratings;
+        int primeAt = CareerMileage.PrePrimeUntil(b);
+        double through = primeAt <= 0 ? 1 : Math.Clamp(CareerMileage.Fights(b) / (double)primeAt, 0, 1);
+        double target = b.Potential * (0.80 + 0.20 * through);
+        // A third of the remaining gap per fight: three or four hard nights move a prospect visibly, which is
+        // what a prospect is, without any single one of them turning him into a different fighter.
+        double growth = Math.Max(0, target - r.Overall) * 0.34;
+        Bump(r, physical: growth, skill: growth * 1.1, innate: growth * 0.4);
     }
 
     /// <summary>A hard knockout loss leaves a mark — shave the chin a little, permanently.</summary>

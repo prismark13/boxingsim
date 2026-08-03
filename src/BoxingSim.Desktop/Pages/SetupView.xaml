@@ -95,9 +95,25 @@
                     </StackPanel>
                 </Grid>
 
-                <TextBlock Text="TALENT" Style="{StaticResource Label}" Margin="0,18,0,6" />
-                <ComboBox ItemsSource="{Binding Talents}" SelectedValue="{Binding Talent}"
-                          SelectedValuePath="Key" DisplayMemberPath="Label" />
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="Auto" MinWidth="120" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="TALENT" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding Talents}" SelectedValue="{Binding Talent}"
+                                  SelectedValuePath="Key" DisplayMemberPath="Label" />
+                    </StackPanel>
+                    <!-- Turning pro late is a real choice and it costs something: the stages are counted in
+                         bouts, so he is not behind on development, but the years still count against the age
+                         his prime ends by. -->
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="TURNS PRO AT" Style="{StaticResource Label}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding StartAges}" SelectedItem="{Binding SetupAge}" />
+                    </StackPanel>
+                </Grid>
 
                 <CheckBox Content="Simulate full history (seeds the Hall of Fame with past greats)"
                           IsChecked="{Binding FullHistory}" Margin="0,20,0,0" />

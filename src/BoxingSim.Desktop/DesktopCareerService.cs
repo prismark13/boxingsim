@@ -151,13 +151,17 @@ public sealed class DesktopCareerService
               .OrderByDescending(wc => (int)wc)
               .ToList();
 
-    public void Start(string name, string country, int startYear, int potential, WeightClass division, bool fullHistory, int slot = 1)
+    /// <param name="startAge">The age he turns pro at, 18 to 21. It is not cosmetic: every career stage is
+    /// measured in bouts, but the years still count against the age his prime ends by — so a man who debuts
+    /// at twenty-one reaches that limit three years sooner in fights he has not had. Late starters trade
+    /// runway for nothing, which is the trade a real late starter makes.</param>
+    public void Start(string name, string country, int startYear, int potential, WeightClass division, bool fullHistory, int slot = 1, int startAge = 18)
     {
         ActiveSlot = Math.Clamp(slot, 1, Slots);
         // A career never inherits a universe's dials.
         EndUniverse();
         var rng = new Random();
-        var player = CareerGame.CreatePlayer(rng, name, country, division, potential);
+        var player = CareerGame.CreatePlayer(rng, name, country, division, potential, Math.Clamp(startAge, 18, 21));
         // A fresh copy each time: CareerGame ages and mutates the roster it is handed.
         Game = new CareerGame(startYear, player, Roster.ToList(), rng, division, seedHistory: fullHistory);
         LastResult = null;

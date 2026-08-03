@@ -764,6 +764,18 @@ public sealed class CareerViewModel : Observable
     private WeightClass _setupDivision;
     public WeightClass SetupDivision { get => _setupDivision; set { _setupDivision = value; Raise(); } }
 
+    /// <summary>The age he turns pro at. Eighteen is the youngest anybody is licensed; twenty-one is about as
+    /// late as a man starts and still has a career in front of him, so those are the ends of it.
+    ///
+    /// It costs something, which is the point of offering it. Career stages are counted in BOUTS, so a late
+    /// starter is not behind on development — but the years still count against the age his prime ends by,
+    /// and he reaches that in fights he never had. Three years late is three years of prime spent before the
+    /// first bell.</summary>
+    public IReadOnlyList<int> StartAges { get; } = new[] { 18, 19, 20, 21 };
+
+    private int _setupAge = 18;
+    public int SetupAge { get => _setupAge; set { _setupAge = value; Raise(); } }
+
     private string _talent = "elite";   // Elite leads the list, so it is what the screen opens on
     public string Talent { get => _talent; set { _talent = value; Raise(); } }
 
@@ -944,7 +956,7 @@ public sealed class CareerViewModel : Observable
                            .OrderByDescending(d => (int)d)
                            .DefaultIfEmpty(WeightClass.Heavyweight).First();
             await BusyAsync(FullHistory ? "Simulating a full history — this takes a moment…" : "Building the world…",
-                            () => _svc.Start(name, Country, SetupYear, potential, div, FullHistory, SetupSlot));
+                            () => _svc.Start(name, Country, SetupYear, potential, div, FullHistory, SetupSlot, SetupAge));
             RankingsPage.Restore(div);
         }
         catch (Exception ex) { BusyMessage = ex.Message; return; }
