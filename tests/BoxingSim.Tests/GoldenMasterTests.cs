@@ -116,7 +116,7 @@ public class GoldenMasterTests
         // ... then -> here when the slate widened to three. The universe fingerprint did NOT move, which is
         // the confirmation it is the player's: a universe's ghost is retired, so he has no division to be
         // ranked in and his slate stays one wide.
-        Assert.Equal("818D49A9B431ACF7", Hash(body));
+        Assert.Equal("BE9ECD6F7DF59363", Hash(body));
     }
 
     [Fact]

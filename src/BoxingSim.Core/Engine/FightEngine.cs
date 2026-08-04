@@ -136,7 +136,14 @@ public sealed class FightEngine
             // meant a fighter simply arrived at the bell bleeding with nothing to point at - no shot caused it
             // and the call could never say so. A hard, clean shot to the head is what opens a man up, and a
             // thin-skinned fighter goes far sooner.
-            if (force >= 0.85 && _rng.NextDouble() < (force - 0.75) * 0.115 * (1.0 - target.R.CutResistance / 135.0))
+            // The RATE was too high, though the shape was right. Cut resistance does the work it should —
+            // ended-by-a-cut runs 17.9% of fights at 40 and 4.3% at 95 — but the whole curve sat two to three
+            // times above the sport: 11.4% of the player's bouts ended on a cut against the 3-5% real boxing
+            // runs. It went unnoticed while stoppages were at 81%, because a cut was lost among them; once
+            // the damage model came back to earth a cut was ending one win in eight, which is a different
+            // sport. Halved, which puts an ordinary jaw near 5% and leaves the spread between a bleeder and
+            // a man with granite skin exactly where it was.
+            if (force >= 0.85 && _rng.NextDouble() < (force - 0.75) * 0.058 * (1.0 - target.R.CutResistance / 135.0))
             {
                 if (target.CutLoc is null) { var c = Pick(CutLocs); target.CutLoc = c.Loc; target.CutEye = c.Eye; }
                 target.Cut = Math.Min(1.0, target.Cut + 0.14 + _rng.NextDouble() * 0.22);
