@@ -531,7 +531,22 @@ public sealed partial class CareerGame
         foreach (var bs in s.Roster) { var b = bs.ToBoxer(); _roster.Add(b); byId[b.Id] = b; }
         Player = byId[s.PlayerId];
         // Don't let fighters generated during continued play collide with anyone already on the roster.
-        var reserved = _roster.Select(b => b.Name).ToList();
+        //
+        // AND WITH ANYONE STILL TO ARRIVE, which this did not cover. The save keeps the men yet to turn pro in
+        // their own list — a real fighter is held back until his historical debut year — and reserving only
+        // the ROSTER left every one of those names free to be handed to a generated prospect. The sport would
+        // then invent a Wilfredo Gomez in 1970 and debut the real one in 1974, and there were two of him.
+        // Names are the second half of a fighter's identity here: the ledger, the Hall and every BoutRef key
+        // on them, so a collision is not cosmetic.
+        //
+        // The men already inducted into the Hall are reserved too. They are gone from the roster — the save
+        // keeps it lean by dropping the retired — so a new fighter could be born with a dead great's name and
+        // inherit his record wherever anything looks a man up by it.
+        var reserved = _roster.Select(b => b.Name)
+                              .Concat(s.Future.Select(f => f.Proto.Name))
+                              .Concat(s.HallOfFame.Select(h => h.Name))
+                              .Where(n => !string.IsNullOrWhiteSpace(n))
+                              .ToList();
         _factory.Reserve(reserved);
         _oppNames.Reserve(reserved);
         _factory.StartIdsAt(_roster.Select(b => b.Id).Append(Player.Id).DefaultIfEmpty(0).Max() + 1);
