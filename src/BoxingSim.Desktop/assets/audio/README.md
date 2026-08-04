@@ -57,6 +57,31 @@ and the glove snap above 2 kHz is left where it was, because brightness was neve
 variants are the same shape resampled, which pitches and shortens together the way a harder punch actually
 differs from a softer one; `thud-big` is the same at 0.84 speed.
 
+**Then they were made of leather rather than wood.** Shortening the decay fixed the timing and left the timbre
+alone, and the timbre was the rest of the problem: the punch sounded like an axe hitting a log. Two numbers say
+why. A fifth of the energy sat in **450–1200 Hz**, which is where a struck block of wood resonates — and once
+the 43% below 70 Hz is discounted, because nothing but a subwoofer reproduces it, that box band is what a
+listener is actually left with. And there was **0.5% above 4 kHz**, where the scuff of a leather glove lives;
+its complete absence is what makes an impact read as solid material rather than as something padded.
+
+So the box is cut about 7 dB, the sub is pulled down 15–20 dB and the 110–170 Hz body — the part a laptop
+speaker can carry — is lifted 6 dB in its place, and a leather layer is added on the attack: 3–9 kHz noise on a
+12–18 ms decay, scaled to a measured share of the total rather than to a level picked by ear. It is synthesised
+because there is none in the source to lift. The EQ is a 1,025-tap linear-phase FIR rather than one FFT across
+the whole file: a whole-file curve has an impulse response as long as the sample, and cutting the sub that way
+spread a ring across all 160 ms — the punch stopped being over.
+
+| | before | after |
+|---|---|---|
+| 450–1200 Hz (the woodblock) | 20.3% | **5.8%** |
+| 4–10 kHz (the leather) | 0.5% | **5.5%** |
+| 70–200 Hz (the mass) | 25.3% | **34.9%** |
+| below 70 Hz (inaudible anyway) | 9.3% | 5.0% |
+| 90% of energy delivered by | 35 ms | 32 ms |
+
+`thud-big` keeps more mass and less scuff — a knockdown shot lands deeper, so its centroid sits at 960 Hz
+against 1,200–1,280 for the others.
+
 **The beds are stereo.** They were mono, and a centred mono crowd is the single biggest reason a room sounds
 small. Each is now the original in one ear and the original through three co-prime Schroeder all-passes in the
 other — all-passes rather than a delay, because a delay would widen it just as well and then comb-filter the
