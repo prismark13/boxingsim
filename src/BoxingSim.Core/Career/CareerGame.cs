@@ -354,11 +354,43 @@ public sealed partial class CareerGame
         // Form: staying unbeaten is itself an achievement; defeats undo one.
         int fights = b.Record.Wins + b.Record.Losses + b.Record.Draws;
         double winRate = fights > 0 ? (b.Record.Wins + 0.5 * b.Record.Draws) / fights : 0;
-        score += winRate * 20 - b.Record.Losses;
-
-        return score + b.Overall * 0.15;                  // ability breaks ties, nothing more
-    }
-
+        score += winRate * 20 - RecentDefeats(b);
+
+        return score + b.Overall * 0.15;                  // ability breaks ties, nothing more
+    }
+
+    /// <summary>What his recent defeats cost him, by WHO did it and HOW RECENTLY.
+    ///
+    /// A defeat used to cost one point. One, flat, on a board where a champion starts at forty and a long reign
+    /// is worth sixty more — so a pound-for-pound list could watch its number two get beaten by a gatekeeper on
+    /// a Saturday and have him still at number two on the Sunday. That is the one thing a P4P board is FOR:
+    /// it is not a list of honours, it is a claim about who would beat whom, and a claim like that has to
+    /// answer to last week.
+    ///
+    /// Who beat him is read from the bout note rather than by looking the man up, which is both cheap and
+    /// true: you meet a champion in a championship. Losing one of those is the risk of being at the top and
+    /// costs little. Losing anything else is losing to a man the board does not rate, and it is what actually
+    /// moves somebody down it.
+    ///
+    /// And it FADES. A defeat five years back says nothing about who would win tonight, which is why a great
+    /// fighter climbs back after a bad night instead of carrying it for ever. Walked newest-first and stopped
+    /// at the horizon, so a thirty-year ledger costs no more to read than a three-year one.</summary>
+    private double RecentDefeats(Boxer b)
+    {
+        const double horizonYears = 5.0;
+        double cost = 0;
+        for (int i = b.History.Count - 1; i >= 0; i--)
+        {
+            var h = b.History[i];
+            double years = (Date.DayNumber - h.Date.DayNumber) / 365.25;
+            if (years >= horizonYears) break;          // chronological, so everything before this is older
+            if (h.Result != 'L') continue;
+            double freshness = 1.0 - years / horizonYears;
+            cost += (IsWorldTitleNote(h.Note) ? 7.0 : 26.0) * freshness;
+        }
+        return cost;
+    }
+
     /// <summary>World title bouts a fighter has WON, from his ledger — the hard record of what he's achieved.</summary>
     private static int WorldTitleWins(Boxer b) =>
         b.History.Count(h => h.Result == 'W' && IsWorldTitleNote(h.Note));

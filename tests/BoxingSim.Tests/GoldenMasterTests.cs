@@ -126,7 +126,12 @@ public class GoldenMasterTests
         // ... then -> here when crossing a division started costing a man something: 2.8 rating points
         // became 4.8, so a champion who moves up arrives as a live contender rather than as the same fighter
         // with a new address.
-        Assert.Equal("4B5BD76C7ED7046E", Hash(body));
+        // ... then -> here when a defeat started costing pound-for-pound standing by WHO inflicted it and
+        // HOW RECENTLY rather than one flat point for ever. This one moves far more of the world than it
+        // looks like it should, and the reason is worth writing down: the P4P board is not only DISPLAYED,
+        // it is what StageP4PSuperfight draws the sport's biggest non-title nights from. Change who is on it
+        // and you change who fights whom, so every fighter's record downstream moves with it.
+        Assert.Equal("FFF21AD92BFAC030", Hash(body));
     }
 
     [Fact]
@@ -155,6 +160,8 @@ public class GoldenMasterTests
         // Giardello's WBC passes to Briscoe, and the pound-for-pound board reorders behind it.
         // ... and here for the step-up cost, which the world feels far more than a career does: this
         // universe's fighters change division 11,000 times over its life and the player does it never.
-        Assert.Equal("48543553F6847E23", Hash(body));
+        // ... and here for the same, through the same route: the superfights a universe stages come off its
+        // pound-for-pound board.
+        Assert.Equal("3EEFAC2659B15050", Hash(body));
     }
 }
