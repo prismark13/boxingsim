@@ -22,13 +22,24 @@ public sealed partial class CareerGame
         return n;
     }
 
-    /// <summary>Moving up a class: skill carries, but a fighter is relatively lighter-hitting and less
-    /// durable against bigger men, so power and chin ease off (and a touch of speed).</summary>
+    /// <summary>What a division costs a man.
+    ///
+    /// Skill carries and the physical advantages do not: against bigger men he hits relatively lighter, takes
+    /// a shot relatively worse, and carries the extra weight in his legs. Measured, the first cut of this was
+    /// worth 2.8 points of overall rating — a champion moved up and was, for every practical purpose, the same
+    /// fighter, so he arrived in the division above as the best man in it and the second belt was a formality.
+    /// Winning a title at two weights is one of the hardest things in the sport and it read like an errand.
+    ///
+    /// Doubled, to about five and a half points. That is the difference between the best man in a division and
+    /// a live contender in it, which is exactly what a champion who moves up is: he can win it, and he has to
+    /// go and win it. Stamina joins the list because it is the one nobody thinks of — a man carrying an extra
+    /// half-stone is not carrying it for three rounds.</summary>
     private void RebalanceRatings(Ratings r)
     {
-        r.Power = Ratings.Clamp(r.Power - (4 + _rng.Next(4)));
-        r.Chin = Ratings.Clamp(r.Chin - (3 + _rng.Next(3)));
-        r.Speed = Ratings.Clamp(r.Speed - _rng.Next(3));
+        r.Power = Ratings.Clamp(r.Power - (6 + _rng.Next(6)));
+        r.Chin = Ratings.Clamp(r.Chin - (5 + _rng.Next(5)));
+        r.Speed = Ratings.Clamp(r.Speed - (1 + _rng.Next(4)));
+        r.Stamina = Ratings.Clamp(r.Stamina - _rng.Next(4));
     }
 
     private readonly Dictionary<int, int> _warmupUntil = new();   // fighter id → pro-fight count he must reach before a title shot in the new class

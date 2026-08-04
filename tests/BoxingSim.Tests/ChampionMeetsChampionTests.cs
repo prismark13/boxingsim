@@ -27,6 +27,12 @@ public class ChampionMeetsChampionTests
         && !note.StartsWith("European", StringComparison.Ordinal)
         && !note.StartsWith("Commonwealth", StringComparison.Ordinal);
 
+    /// <summary>The world belts a man holds IN THE PLAYER'S OWN DIVISION. One he holds somewhere else is not
+    /// in this ring and cannot change hands in it — and the lineal title is not a sanctioned belt.</summary>
+    private static List<string> InDivisionBelts(CareerGame g, Boxer b) =>
+        b.WeightClass != g.Player.WeightClass ? new List<string>()
+        : g.BeltsHeld(b).Where(x => !CareerGame.IsRegionalBelt(x.Belt) && x.Belt is not ("Ring" or "Lineal"))
+                        .Select(x => x.Belt).ToList();
     /// <summary>The one the player actually sees: he beats a reigning champion in a title fight, and what that
     /// man was carrying is now his. Checked against the belts held BEFORE the bell, because a fight that ends
     /// a career vacates them and the winner still has to end up with them.</summary>
@@ -42,35 +48,38 @@ public class ChampionMeetsChampionTests
             {
                 if (g.Offer is not { } offer) { if (g.WaitAWeek() is null) break; continue; }
 
-                // TO FIGHT NIGHT FIRST. Taking an offer runs the world forward to the date it was made for,
-                // and the sport keeps moving in between: read the opponent's belts when the offer arrives and
-                // he may have lost them to somebody else by the time the bell goes, so the test would demand
-                // a strap that was no longer his to lose.
+                // WHAT HE HELD WHEN IT WAS SIGNED, and in the player's own division — a belt he holds
+                // somewhere else is not in this ring. This is what decides whether there should be a title
+                // on the fight at all.
+                var opp = offer.Opponent;
+                var signed = InDivisionBelts(g, opp);
+
+                // Then to fight night, because the sport keeps moving in between: read his belts at the
+                // handshake and he may have lost them to somebody else by the bell, and the test would
+                // demand a strap that was no longer his to lose.
                 while (g.DaysToFight > 0 && g.WaitAWeek() is not null) { }
                 if (g.Player.Retired || g.Offer is null) break;
-
-                var opp = offer.Opponent;
-                var his = g.BeltsHeld(opp)
-                           .Where(x => !CareerGame.IsRegionalBelt(x.Belt) && x.Belt is not ("Ring" or "Lineal"))
-                           .Select(x => x.Belt).ToList();
+                var atTheBell = InDivisionBelts(g, opp);
 
                 var res = g.TakeOffer();
                 if (res is null) continue;
                 if (res.IsDraw || res.Winner!.Id != g.Player.Id) continue;
-                if (his.Count == 0) continue;
+                if (signed.Count == 0) continue;
 
-                // He just beat a man who held world belts. Either it was a title fight and he has them, or
-                // the fight had no belt on it at all — and that second case must not exist: the matchmaker is
-                // not allowed to put a reigning champion in front of him with nothing at stake.
+                // He signed to fight a reigning champion of his own division. There has to be a belt on it:
+                // the matchmaker is not allowed to put one in front of him with nothing at stake.
                 Assert.True(offer.TitleFight,
                             $"seed {seed}: he was matched with {opp.Name}, who held the "
-                            + $"{string.Join(" and ", his)}, and there was no belt on the fight");
+                            + $"{string.Join(" and ", signed)}, and there was no belt on the fight");
 
+                // And he now holds everything that man still had when the bell went.
+                var owed = signed.Intersect(atTheBell).ToList();
                 var now = g.BeltsHeld(g.Player).Select(x => x.Belt).ToHashSet();
-                foreach (var belt in his)
+                foreach (var belt in owed)
                     Assert.True(now.Contains(belt),
-                                $"seed {seed}: he beat {opp.Name} for the {string.Join(" and ", his)} "
+                                $"seed {seed}: he beat {opp.Name} for the {string.Join(" and ", owed)} "
                                 + $"and does not hold the {belt} — he holds {string.Join(", ", now)}");
+                if (owed.Count == 0) continue;
                 checked_++;
             }
         }
@@ -110,5 +119,44 @@ public class ChampionMeetsChampionTests
         Assert.True(unifications >= 7,
                     $"only {unifications} unifications in {years:0} years across three divisions: the "
                     + "champions of a division are not meeting");
+    }
+
+    /// <summary>Crossing a division costs a man something real.
+    ///
+    /// Pinned as a floor rather than a figure, because the figure is a tuning and the rule is not: he hits
+    /// relatively lighter and takes a shot relatively worse against bigger men, so he arrives as a live
+    /// contender rather than as the same fighter with a new address. It was worth 2.8 rating points, which is
+    /// close enough to nothing that a champion moving up made the second belt a formality.</summary>
+    [Fact]
+    public void MovingUpCostsHimSomething()
+    {
+        var drops = new List<int>();
+
+        for (int seed = 1; seed <= 12; seed++)
+        {
+            var g = Worlds.Fresh(potential: 92, seed: seed);
+            for (int i = 0; i < 90 && !g.Player.Retired; i++)
+            {
+                if (g.CanMoveUp && CareerGame.WorldRanked(g.Player)) break;
+                if (g.Offer is null) { if (g.WaitAWeek() is null) break; continue; }
+                g.TakeOffer();
+            }
+            if (!g.CanMoveUp || g.Player.Retired) continue;
+
+            int before = g.Player.Overall;
+            g.MoveUp();
+            drops.Add(before - g.Player.Overall);
+        }
+
+        Assert.True(drops.Count >= 4, $"only {drops.Count} moves were observed, too few to have tested anything");
+        double mean = drops.Average();
+        _out.WriteLine($"{drops.Count} moves up, mean cost {mean:0.0} OVR (min {drops.Min()}, max {drops.Max()})");
+
+        Assert.True(mean >= 3.5,
+                    $"moving up cost a mean of {mean:0.0} rating points; below about four it is not a division "
+                    + "change, it is a change of address");
+        Assert.True(mean <= 9.0,
+                    $"moving up cost a mean of {mean:0.0} rating points, which writes the two-weight champion "
+                    + "out of the sport entirely");
     }
 }

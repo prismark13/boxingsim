@@ -123,7 +123,10 @@ public class GoldenMasterTests
         // shrinks with it, 84 to 55, for the same reason — a man with two belts is one Hall of Famer and not
         // two — and gets stronger doing it: mean defences 5.7 to 6.6, mean peak 92.3 to 92.7, and the share
         // of multi-weight champions unchanged at 15%.
-        Assert.Equal("C12ECC7A574811DC", Hash(body));
+        // ... then -> here when crossing a division started costing a man something: 2.8 rating points
+        // became 4.8, so a champion who moves up arrives as a live contender rather than as the same fighter
+        // with a new address.
+        Assert.Equal("4B5BD76C7ED7046E", Hash(body));
     }
 
     [Fact]
@@ -150,6 +153,8 @@ public class GoldenMasterTests
         // call draws a different count of random numbers than it used to. Everything after it shifts.
         // ... and here for the same change. A universe has no player, so what moved is purely the world's:
         // Giardello's WBC passes to Briscoe, and the pound-for-pound board reorders behind it.
-        Assert.Equal("B1154FE2CA275401", Hash(body));
+        // ... and here for the step-up cost, which the world feels far more than a career does: this
+        // universe's fighters change division 11,000 times over its life and the player does it never.
+        Assert.Equal("48543553F6847E23", Hash(body));
     }
 }
