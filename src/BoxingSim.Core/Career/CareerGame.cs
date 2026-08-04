@@ -100,7 +100,6 @@ public sealed partial class CareerGame
         && (Universe is null || Universe.Divisions.Count == 0 || Universe.Divisions.Contains(wc));
     /// <summary>True when one man holds both world belts in the player's division.</summary>
     public bool Unified => _titles.Unified(Division);
-    private bool UnifiedIn(WeightClass wc) => _titles.Unified(wc);
     public DateOnly Date { get; private set; }
     public int Year => Date.Year;
 

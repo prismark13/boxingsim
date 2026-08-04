@@ -116,7 +116,14 @@ public class GoldenMasterTests
         // ... then -> here when the slate widened to three. The universe fingerprint did NOT move, which is
         // the confirmation it is the player's: a universe's ghost is retired, so he has no division to be
         // ranked in and his slate stays one wide.
-        Assert.Equal("BE9ECD6F7DF59363", Hash(body));
+        // ... then -> here when a title bout started settling EVERY belt in the ring rather than the one it
+        // was billed as, and two champions could only meet in a unification. The world consolidates: at
+        // heavyweight this seed used to end with Frazier holding the WBA and Shavers the WBC, two champions
+        // who were never going to meet; it now ends with Ali holding both and the lineal title. The Hall
+        // shrinks with it, 84 to 55, for the same reason — a man with two belts is one Hall of Famer and not
+        // two — and gets stronger doing it: mean defences 5.7 to 6.6, mean peak 92.3 to 92.7, and the share
+        // of multi-weight champions unchanged at 15%.
+        Assert.Equal("C12ECC7A574811DC", Hash(body));
     }
 
     [Fact]
@@ -141,6 +148,8 @@ public class GoldenMasterTests
         // ... and here for the scored matchmaker, which looks wrong for a world with no player in it. It is
         // not: a universe builds ONE offer, for the ghost it retires before the first week, and that single
         // call draws a different count of random numbers than it used to. Everything after it shifts.
-        Assert.Equal("D015D5A162591C6D", Hash(body));
+        // ... and here for the same change. A universe has no player, so what moved is purely the world's:
+        // Giardello's WBC passes to Briscoe, and the pound-for-pound board reorders behind it.
+        Assert.Equal("B1154FE2CA275401", Hash(body));
     }
 }

@@ -393,15 +393,28 @@ public sealed partial class CareerGame
         }
     }
 
-    /// <summary>How likely the two world champions finally meet. Demand builds with DEFENCES: two established
-    /// champions who each keep turning back challengers are the fight the public wants and the one the sanctioning
-    /// bodies can't keep apart, while a pair who've only just won their belts have everything to lose and little
-    /// to gain. The shorter of the two reigns drives it — it takes two established men to make the fight — with
-    /// the longer reign adding a little on top. Roughly five defences apiece maxes the pressure out.</summary>
-    private double UnificationChance(WeightClass wc, double baseChance, double cap)
+    /// <summary>The two men a division would most like to see meet: the two most decorated belt-holders in it,
+    /// or null when one man has the lot and there is nothing left to unify.
+    ///
+    /// This used to be the WBA champion and the WBC champion, named. So the IBF champion was in nobody's way —
+    /// he could not be unified with, and a division holding three belts between three men was stuck that way
+    /// until somebody retired. Measured before this: two or three DIFFERENT men held belts on 89.6% of cards,
+    /// and the sport staged one unification per ten division-years.</summary>
+    private (Boxer A, Boxer B)? UnificationPair(WeightClass wc)
     {
-        if (ChampOf(wc) is not Boxer a || WbcOf(wc) is not Boxer b || a.Id == b.Id) return 0;
-        int da = DefensesOf(wc, "WBA", a.Id), db = DefensesOf(wc, "WBC", b.Id);
+        var men = BeltHoldersOf(wc);
+        return men.Count >= 2 ? (men[0], men[1]) : null;
+    }
+
+    /// <summary>How likely two champions finally meet. Demand builds with DEFENCES: two established champions
+    /// who each keep turning back challengers are the fight the public wants and the one the sanctioning
+    /// bodies can't keep apart, while a pair who've only just won their belts have everything to lose and
+    /// little to gain. The shorter of the two reigns drives it — it takes two established men to make the
+    /// fight — with the longer reign adding a little on top. Roughly five defences apiece maxes it out.</summary>
+    private double UnificationChance(WeightClass wc, Boxer a, Boxer b, double baseChance, double cap)
+    {
+        if (a.Id == b.Id) return 0;
+        int da = BestDefenceOf(wc, a), db = BestDefenceOf(wc, b);
         int pressure = Math.Min(da, db) * 3 + Math.Max(da, db);
         return baseChance + (cap - baseChance) * Math.Min(1.0, pressure / 18.0);
     }

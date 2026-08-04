@@ -163,8 +163,13 @@ public sealed class OfferSlateViewModel : Observable
     /// numbers — the ratings are on the tale of the tape for anyone who wants them.</summary>
     private string WhyTakeIt(FightOffer o, int rank, int of)
     {
-        if (o.TitleFight && o.Belt is "WBA" or "WBC" or "IBF")
-            return "The belt. Everything has been for this.";
+        // Asked as "is this a REGIONAL belt", not "is it one of the three world straps by name". A
+        // unification is billed by what is in the ring — "WBC and IBF", "Undisputed" — and matching on the
+        // three names meant the biggest night in the sport was described to the player as a regional title.
+        if (o.TitleFight && o.Belt is string wb && !CareerGame.IsRegionalBelt(wb))
+            return o.Context.StartsWith("unification")
+                 ? "Both belts, one night. This is the fight the division has been waiting for."
+                 : "The belt. Everything has been for this.";
         if (o.TitleFight) return "A regional title — the last step before world level.";
         if (o.Context is "eliminator") return "Win it and you are next in line.";
 

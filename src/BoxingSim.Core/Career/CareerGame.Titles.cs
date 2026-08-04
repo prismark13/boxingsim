@@ -67,6 +67,11 @@ public sealed partial class CareerGame
 
     private static readonly string[] RegionalBelts = { "NABF", "European", "Commonwealth" };
 
+    /// <summary>Is this belt a regional strap rather than a world title? Public because the UI has to ask it:
+    /// a world title can be billed as "WBC", as "WBA and IBF" or as "Undisputed" depending on what is in the
+    /// ring, so anything testing for one by name gets a unification wrong.</summary>
+    public static bool IsRegionalBelt(string belt) => RegionalBelts.Contains(belt);
+
     /// <summary>Does this man hold a world belt in his own division?
     ///
     /// The undercard pool used to exclude the WBA and WBC champions by name and say "champions sit these
@@ -116,6 +121,58 @@ public sealed partial class CareerGame
             or "Poland" or "Sweden" or "Denmark" or "Netherlands" or "Kazakhstan" or "Romania" or "Croatia" or "Finland" => "European",
         _ => null
     };
+
+    // ---- reading a division's belts as a set ----
+    //
+    // THERE ARE THREE OF THEM AND THE CODE KNEW ABOUT TWO. Every rule about champions was written out once per
+    // belt — a defence for the WBA, a defence for the WBC, a defence for the IBF — and the three copies did not
+    // say the same thing: the unification only ever merged the WBA and the WBC, so the IBF could not be won in
+    // a unification or lost in one, and a division holding three belts between three men had no way to become
+    // undisputed except by two of them retiring. These four read the register instead, so a rule about belts is
+    // written once and applies to all of them.
+
+    /// <summary>Every world belt a man holds in his own division, in the order they are always listed.</summary>
+    private List<string> WorldBeltsOf(Boxer b) =>
+        _titles.WorldHolders(b.WeightClass).Where(x => x.Holder?.Id == b.Id).Select(x => x.Belt).ToList();
+
+    /// <summary>The best defence count behind any belt a man holds — how established his reign is.</summary>
+    private int BestDefenceOf(WeightClass wc, Boxer b) =>
+        _titles.WorldHolders(wc).Where(x => x.Holder?.Id == b.Id)
+               .Select(x => DefensesOf(wc, x.Belt, b.Id)).DefaultIfEmpty(0).Max();
+
+    /// <summary>The men holding a world belt in a division, the most decorated first: belts held, then the
+    /// length of the reign behind them.</summary>
+    private List<Boxer> BeltHoldersOf(WeightClass wc) =>
+        _titles.WorldHolders(wc).Select(x => x.Holder).OfType<Boxer>()
+               .DistinctBy(b => b.Id)
+               .OrderByDescending(b => WorldBeltsOf(b).Count)
+               .ThenByDescending(b => BestDefenceOf(wc, b))
+               .ThenBy(b => b.Id)                       // determinism: two men, equal claims, stable order
+               .ToList();
+
+    /// <summary>What a set of belts is called on the poster. Every belt in the division at once is
+    /// "Undisputed"; anything less is named.</summary>
+    private string BeltLabel(WeightClass wc, IReadOnlyList<string> belts)
+    {
+        int existing = _titles.WorldHolders(wc).Count();
+        if (belts.Count > 1 && belts.Count >= existing) return UndisputedBelt;
+        return belts.Count switch
+        {
+            0 => "",
+            1 => belts[0],
+            2 => $"{belts[0]} and {belts[1]}",
+            _ => $"{string.Join(", ", belts.Take(belts.Count - 1))} and {belts[^1]}",
+        };
+    }
+
+    /// <summary>Put a world belt on a man through the crowning path, so the man he took it from stops being
+    /// champion. <see cref="SetHolder"/> is the other one and is for a belt nobody held.</summary>
+    private void CrownWorld(Boxer who, string belt, DateOnly? on = null)
+    {
+        if (belt == "WBC") CrownWbc(who, on);
+        else if (belt == "IBF") CrownIbf(who, on);
+        else CrownChampion(who, on);
+    }
 
     /// <summary>Uniform belt access — routes world belts to their fields, regional belts to the map.</summary>
     private Boxer? BeltHolder(string belt) =>

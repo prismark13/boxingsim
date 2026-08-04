@@ -561,6 +561,15 @@ public sealed partial class CareerGame
                      : Offer.Context.StartsWith("rematch") ? "rematch"
                      : null;
         StageUndercard();                           // the rest of the show, fought before he walks out
+
+        // WHO HELD WHAT WHEN THEY WALKED OUT, captured before a punch is thrown. Reading it after the result
+        // is applied loses the belts of a man the fight FINISHED: a career-ending injury vacates everything he
+        // was carrying, so beating a champion badly enough to end him would have left the winner with nothing
+        // to pick up. The same goes for a defeated champion who moves up in the weeks after. What is on the
+        // line is decided before the first bell, which is also how the sport says it.
+        var beltsMine = WorldBeltsOf(Player);
+        var beltsHis = opp.WeightClass == Player.WeightClass ? WorldBeltsOf(opp) : new List<string>();
+
         var res = _engine.Simulate(Player, opp, Offer.Rounds);
         _declined.Clear();
         ClearRematch(Player, opp);          // whatever it was, it has now been settled once more
@@ -571,43 +580,64 @@ public sealed partial class CareerGame
         LogEvent($"{Player.Name} {verb} {opp.Name} ({how}){(belt is not null ? $" — {belt} TITLE" : "")}", playerBout: true,
                  bout: res.Winner is null ? null : new BoutRef(res.Winner.Name, res.Loser!.Name, Date));
 
-        if (belt == UndisputedBelt && !res.IsDraw)
-        {
-            // Both world belts rode on this one. Win = defend both; loss = the challenger takes the lot.
-            bool playerWon = res.Winner!.Id == Player.Id;
-            if (playerWon)
-            {
-                Defended(Player.WeightClass, "WBA", Player.Id); Defended(Player.WeightClass, "WBC", Player.Id);
-                foreach (var bl in new[] { PrimaryBelt, "WBC" }) { var r = OpenReign(bl); if (r is not null) r.Defenses++; }
-            }
-            else
-            {
-                SetBeltHolder(PrimaryBelt, opp); SetBeltHolder("WBC", opp);
-                foreach (var bl in new[] { PrimaryBelt, "WBC" }) { var r = OpenReign(bl); if (r is not null) r.Lost = Date; }
-                LogEvent($"{Player.Name} loses the unified {PrimaryBelt} and WBC titles to {opp.Name}.", true);
-            }
-        }
-        else if (belt is not null && !res.IsDraw)
+        if (belt is not null && !res.IsDraw && RegionalBelts.Contains(belt))
         {
             bool playerWon = res.Winner!.Id == Player.Id;
             bool held = PlayerHolds(belt);
             if (playerWon && !held)
             {
                 SetBeltHolder(belt, Player);
-                _titles.BeginReign(belt, Date);
-                LogEvent($"{Player.Name} WINS THE {belt} TITLE, beating {opp.Name}!", true);
-            }
-            else if (playerWon && held)
-            {
-                Defended(Player.WeightClass, belt, Player.Id);
-                var r = OpenReign(belt); if (r is not null) r.Defenses++;   // successful defence
+                LogEvent($"{Player.Name} wins the {belt} title, beating {opp.Name}.", true);
             }
             else if (!playerWon && held)
             {
                 SetBeltHolder(belt, opp);
-                var r = OpenReign(belt); if (r is not null) r.Lost = Date;
                 LogEvent($"{Player.Name} loses the {belt} title to {opp.Name}.", true);
             }
+        }
+        else if (belt is not null && !res.IsDraw)
+        {
+            // EVERY WORLD BELT IN THE RING RIDES ON THE RESULT, read off the two men rather than off the name
+            // the offer went out under.
+            //
+            // The name was the whole problem. A title bout settled exactly ONE belt — the one the offer was
+            // billed as — with a hand-written special case for the two-belt "Undisputed" defence and nothing
+            // at all for the third strap. So a champion could beat another champion and walk away with
+            // nothing, which is the thing that never happens in boxing: whatever is in the ring is on the
+            // line. Written this way it also cannot go stale when a belt is added, and it settles a
+            // unification, an ordinary defence and a challenge through one piece of code.
+            bool playerWon = res.Winner!.Id == Player.Id;
+            var mine = beltsMine;
+            var his = beltsHis;
+
+            var keeps = playerWon ? mine : his;   // the winner's own belts, defended
+            var takes = playerWon ? his : mine;   // the loser's, changing hands
+            var winner = playerWon ? Player : opp;
+
+            // A belt neither man was holding — a vacant title he was matched into. Nothing to defend and
+            // nothing to take, so the named belt simply goes to the winner. Only if the offer names ONE real
+            // belt: an offer for two of them is a label rather than a strap, and putting a label through
+            // SetBeltHolder invents a regional title called "WBA and WBC".
+            if (mine.Count == 0 && his.Count == 0
+                && _titles.WorldHolders(Player.WeightClass).Any(x => x.Belt == belt))
+                takes = new List<string> { belt };
+
+            foreach (var bl in keeps)
+            {
+                Defended(Player.WeightClass, bl, winner.Id);
+                if (playerWon) { var r = OpenReign(bl); if (r is not null) r.Defenses++; }
+            }
+            foreach (var bl in takes)
+            {
+                SetBeltHolder(bl, winner);
+                if (playerWon) _titles.BeginReign(bl, Date);
+                else { var r = OpenReign(bl); if (r is not null) r.Lost = Date; }
+            }
+
+            if (playerWon && takes.Count > 0)
+                LogEvent($"{Player.Name} WINS THE {BeltLabel(Player.WeightClass, takes)} TITLE, beating {opp.Name}!", true);
+            else if (!playerWon && takes.Count > 0)
+                LogEvent($"{Player.Name} loses the {BeltLabel(Player.WeightClass, takes)} title to {opp.Name}.", true);
         }
         if (belt is not null) _lastTitleShot = ProFights(Player);   // start the rebuild clock before the next title bout
 
@@ -643,9 +673,12 @@ public sealed partial class CareerGame
         {
             _declined.Add(turned.Opponent.Id);
             while (_declined.Count > 4) _declined.RemoveAt(0);   // he comes back round eventually
-            // Turning down a world title is not the same as turning down a Tuesday in Bethnal Green.
-            if (turned.TitleFight && turned.Belt is "WBA" or "WBC" or "IBF")
-                ForfeitShot(turned.Belt, turned.Opponent);
+            // Turning down a world title is not the same as turning down a Tuesday in Bethnal Green. Any world
+            // belt, however it is billed: this used to name the three straps, so passing on a unification or
+            // an undisputed defence — the only offers whose Belt is a LABEL rather than one of those names —
+            // cost nothing at all.
+            if (turned.TitleFight && turned.Belt is string tb && !RegionalBelts.Contains(tb))
+                ForfeitShot(tb, turned.Opponent);
         }
         AdvanceTo(Date.AddDays(21 + _rng.Next(21)));
         NewSlate();

@@ -224,55 +224,50 @@ public sealed partial class CareerGame
     /// something drawn. Scoring belongs to picking between ordinary opponents; this is about entitlement.</summary>
     private FightOffer? BigNight(List<Boxer> ranked, int idx, int proFights)
     {
+        var mine = WorldBeltsOf(Player);            // every world belt he holds, in the division he is in
         bool holdsWba = Player.IsChampion;
         bool holdsWbc = WbcChampion?.Id == Player.Id;
         bool holdsIbf = IbfChampion?.Id == Player.Id;
 
-        // A UNIFICATION IS THE FIGHT A CAREER BUILDS TOWARD, and the player was the one man in the sport who
-        // could never be offered one. Two doors and both were shut on him: the world stages unifications
-        // between its own champions and excludes him by name, and the ladder below returns a routine defence
-        // the moment he holds anything — so the lines further down that would put a rival champion in front
-        // of him were unreachable for exactly the man they were written for.
-        //
-        // Measured over forty careers: thirty-seven held a world belt, twenty-four ended up holding two at
-        // once, and not one was ever OFFERED the second. He was becoming unified administratively — a belt
-        // falling vacant and landing on him — which is the one way it should never happen.
-        //
-        // The demand curve is the world's own: it builds with defences, because two established champions who
-        // each keep turning back challengers are the fight the public wants and a pair who have just won
-        // their belts have everything to lose. He is offered the RIVAL'S belt rather than some merged prize,
-        // which is what it actually is — win and he holds both, lose and he keeps his own.
-        if ((holdsWba ^ holdsWbc) && !holdsIbf)
+        if (mine.Count > 0)
         {
-            var rival = holdsWba ? WbcChampion : Champion;
-            string rivalBelt = holdsWba ? "WBC" : PrimaryBelt;
-            string mine = holdsWba ? PrimaryBelt : "WBC";
-            if (rival is not null && rival.Id != Player.Id && _medical.Available(rival) && !RecentlyMovedUp(rival)
-                && _rng.NextDouble() < UnificationChance(Player.WeightClass, 0.15, 0.80))
+            // A UNIFICATION IS THE FIGHT A CAREER BUILDS TOWARD, and the player was the one man in the sport
+            // who could never be offered one. Two doors and both were shut on him: the world stages
+            // unifications between its own champions and excludes him by name, and the ladder below returns a
+            // routine defence the moment he holds anything, so the lines further down that would put a rival
+            // champion in front of him were unreachable for exactly the man they were written for.
+            //
+            // The first cut of this only covered a man holding ONE of the two senior belts — an IBF champion
+            // was still never offered a unification, and a man holding two was never offered the third. It
+            // asks the register now: is there another man in this division with a belt.
+            //
+            // The demand curve is the world's own: it builds with defences, because two established champions
+            // who each keep turning back challengers are the fight the public wants and a pair who have just
+            // won their belts have everything to lose. He is offered the RIVAL'S belts rather than some merged
+            // prize, which is what it actually is — win and he holds both, lose and he keeps his own.
+            var rival = BeltHoldersOf(Player.WeightClass).FirstOrDefault(b => b.Id != Player.Id);
+            if (rival is not null && _medical.Available(rival) && !RecentlyMovedUp(rival)
+                && !_declined.Contains(rival.Id)
+                && _rng.NextDouble() < UnificationChance(Player.WeightClass, Player, rival, 0.15, 0.80))
+            {
+                var his = WorldBeltsOf(rival);
                 return new FightOffer
                 {
-                    Opponent = rival, Rounds = 12, TitleFight = true, Belt = rivalBelt,
-                    Context = $"unification — his {rivalBelt} against your {mine}"
+                    Opponent = rival, Rounds = 12, TitleFight = true,
+                    Belt = BeltLabel(Player.WeightClass, his),
+                    Context = $"unification — his {BeltLabel(Player.WeightClass, his)} "
+                            + $"against your {BeltLabel(Player.WeightClass, mine)}"
                 };
-        }
+            }
 
-        // Defend a belt I already hold. Holding both senior belts means a single unified defence.
-        if (holdsWba && holdsWbc)
-        {
-            var chall = PickChallenger(Player, null)   // a top-10 contender he hasn't just fought
-                     ?? ranked.FirstOrDefault(b => b.Id != Player.Id);
+            // Otherwise he defends. Everything he holds rides on it, in one fight, which is what the
+            // "Undisputed" branch this replaces did for two belts and could not do for three.
+            string label = BeltLabel(Player.WeightClass, mine);
+            var chall = PickChallenger(Player)   // a top-10 contender he hasn't just fought, holding nothing
+                     ?? ranked.FirstOrDefault(b => b.Id != Player.Id && !IsWorldChampion(b));
             if (chall is not null)
-                return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = UndisputedBelt,
-                                        Context = DefenceContext("undisputed title defence", chall) };
-        }
-        else if (holdsWba || holdsWbc || holdsIbf)
-        {
-            string belt = holdsWba ? PrimaryBelt : holdsWbc ? "WBC" : "IBF";
-            var chall = PickChallenger(Player, null)   // a top-10 contender he hasn't just fought
-                     ?? ranked.FirstOrDefault(b => b.Id != Player.Id);
-            if (chall is not null)
-                return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = belt,
-                                        Context = DefenceContext($"{belt} title defence", chall) };
+                return new FightOffer { Opponent = chall, Rounds = 12, TitleFight = true, Belt = label,
+                                        Context = DefenceContext($"{label} title defence", chall) };
         }
 
         // The fight he is owed, or owes. A draw, a split card, a cut that stopped it, a night he was beaten by
@@ -363,9 +358,14 @@ public sealed partial class CareerGame
             }
             else                       // or challenge for it as a stepping stone to world level
             {
+                // AND NOT A WORLD CHAMPION. The defence branch above has always refused one; this one did
+                // not, and a man can hold a regional strap he won on the way up and a world belt at the same
+                // time — so the player was offered a reigning champion, in a fight for the NABF, and beating
+                // him won a national title and left the world belt where it was. Rare, and the sort of thing
+                // a player reads as the game losing track of who the champion is.
                 var rc = BeltHolder(region);
                 if (rc is not null && rc.Id != Player.Id && RegionOf(rc) == region && !DangerousProspect(rc)
-                    && !recentFoes.Contains(rc.Name))
+                    && !IsWorldChampion(rc) && !recentFoes.Contains(rc.Name))
                     return new FightOffer { Opponent = rc, Rounds = 12, TitleFight = true, Belt = region, Context = $"{region} title shot" };
             }
         }

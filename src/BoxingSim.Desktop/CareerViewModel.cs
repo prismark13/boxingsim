@@ -2079,7 +2079,11 @@ public sealed class CareerViewModel : Observable
     {
         var o = Game?.Offer;
         if (o?.TitleFight == true)
-            return o.Belt is "Undisputed" or "unification" ? Occasion.Unification : Occasion.Title;
+            // The CONTEXT, not the belt name. A unification is billed by the straps that are in the ring, so
+            // matching on the word "Undisputed" missed every one where the player was going after a rival
+            // champion's belt rather than defending the pair he already had.
+            return o.Context.StartsWith("unification") || o.Belt is "Undisputed"
+                 ? Occasion.Unification : Occasion.Title;
         int opp = (res.A.Id == Game?.Player.Id ? res.B : res.A).Overall;
         return res.ScheduledRounds >= 10 || opp >= 74 ? Occasion.Ranked : Occasion.Club;
     }
