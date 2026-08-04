@@ -18,7 +18,7 @@
          the same commit built as 1.0.0 is blocked at load while 0.9.8, 1.0.1 and 1.1.0 all start. It is the
          default version stamp an enormous amount of malware ships with, so it reads as a signal. See
          SHIPPING.md — this cost a published release that nobody could run. -->
-    <Version>1.0.5</Version>
+    <Version>1.0.6</Version>
     <!-- Shipping: one file, no debug symbols beside it, and everything it needs inside. -->
     <DebugType Condition="'$(Configuration)'=='Release'">none</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
