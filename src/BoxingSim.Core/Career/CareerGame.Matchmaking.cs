@@ -228,6 +228,34 @@ public sealed partial class CareerGame
         bool holdsWbc = WbcChampion?.Id == Player.Id;
         bool holdsIbf = IbfChampion?.Id == Player.Id;
 
+        // A UNIFICATION IS THE FIGHT A CAREER BUILDS TOWARD, and the player was the one man in the sport who
+        // could never be offered one. Two doors and both were shut on him: the world stages unifications
+        // between its own champions and excludes him by name, and the ladder below returns a routine defence
+        // the moment he holds anything — so the lines further down that would put a rival champion in front
+        // of him were unreachable for exactly the man they were written for.
+        //
+        // Measured over forty careers: thirty-seven held a world belt, twenty-four ended up holding two at
+        // once, and not one was ever OFFERED the second. He was becoming unified administratively — a belt
+        // falling vacant and landing on him — which is the one way it should never happen.
+        //
+        // The demand curve is the world's own: it builds with defences, because two established champions who
+        // each keep turning back challengers are the fight the public wants and a pair who have just won
+        // their belts have everything to lose. He is offered the RIVAL'S belt rather than some merged prize,
+        // which is what it actually is — win and he holds both, lose and he keeps his own.
+        if ((holdsWba ^ holdsWbc) && !holdsIbf)
+        {
+            var rival = holdsWba ? WbcChampion : Champion;
+            string rivalBelt = holdsWba ? "WBC" : PrimaryBelt;
+            string mine = holdsWba ? PrimaryBelt : "WBC";
+            if (rival is not null && rival.Id != Player.Id && _medical.Available(rival) && !RecentlyMovedUp(rival)
+                && _rng.NextDouble() < UnificationChance(Player.WeightClass, 0.15, 0.80))
+                return new FightOffer
+                {
+                    Opponent = rival, Rounds = 12, TitleFight = true, Belt = rivalBelt,
+                    Context = $"unification — his {rivalBelt} against your {mine}"
+                };
+        }
+
         // Defend a belt I already hold. Holding both senior belts means a single unified defence.
         if (holdsWba && holdsWbc)
         {
